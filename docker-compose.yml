@@ -1,0 +1,79 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: audiolab-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-audiolab_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-audiolab}
+      MYSQL_USER: ${MYSQL_USER:-audiolab}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-audiolab_password}
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: audiolab-backend
+    restart: unless-stopped
+    # 默认使用 CPU 镜像构建；若需要在容器中启用 GPU，请使用 `docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up -d`
+    environment:
+      DATABASE_URL: mysql+aiomysql://${MYSQL_USER:-audiolab}:${MYSQL_PASSWORD:-audiolab_password}@db:3306/${MYSQL_DATABASE:-audiolab}
+      JWT_SECRET: ${JWT_SECRET:-please-change-me}
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-mock}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      SEPARATION_ENGINE: ${SEPARATION_ENGINE:-mss}
+      MODEL_HTTP_URL: ${MODEL_HTTP_URL:-}
+      MODEL_HTTP_TIMEOUT_S: ${MODEL_HTTP_TIMEOUT_S:-300}
+      AUDIO_RESOURCE_DIR: /app/audio_resources
+      # ZFTurbo MSS 引擎配置（容器内路径）
+      MSS_ROOT_DIR: /app/mss
+      MSS_MDX23C_CKPT: /app/models/mss/model_mdx23c_ep_168_sdr_7.0207.ckpt
+      MSS_DEMUCS4HT_CKPT: /app/models/mss/955717e8-8726e21a.th
+      MSS_BS_ROFORMER_CKPT: /app/models/mss/model_bs_roformer_ep_17_sdr_9.6568.ckpt
+      MSS_SCNET_CKPT: /app/models/mss/scnet_checkpoint_musdb18.ckpt
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/uploads:/app/uploads
+      - ./backend/results:/app/results
+      - ./backend/audio_resources:/app/audio_resources
+      # 挂载 MSS 仓库和模型权重
+      - ./Music-Source-Separation-Training-main:/app/mss
+      - D:/code/models/mss:/app/models/mss
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: audiolab-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # CRA 在开发模式下会读取环境变量；浏览器访问宿主机端口
+      REACT_APP_API_BASE: ${REACT_APP_API_BASE:-http://localhost:8000}
+      HOST: 0.0.0.0
+      PORT: 3000
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      # 只挂载源码与 public，避免覆盖镜像里的 node_modules
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+
+volumes:
+  db_data:
+

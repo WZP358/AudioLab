@@ -1,0 +1,67 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: audiolab-db
+    restart: always
+    environment:
+      # ⚠️ 示例默认值：请用 .env 覆盖，避免在仓库里放明文密码
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-audiolab_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-audiolab}
+      MYSQL_USER: ${MYSQL_USER:-audiolab}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-audiolab_password}
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  backend:
+    build: .
+    container_name: audiolab-backend
+    restart: always
+    # GPU 支持配置（需要安装 nvidia-docker 或 Docker Desktop with WSL2 GPU support）
+    # Windows 用户：需要 Docker Desktop + WSL2 + NVIDIA GPU 驱动
+    # Linux 用户：需要安装 nvidia-container-toolkit
+    # 默认使用 CPU 运行容器以避免 GPU 兼容问题（若要在容器中启用 GPU，请按文档配置）
+    environment:
+      DATABASE_URL: mysql+aiomysql://${MYSQL_USER:-audiolab}:${MYSQL_PASSWORD:-audiolab_password}@db:3306/${MYSQL_DATABASE:-audiolab}
+      # JWT 密钥（请自行改成强随机）
+      JWT_SECRET: ${JWT_SECRET:-please-change-me}
+      # 邮件投递模式：smtp / mock（开发环境建议 mock）
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-mock}
+      # SMTP（仅当 EMAIL_DELIVERY_MODE=smtp 时需要）
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      # 分离引擎：mock/http/local/mss（四选一）。默认 mss。
+      SEPARATION_ENGINE: mss
+      # 如果要走独立模型服务：
+      # SEPARATION_ENGINE: http
+      # MODEL_HTTP_URL: http://model-service:9000/separate
+      # MODEL_HTTP_TIMEOUT_S: 300
+      # 强制在容器内使用 CPU（默认 true，避免在容器里使用 GPU 导致兼容问题）
+      MSS_FORCE_CPU: "true"
+      # 如需在容器中启用 GPU，请把上面值改为 "false" 并确保宿主机正确安装 NVIDIA Container Toolkit
+      # ZFTurbo MSS 引擎配置（容器内路径）
+      MSS_ROOT_DIR: /app/mss
+      MSS_MDX23C_CKPT: /app/models/mss/model_mdx23c_ep_168_sdr_7.0207.ckpt
+      MSS_DEMUCS4HT_CKPT: /app/models/mss/955717e8-8726e21a.th
+      MSS_BS_ROFORMER_CKPT: /app/models/mss/model_bs_roformer_ep_17_sdr_9.6568.ckpt
+      MSS_SCNET_CKPT: /app/models/mss/scnet_checkpoint_musdb18.ckpt
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+      - ./uploads:/app/uploads
+      - ./results:/app/results
+      - ./audio_resources:/app/audio_resources
+      # 挂载 MSS 仓库和模型权重
+      - ../Music-Source-Separation-Training-main:/app/mss
+      - D:/code/models/mss:/app/models/mss
+
+volumes:
+  db_data:
+
