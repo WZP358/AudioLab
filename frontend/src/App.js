@@ -101,6 +101,17 @@ const writeLocalScores = (scores) => {
   }
 };
 
+const genLocalId = () => {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {
+    // ignore
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 // --- Storage mode toggle (UI-only for now; Firestore not configured) ---
 // Note: Storage mode functions are kept for future use but currently unused
 
@@ -771,6 +782,10 @@ export default function AudioLabApp() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedAlgo, setSelectedAlgo] = useState(null);
   const [results, setResults] = useState(null);
+  // 客观指标：按 stem 缓存（需要用户上传金标准 reference 才能计算）
+  const [objectiveByStem, setObjectiveByStem] = useState({});
+  const [objectiveLoading, setObjectiveLoading] = useState(false);
+  const [objectiveError, setObjectiveError] = useState(null);
   const [taskId, setTaskId] = useState(null);
   const [progressText, setProgressText] = useState(""); // 进度文本
   // 可视化的时间视窗 [0,1]，0 和 1 分别代表整段音频的起止
@@ -801,6 +816,10 @@ export default function AudioLabApp() {
   const [backendStats, setBackendStats] = useState([]);
   const [algorithmComparison, setAlgorithmComparison] = useState([]);
   const [loadingStats, setLoadingStats] = useState(false);
+  // 当前专家自己的评分记录（用于“删除某一次手滑评分”）
+  const [myScoreRecords, setMyScoreRecords] = useState([]);
+  const [loadingMyScores, setLoadingMyScores] = useState(false);
+  const [myScoresError, setMyScoresError] = useState(null);
   
   // 通知相关状态
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
@@ -1292,6 +1311,87 @@ export default function AudioLabApp() {
     }
   }, [user]);
 
+  const fetchMyScores = useCallback(
+    async ({ skip = 0, limit = 100 } = {}) => {
+      if (!authToken || !user || user.role !== "expert") return;
+      setLoadingMyScores(true);
+      setMyScoresError(null);
+      try {
+        const resp = await fetch(
+          `${API_BASE}/api/scores/me?skip=${encodeURIComponent(skip)}&limit=${encodeURIComponent(limit)}`,
+          { headers: { Authorization: `Bearer ${authToken}` } },
+        );
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(text || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        setMyScoreRecords(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error("Failed to fetch my scores:", e);
+        const msg = e?.message || String(e);
+        setMyScoresError(msg);
+      } finally {
+        setLoadingMyScores(false);
+      }
+    },
+    [authToken, user],
+  );
+
+  const deleteMyScoreRecord = useCallback(
+    async (score) => {
+      if (!authToken || !user) return;
+      if (user.role !== "expert" && user.role !== "admin") return;
+      const scoreId = score?.id != null ? String(score.id) : "";
+      if (!scoreId) return;
+
+      const ok = typeof window !== "undefined"
+        ? window.confirm("确定删除这条评分记录吗？删除后无法恢复。")
+        : true;
+      if (!ok) return;
+
+      try {
+        const resp = await fetch(`${API_BASE}/api/scores/${encodeURIComponent(scoreId)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(text || `HTTP ${resp.status}`);
+        }
+
+        // 同步清理本地 localStorage 中可能存在的同一条记录（新版本会写 backendScoreId）
+        try {
+          const local = readLocalScores();
+          const nextLocal = local.filter((it) => String(it?.backendScoreId || "") !== scoreId);
+          if (nextLocal.length !== local.length) {
+            writeLocalScores(nextLocal);
+            setCommunityStats(
+              nextLocal.slice().sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0)),
+            );
+          }
+        } catch {
+          // ignore
+        }
+
+        showSuccess("评分记录已删除");
+        fetchMyScores({ skip: 0, limit: 100 });
+      } catch (e) {
+        console.error(e);
+        showError(`删除失败：${e?.message || e}`);
+      }
+    },
+    [authToken, user, showError, showSuccess, fetchMyScores],
+  );
+
+  // 当进入“社区评估数据”页时，拉取当前专家自己的评分列表（用于删除手滑记录）
+  useEffect(() => {
+    if (!user || !authToken) return;
+    if (user.role !== "expert") return;
+    if (currentView !== "stats") return;
+    fetchMyScores({ skip: 0, limit: 100 });
+  }, [user, authToken, currentView, fetchMyScores]);
+
   // Handlers
   /*const handleFileUpload = (e) => {
     // Simulate upload
@@ -1389,6 +1489,8 @@ export default function AudioLabApp() {
     setIsProcessing(true);
     setSelectedAlgo(algo);
     setResults(null);
+    setObjectiveByStem({});
+    setObjectiveError(null);
     setStems([]);
     setCurrentStem(null);
     setTaskId(null);
@@ -1831,6 +1933,59 @@ export default function AudioLabApp() {
     }
   };
 
+  const computeObjectiveMetrics = useCallback(async () => {
+    const taskIdStr = typeof taskId === "string" ? taskId : taskId != null ? String(taskId) : "";
+    const stemName = currentStem?.name;
+    const refFile = gtFileRef.current;
+
+    if (!taskIdStr) {
+      showError("没有可用的任务ID，请先完成一次分离任务");
+      return;
+    }
+    if (!stemName) {
+      showError("请先选择需要评估的 stem");
+      return;
+    }
+    if (!refFile) {
+      showError("请先上传金标准参考音轨（Gold Standard Stem）再计算客观指标");
+      return;
+    }
+
+    setObjectiveLoading(true);
+    setObjectiveError(null);
+    try {
+      const form = new FormData();
+      form.append("reference", refFile);
+      const resp = await fetch(
+        `${API_BASE}/api/tasks/${encodeURIComponent(taskIdStr)}/objective-metrics?target=${encodeURIComponent(stemName)}`,
+        { method: "POST", body: form },
+      );
+      const text = await resp.text();
+      if (!resp.ok) throw new Error(text || `HTTP ${resp.status}`);
+      const data = JSON.parse(text);
+
+      const next = {
+        sdr: typeof data?.sdr === "number" ? data.sdr : null,
+        sir: typeof data?.sir === "number" ? data.sir : null,
+        sar: typeof data?.sar === "number" ? data.sar : null,
+        comment: data?.comment || "",
+        target_stem: data?.target_stem || stemName,
+      };
+
+      setObjectiveByStem((prev) => ({ ...(prev || {}), [stemName]: next }));
+      // 兼容：仍然把最新值写回 results，避免其他地方只看 results
+      setResults(next);
+      showSuccess("客观指标计算完成");
+    } catch (e) {
+      console.error(e);
+      const msg = e?.message || String(e);
+      setObjectiveError(msg);
+      showError(`客观指标计算失败：${msg}`);
+    } finally {
+      setObjectiveLoading(false);
+    }
+  }, [currentStem?.name, showError, showSuccess, taskId]);
+
   const submitScore = async () => {
     if (!user || !selectedAlgo || !currentStem) {
       showError("请先选择需要评估的单一声源（stem），并完成分离任务。");
@@ -1875,7 +2030,9 @@ export default function AudioLabApp() {
       // );
 
       // --- localStorage version ---
+      const localId = genLocalId();
       const nextItem = {
+        localId,
         // 专家 / 用户标识
         userId: user.id,
         // 本次评估对应的分离任务与算法
@@ -1889,6 +2046,9 @@ export default function AudioLabApp() {
         objective: currentObjective,
         // 记录时间（用于排序与趋势分析）
         timestamp: Date.now(),
+        // 后端记录 ID（提交成功后补写），用于“删除单次评分记录”
+        backendScoreId: null,
+        backendCreatedAt: null,
       };
       const next = [nextItem, ...readLocalScores()];
       writeLocalScores(next);
@@ -1919,6 +2079,30 @@ export default function AudioLabApp() {
           showError("评分已保存到本地，但提交到后端失败（可查看控制台）");
           return;
         }
+
+        // 提交成功：把后端返回的 scoreId 写回本地记录，便于后续精准删除某一次评分
+        try {
+          const backendScore = await resp.json();
+          const backendId = backendScore?.id != null ? String(backendScore.id) : "";
+          const backendCreatedAt = backendScore?.created_at || null;
+          if (backendId) {
+            const localNow = readLocalScores();
+            const updated = localNow.map((it) =>
+              it?.localId === localId
+                ? { ...it, backendScoreId: backendId, backendCreatedAt }
+                : it,
+            );
+            writeLocalScores(updated);
+            setCommunityStats(
+              updated.slice().sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0)),
+            );
+          }
+        } catch (e) {
+          console.warn("后端返回解析失败（不影响评分保存）：", e);
+        }
+
+        // 刷新“我的评分记录”列表
+        fetchMyScores({ skip: 0, limit: 100 });
       }
 
       showSuccess("评分已提交（本地已保存，且已尝试提交到后端）！");
@@ -1929,75 +2113,115 @@ export default function AudioLabApp() {
   };
 
   // Aggregated Stats for Chart
-  const chartData = useMemo(() => {
-    if (communityStats.length === 0)
-      return [
-        { subject: "Audio Quality", A: 80, B: 65, fullMark: 100 },
-        { subject: "Interference", A: 75, B: 50, fullMark: 100 },
-        { subject: "Artifacts", A: 90, B: 70, fullMark: 100 },
-        { subject: "Dynamics", A: 85, B: 60, fullMark: 100 },
-        { subject: "Timbre", A: 88, B: 68, fullMark: 100 },
-      ];
+  const radarModel = useMemo(() => {
+    // 颜色映射（不在映射表内的算法用 fallback 配色）
+    const COLOR = {
+      "Demucs v4": "#06b6d4",
+      Spleeter: "#8b5cf6",
+      OpenUnmix: "#f59e0b",
+      MDX23C: "#22c55e",
+      Demucs4HT: "#38bdf8",
+      "Band Split RoFormer": "#a78bfa",
+      SCNet: "#fb7185",
+      Unknown: "#94a3b8",
+    };
+    const FALLBACK = ["#06b6d4", "#8b5cf6", "#22c55e", "#f59e0b", "#fb7185", "#a78bfa"];
 
-    // 根据本地存储的评分数据，按算法聚合整体趋势（不区分 stem，作为概览）
-    const aggByAlgo = {};
-    communityStats.forEach((item) => {
-      const algo = item.algorithm || "Unknown";
-      const s = item.scores || {};
-      const q = typeof s.quality === "number" ? s.quality : 0;
-      const i = typeof s.interference === "number" ? s.interference : 0;
-      const a = typeof s.artifacts === "number" ? s.artifacts : 0;
-      if (!aggByAlgo[algo]) {
-        aggByAlgo[algo] = {
-          count: 0,
-          quality: 0,
-          interference: 0,
-          artifacts: 0,
-        };
-      }
-      aggByAlgo[algo].count += 1;
-      aggByAlgo[algo].quality += q;
-      aggByAlgo[algo].interference += i;
-      aggByAlgo[algo].artifacts += a;
-    });
+    const makeSeries = (keys) =>
+      keys.map((k, idx) => ({
+        key: k,
+        color: COLOR[k] || FALLBACK[idx % FALLBACK.length],
+      }));
 
-    // 将聚合结果映射为简单的 "Overall"/"Interference Supp."/"Artifacts" 三个维度
-    const algos = Object.keys(aggByAlgo);
-    if (algos.length === 0) {
+    const toRadarData = (algoA, algoB, a, b) => {
+      const avg = (sum, count) => (count > 0 ? sum / count : 0);
       return [
-        { subject: "Audio Quality", A: 80, B: 65, fullMark: 100 },
-        { subject: "Interference", A: 75, B: 50, fullMark: 100 },
-        { subject: "Artifacts", A: 90, B: 70, fullMark: 100 },
+        {
+          subject: "Overall Quality",
+          [algoA]: avg(a.quality, a.count),
+          [algoB]: avg(b.quality, b.count),
+          fullMark: 100,
+        },
+        {
+          subject: "Interference Supp.",
+          [algoA]: avg(a.interference, a.count),
+          [algoB]: avg(b.interference, b.count),
+          fullMark: 100,
+        },
+        {
+          subject: "Artifacts",
+          // 这里的 artifacts 在 UI 语义是“伪影控制”分数（越高越好），不要再做 100-x 的反转
+          [algoA]: avg(a.artifacts, a.count),
+          [algoB]: avg(b.artifacts, b.count),
+          fullMark: 100,
+        },
       ];
+    };
+
+    // 1) 优先使用后端聚合统计（真实“全站”数据，每 30s 刷新一次）
+    if (Array.isArray(algorithmComparison) && algorithmComparison.length > 0) {
+      const sorted = algorithmComparison
+        .slice()
+        .sort((x, y) => (y?.total_scores || 0) - (x?.total_scores || 0));
+      const a0 = sorted[0];
+      const b0 = sorted[1] || sorted[0];
+      const algoA = a0?.algorithm || "Unknown";
+      const algoB = b0?.algorithm || algoA;
+      const a = {
+        count: a0?.total_scores || 0,
+        quality: (a0?.overall_avg_quality || 0) * (a0?.total_scores || 0),
+        interference:
+          (a0?.overall_avg_interference || 0) * (a0?.total_scores || 0),
+        artifacts: (a0?.overall_avg_artifacts || 0) * (a0?.total_scores || 0),
+      };
+      const b = {
+        count: b0?.total_scores || 0,
+        quality: (b0?.overall_avg_quality || 0) * (b0?.total_scores || 0),
+        interference:
+          (b0?.overall_avg_interference || 0) * (b0?.total_scores || 0),
+        artifacts: (b0?.overall_avg_artifacts || 0) * (b0?.total_scores || 0),
+      };
+      return {
+        source: "backend",
+        total: sorted.reduce((sum, it) => sum + (it?.total_scores || 0), 0),
+        series: makeSeries([algoA, algoB]),
+        data: toRadarData(algoA, algoB, a, b),
+      };
     }
 
-    const [algoA, algoB] = algos;
-    const aData = aggByAlgo[algoA];
-    const bData = aggByAlgo[algoB] || aData;
+    // 2) 没有后端统计时，退化到本地 localStorage 的评分聚合（仅当前浏览器）
+    if (Array.isArray(communityStats) && communityStats.length > 0) {
+      const aggByAlgo = {};
+      communityStats.forEach((item) => {
+        const algo = item.algorithm || "Unknown";
+        const s = item.scores || {};
+        const q = typeof s.quality === "number" ? s.quality : 0;
+        const i = typeof s.interference === "number" ? s.interference : 0;
+        const a = typeof s.artifacts === "number" ? s.artifacts : 0;
+        if (!aggByAlgo[algo]) {
+          aggByAlgo[algo] = { count: 0, quality: 0, interference: 0, artifacts: 0 };
+        }
+        aggByAlgo[algo].count += 1;
+        aggByAlgo[algo].quality += q;
+        aggByAlgo[algo].interference += i;
+        aggByAlgo[algo].artifacts += a;
+      });
+      const algos = Object.keys(aggByAlgo);
+      const algoA = algos[0];
+      const algoB = algos[1] || algos[0];
+      const a = aggByAlgo[algoA];
+      const b = aggByAlgo[algoB] || a;
+      return {
+        source: "local",
+        total: communityStats.length,
+        series: makeSeries([algoA, algoB]),
+        data: toRadarData(algoA, algoB, a, b),
+      };
+    }
 
-    const avg = (sum, count) => (count > 0 ? sum / count : 0);
-
-    return [
-      {
-        subject: "Overall Quality",
-        [algoA]: avg(aData.quality, aData.count),
-        [algoB]: avg(bData.quality, bData.count),
-        fullMark: 100,
-      },
-      {
-        subject: "Interference Supp.",
-        [algoA]: avg(aData.interference, aData.count),
-        [algoB]: avg(bData.interference, bData.count),
-        fullMark: 100,
-      },
-      {
-        subject: "Artifacts",
-        [algoA]: 100 - avg(aData.artifacts, aData.count),
-        [algoB]: 100 - avg(bData.artifacts, bData.count),
-        fullMark: 100,
-      },
-    ];
-  }, [communityStats]);
+    // 3) 完全无数据：不再返回“看起来像真的”占位值，让 UI 明确提示
+    return { source: "empty", total: 0, series: [], data: [] };
+  }, [communityStats, algorithmComparison]);
 
   // 按算法 + stem 统计主观评分，用于“社区评估数据”页中按 stem 展示
   const stemStats = useMemo(() => {
@@ -2243,6 +2467,7 @@ export default function AudioLabApp() {
                 {audioUrl && (
                   <CustomPlayer
                     src={audioUrl}
+                    syncedTime={syncedCurrentTime}
                     onUserSeek={(t) => seekAll(t, { skip: "input" })}
                     onPlaybackStateChange={(state) => {
                       // 如果开始播放，暂停其他播放器
@@ -2375,6 +2600,7 @@ export default function AudioLabApp() {
                           file={gtFileRef.current || (gtFile?.raw instanceof File ? gtFile.raw : null)}
                           onSelect={() => {}}
                           theme="purple"
+                          syncedTime={syncedCurrentTime}
                           onUserSeek={(t) => seekAll(t, { skip: "gold" })}
                           onPlaybackStateChange={(state) => {
                             // 如果开始播放，暂停其他播放器
@@ -2576,6 +2802,7 @@ export default function AudioLabApp() {
                           file={currentStem.file}
                           src={currentStem.src}
                           onSelect={() => {}}
+                          syncedTime={syncedCurrentTime}
                           onUserSeek={(t) => seekAll(t, { skip: "stem" })}
                           onPlaybackStateChange={(state) => {
                             // 如果开始播放，暂停其他播放器
@@ -2614,7 +2841,7 @@ export default function AudioLabApp() {
               </div>
 
               {/* Objective Metrics (Show after process) */}
-              {results && (
+              {(results || (stems && stems.length > 0)) && (
                 <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 animate-in fade-in slide-in-from-bottom-4">
                   <h3 
                     className="text-sm font-bold text-slate-400 uppercase mb-4 flex items-center gap-2 cursor-pointer hover:text-slate-300 transition"
@@ -2628,7 +2855,7 @@ export default function AudioLabApp() {
                     )}
                   </h3>
                 {!collapsedSections.objectiveMetrics && (
-                  <>
+                  <div>
               <div className="flex items-center gap-4 text-xs text-slate-400 mb-3">
                 <div>
                   算法: <span className="font-mono text-cyan-400">{selectedAlgo || "未选择"}</span>
@@ -2636,48 +2863,94 @@ export default function AudioLabApp() {
                 <div>
                   评估 Stem: <span className="font-mono text-cyan-400">{currentStem?.name || "未选择"}</span>
                 </div>
+                <div className="ml-auto flex items-center gap-2">
+                  {!gtFileRef.current ? (
+                    <span className="text-slate-500">
+                      未上传金标准参考音轨，SDR/SIR 将无法计算
+                    </span>
+                  ) : (
+                    <span className="text-slate-500">
+                      已上传金标准，可计算 SDR/SIR/SAR
+                    </span>
+                  )}
+                  <button
+                    onClick={computeObjectiveMetrics}
+                    disabled={
+                      objectiveLoading || !taskId || !currentStem?.name || !gtFileRef.current
+                    }
+                    className={`px-3 py-1 rounded border text-[11px] font-mono transition ${
+                      objectiveLoading || !taskId || !currentStem?.name || !gtFileRef.current
+                        ? "border-slate-700 text-slate-600 bg-slate-900/40 cursor-not-allowed"
+                        : "border-cyan-600/60 text-cyan-300 bg-cyan-600/10 hover:bg-cyan-600/20"
+                    }`}
+                    title="上传 Gold Standard Stem 后，点击计算 SDR/SIR/SAR"
+                  >
+                    {objectiveLoading ? "计算中..." : "计算指标"}
+                  </button>
+                </div>
               </div>
+              {objectiveError ? (
+                <div className="mb-3 text-xs text-red-300 bg-red-900/20 border border-red-700/40 rounded px-3 py-2">
+                  {objectiveError}
+                </div>
+              ) : null}
                   <div className="space-y-4">
                     <div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-slate-400">
-                          SDR (Signal-Distortion)
-                        </span>
-                        <span className="text-emerald-400 font-mono">
-                          {results.sdr != null ? results.sdr.toFixed(2) : 'N/A'} dB
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500"
-                          style={{ width: `${((results.sdr || 0) / 15) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-slate-400">
-                          SIR (Interference)
-                        </span>
-                        <span className="text-blue-400 font-mono">
-                          {results.sir != null ? results.sir.toFixed(2) : 'N/A'} dB
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-500"
-                          style={{ width: `${((results.sir || 0) / 20) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className="p-3 bg-slate-800 rounded border border-slate-600 text-xs text-slate-300 mt-4 leading-relaxed">
-                      <span className="text-cyan-400 font-bold">
-                        AI Summary:
-                      </span>{" "}
-                      {results.comment}
-                    </div>
+                      {(() => {
+                        const key = currentStem?.name;
+                        const cached = key && objectiveByStem?.[key] ? objectiveByStem[key] : null;
+                        const last =
+                          results &&
+                          (!key || !results.target_stem || results.target_stem === key)
+                            ? results
+                            : null;
+                        const m = cached || last || {};
+                        return (
+                          <>
+                            <div>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="text-slate-400">
+                                  SDR (Signal-Distortion)
+                                </span>
+                                <span className="text-emerald-400 font-mono">
+                                  {m.sdr != null ? m.sdr.toFixed(2) : "N/A"} dB
+                                </span>
+                              </div>
+                              <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-emerald-500"
+                                  style={{ width: `${(((m.sdr || 0) / 15) * 100)}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="text-slate-400">
+                                  SIR (Interference)
+                                </span>
+                                <span className="text-blue-400 font-mono">
+                                  {m.sir != null ? m.sir.toFixed(2) : "N/A"} dB
+                                </span>
+                              </div>
+                              <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-blue-500"
+                                  style={{ width: `${(((m.sir || 0) / 20) * 100)}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                            <div className="p-3 bg-slate-800 rounded border border-slate-600 text-xs text-slate-300 mt-4 leading-relaxed">
+                              <span className="text-cyan-400 font-bold">
+                                AI Summary:
+                              </span>{" "}
+                              {m.comment || (results && results.comment) || ""}
+                            </div>
+                          </>
+                        );
+                      })()}
                   </div>
-                  </>
+                  </div>
+                  </div>
                 )}
                 </div>
               )}
@@ -2946,12 +3219,25 @@ export default function AudioLabApp() {
                       <h4 className="text-xs font-bold text-slate-500 uppercase mb-4">
                         实时评分统计 (Radar)
                       </h4>
+                      {radarModel.source === "empty" && (
+                        <div className="text-xs text-slate-500 mb-2">
+                          暂无专家评分数据（提交评分后会自动显示聚合结果）
+                        </div>
+                      )}
+                      {radarModel.source !== "empty" && (
+                        <div className="text-[11px] text-slate-500 mb-2">
+                          数据源：
+                          {radarModel.source === "backend"
+                            ? `后端统计（共 ${radarModel.total} 份评分，约每30秒刷新）`
+                            : `本地浏览器（共 ${radarModel.total} 份评分）`}
+                        </div>
+                      )}
                       <ResponsiveContainer width="100%" height="100%">
                         <RadarChart
                           cx="50%"
                           cy="50%"
                           outerRadius="80%"
-                          data={chartData}
+                          data={radarModel.data}
                         >
                           <PolarGrid stroke="#334155" />
                           <PolarAngleAxis
@@ -2964,20 +3250,16 @@ export default function AudioLabApp() {
                             tick={false}
                             axisLine={false}
                           />
-                          <Radar
-                            name="Demucs v4"
-                            dataKey="Demucs"
-                            stroke="#06b6d4"
-                            fill="#06b6d4"
-                            fillOpacity={0.3}
-                          />
-                          <Radar
-                            name="Spleeter"
-                            dataKey="Spleeter"
-                            stroke="#8b5cf6"
-                            fill="#8b5cf6"
-                            fillOpacity={0.3}
-                          />
+                          {radarModel.series.map((s) => (
+                            <Radar
+                              key={s.key}
+                              name={s.key}
+                              dataKey={s.key}
+                              stroke={s.color}
+                              fill={s.color}
+                              fillOpacity={0.28}
+                            />
+                          ))}
                           <Legend wrapperStyle={{ fontSize: "10px" }} />
                           <RechartsTooltip
                             contentStyle={{
@@ -3016,6 +3298,88 @@ export default function AudioLabApp() {
                 </div>
               )}
             </div>
+
+            {/* 当前专家：我的评分记录（支持删除单条手滑记录） */}
+            {user?.role === "expert" && (
+              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-white">我的评分记录（可删除单条记录）</h3>
+                  <button
+                    onClick={() => fetchMyScores({ skip: 0, limit: 100 })}
+                    className="px-3 py-1.5 rounded border border-slate-600 text-xs text-slate-200 hover:bg-slate-700/50 transition"
+                    disabled={loadingMyScores}
+                    title="从后端刷新我的评分记录"
+                  >
+                    {loadingMyScores ? "刷新中..." : "刷新"}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400 mb-4">
+                  说明：这里展示的是<strong>后端数据库</strong>中的评分记录。点击“删除”会从后端移除该条评分，并尽量同步清理本地缓存。
+                </p>
+                {myScoresError ? (
+                  <div className="mb-4 text-xs text-red-300 bg-red-900/20 border border-red-700/40 rounded px-3 py-2">
+                    加载失败：{myScoresError}
+                  </div>
+                ) : null}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs text-left">
+                    <thead>
+                      <tr className="border-b border-slate-700 text-slate-400">
+                        <th className="py-2 pr-4">时间</th>
+                        <th className="py-2 pr-4">Algorithm</th>
+                        <th className="py-2 pr-4">Stem</th>
+                        <th className="py-2 pr-4 text-right">Quality</th>
+                        <th className="py-2 pr-4 text-right">Interference</th>
+                        <th className="py-2 pr-4 text-right">Artifacts</th>
+                        <th className="py-2 pr-4">TaskID</th>
+                        <th className="py-2 pr-4 text-right">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingMyScores && myScoreRecords.length === 0 ? (
+                        <tr>
+                          <td className="py-4 text-center text-slate-500" colSpan={8}>
+                            正在加载...
+                          </td>
+                        </tr>
+                      ) : myScoreRecords.length === 0 ? (
+                        <tr>
+                          <td className="py-4 text-center text-slate-500" colSpan={8}>
+                            暂无评分记录（你提交主观评分后会出现在这里）
+                          </td>
+                        </tr>
+                      ) : (
+                        myScoreRecords.map((row, idx) => (
+                          <tr
+                            key={String(row?.id || idx)}
+                            className="border-b border-slate-800 hover:bg-slate-900/60 transition"
+                          >
+                            <td className="py-2 pr-4 text-slate-300 font-mono">
+                              {row?.created_at ? String(row.created_at).replace("T", " ").slice(0, 19) : "-"}
+                            </td>
+                            <td className="py-2 pr-4 text-slate-200">{row?.algorithm || "-"}</td>
+                            <td className="py-2 pr-4 text-slate-300">{row?.stem_name || "ALL"}</td>
+                            <td className="py-2 pr-4 text-right text-emerald-400 font-mono">{row?.quality ?? "-"}</td>
+                            <td className="py-2 pr-4 text-right text-cyan-400 font-mono">{row?.interference ?? "-"}</td>
+                            <td className="py-2 pr-4 text-right text-orange-400 font-mono">{row?.artifacts ?? "-"}</td>
+                            <td className="py-2 pr-4 text-slate-500 font-mono">{row?.task_id ?? "-"}</td>
+                            <td className="py-2 pr-4 text-right">
+                              <button
+                                onClick={() => deleteMyScoreRecord(row)}
+                                className="px-2 py-1 rounded border border-red-700/50 text-red-300 hover:bg-red-900/20 transition"
+                                title="删除该条评分记录"
+                              >
+                                删除
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Cards */}

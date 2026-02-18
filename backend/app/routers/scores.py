@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, distinct
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from app.database import get_db
 from app.models import Score, Algorithm, Role, User
@@ -53,6 +53,58 @@ async def get_scores(
     )
     scores = result.scalars().all()
     return scores
+
+
+@router.get("/me", response_model=List[ScoreResponse])
+async def get_my_scores(
+    skip: int = 0,
+    limit: int = 100,
+    task_id: Optional[int] = None,
+    algorithm: Optional[Algorithm] = None,
+    stem_name: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取当前用户（专家）的评分记录列表"""
+    if current_user.role not in (Role.EXPERT, Role.ADMIN):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限查看评分记录")
+
+    q = select(Score).where(Score.user_id == str(current_user.id))
+    if task_id is not None:
+        q = q.where(Score.task_id == task_id)
+    if algorithm is not None:
+        q = q.where(Score.algorithm == algorithm)
+    if stem_name:
+        q = q.where(Score.stem_name == stem_name)
+
+    result = await db.execute(q.offset(skip).limit(limit).order_by(Score.created_at.desc()))
+    return result.scalars().all()
+
+
+@router.delete("/{score_id}")
+async def delete_score(
+    score_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """删除单条评分记录（专家仅可删除自己的记录；管理员可删除任意记录）"""
+    result = await db.execute(select(Score).where(Score.id == score_id))
+    score = result.scalars().first()
+    if not score:
+        raise HTTPException(status_code=404, detail="评分记录不存在")
+
+    # 权限控制
+    if current_user.role == Role.ADMIN:
+        pass
+    elif current_user.role == Role.EXPERT:
+        if str(current_user.id) != str(score.user_id):
+            raise HTTPException(status_code=403, detail="仅可删除自己的评分记录")
+    else:
+        raise HTTPException(status_code=403, detail="无权限删除评分记录")
+
+    await db.delete(score)
+    await db.commit()
+    return {"message": "评分记录已删除", "score_id": str(score_id)}
 
 
 @router.get("/stats", response_model=List[StatsResponse])

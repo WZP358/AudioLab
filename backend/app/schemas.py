@@ -73,6 +73,14 @@ class TaskAnalysisResponse(BaseModel):
         return str(value)
 
 
+class ObjectiveMetricsResponse(BaseModel):
+    target_stem: str
+    sdr: float
+    sir: float
+    sar: float
+    comment: Optional[str] = None
+
+
 class ScoreCreate(BaseModel):
     task_id: int
     algorithm: Algorithm

@@ -8,11 +8,13 @@ from pathlib import Path
 
 from app.database import get_db
 from app.models import SeparationTask, StemFile, TaskStatus, Algorithm, User
-from app.schemas import TaskResponse, StemResponse, TaskAnalysisResponse
+from app.schemas import TaskResponse, StemResponse, TaskAnalysisResponse, ObjectiveMetricsResponse
 from app.services.separation_service import process_separation
 from app.services.analysis_service import analyze_audio_file, analysis_to_payload
+from app.services.objective_metrics import compute_bss_metrics_two_source
 from app.utils.log_helper import get_client_ip, get_user_agent
 import logging
+import tempfile
 
 logger = logging.getLogger(__name__)
 
@@ -317,4 +319,91 @@ async def get_task_analysis(
         original=original,
         target=target_payload,
         stems=stems_payload if include_all_stems else None,
+    )
+
+
+@router.post("/{task_id}/objective-metrics", response_model=ObjectiveMetricsResponse)
+async def compute_objective_metrics(
+    task_id: str,
+    target: str = "Vocals",
+    reference: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    计算客观指标（SDR/SIR/SAR）。
+
+    说明：
+    - 需要你上传该 stem 的“金标准参考音轨”(reference)
+    - 使用两源假设：mixture = target + interference（干扰参考由 mixture - target 得到）
+    """
+    # 确保 task_id 是有效的整数（支持大整数）
+    try:
+        task_id_int = int(task_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="无效的任务ID")
+
+    task = await db.get(SeparationTask, task_id_int)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # 拉取 stems，找到目标 stem 的算法输出
+    from sqlalchemy import select, func
+
+    result = await db.execute(
+        select(StemFile).where(
+            (StemFile.task_id == task_id_int)
+            & (func.lower(StemFile.stem_name) == target.lower())
+        )
+    )
+    stem = result.scalars().first()
+    if not stem:
+        raise HTTPException(status_code=404, detail=f"Stem not found: {target}")
+
+    mixture_path = Path(task.file_path)
+    estimate_path = Path(stem.file_path)
+    if not mixture_path.exists():
+        raise HTTPException(status_code=404, detail="Mixture file not found")
+    if not estimate_path.exists():
+        raise HTTPException(status_code=404, detail="Estimated stem file not found")
+
+    # 保存 reference 到临时文件
+    tmp_dir = Path(tempfile.gettempdir()) / "audiolab_objective_metrics" / str(task_id_int)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(reference.filename or "reference").name
+    ref_path = tmp_dir / f"ref_{target}_{safe_name}"
+    try:
+        ref_bytes = await reference.read()
+        if not ref_bytes:
+            raise HTTPException(status_code=400, detail="reference 文件为空")
+        ref_path.write_bytes(ref_bytes)
+    finally:
+        await reference.close()
+
+    try:
+        m = compute_bss_metrics_two_source(
+            mixture_path=mixture_path,
+            estimate_path=estimate_path,
+            reference_target_path=ref_path,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "计算客观指标失败: task_id=%s target=%s err=%s",
+            task_id_int,
+            target,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"计算客观指标失败: {type(e).__name__}: {str(e)}",
+        )
+
+    return ObjectiveMetricsResponse(
+        target_stem=target,
+        sdr=float(m.sdr),
+        sir=float(m.sir),
+        sar=float(m.sar),
+        comment="已基于你上传的金标准参考 stem 计算 SDR/SIR/SAR（两源假设）。",
     )

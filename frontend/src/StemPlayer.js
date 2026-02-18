@@ -33,7 +33,7 @@ function createSilenceWav() {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
-export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateChange, onUserSeek, theme = "cyan" }) {
+export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateChange, onUserSeek, syncedTime, theme = "cyan" }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -237,6 +237,22 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
       audio.removeEventListener("pause", handlePause);
     };
   }, [url]);
+
+  // 外部“统一时间轴”同步：当自己不在播放时，让进度条跟随全局时间（并将音频指针同步到该位置，便于随时对齐播放）
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) return; // 正在播放时以自身为准，避免互相覆盖
+    if (typeof syncedTime !== "number" || !isFinite(syncedTime)) return;
+    if (!duration || duration <= 0) return;
+
+    const clampedTime = Math.max(0, Math.min(syncedTime, duration));
+    // 避免高频 setState 造成抖动
+    if (Math.abs(clampedTime - currentTime) < 0.03) return;
+
+    audio.currentTime = clampedTime;
+    setCurrentTime(clampedTime);
+  }, [syncedTime, playing, duration, currentTime]);
 
   // 使用 ref 保存回调，避免依赖变化导致无限循环
   const onPlaybackStateChangeRef = useRef(onPlaybackStateChange);

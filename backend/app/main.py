@@ -7,12 +7,27 @@ import os
 import logging
 from pathlib import Path
 import traceback
+from contextlib import asynccontextmanager
+from app.database import engine
 
 # 配置日志：只输出 WARNING 及以上级别（过滤掉正常的 INFO/DEBUG）
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn").setLevel(logging.WARNING)
 
-app = FastAPI(title="AudioLab Backend", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # startup：当前项目没有必须的启动逻辑
+    yield
+    # shutdown：显式释放 SQLAlchemy AsyncEngine 的连接池，避免热重载/退出时 aiomysql 在 __del__
+    # 里尝试回收连接却发现 event loop 已关闭，从而刷屏 "RuntimeError: Event loop is closed"
+    try:
+        await engine.dispose()
+    except Exception:
+        # 兜底：关闭阶段不阻塞退出
+        logging.exception("Failed to dispose async engine on shutdown")
+
+
+app = FastAPI(title="AudioLab Backend", version="0.1.0", lifespan=lifespan)
 
 # 添加CORS中间件，允许前端跨域访问
 app.add_middleware(
