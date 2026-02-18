@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { Play, Pause } from "lucide-react";
 
-export default function CustomPlayer({ src, onPlaybackStateChange }) {
+export default function CustomPlayer({ src, onPlaybackStateChange, onUserSeek }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -99,6 +99,9 @@ export default function CustomPlayer({ src, onPlaybackStateChange }) {
     const newTime = (e.target.value / 100) * duration;
     audio.currentTime = newTime;
     setCurrentTime(newTime);
+    if (typeof onUserSeek === "function") {
+      onUserSeek(newTime);
+    }
   };
 
   return (

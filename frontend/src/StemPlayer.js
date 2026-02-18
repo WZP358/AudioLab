@@ -33,7 +33,7 @@ function createSilenceWav() {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
-export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateChange, theme = "cyan" }) {
+export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateChange, onUserSeek, theme = "cyan" }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -275,6 +275,9 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
     const newTime = (e.target.value / 100) * duration;
     audio.currentTime = newTime;
     setCurrentTime(newTime);
+    if (typeof onUserSeek === "function") {
+      onUserSeek(newTime);
+    }
   };
 
   // 格式化时间为 MM:SS

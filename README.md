@@ -1173,6 +1173,14 @@ flowchart TD
 - **MSS_BS_ROFORMER_CKPT**：Band Split RoFormer 模型权重路径（默认 `/app/models/mss/model_bs_roformer_ep_17_sdr_9.6568.ckpt`）
 - **MSS_SCNET_CKPT**：SCNet 模型权重路径（默认 `/app/models/mss/scnet_checkpoint_musdb18.ckpt`）
 
+**可选：覆盖 MSS 配置文件（高级）**：
+- 你也可以通过环境变量覆盖每个模型的 `config_path`（不设置则使用 MSS 仓库 `configs/` 下的默认值）：
+  - **MSS_MDX23C_CONFIG**
+  - **MSS_DEMUCS4HT_CONFIG**
+  - **MSS_BS_ROFORMER_CONFIG**
+  - **MSS_SCNET_CONFIG**
+- 如果你遇到类似 `size mismatch ... to_freqs ... torch.Size([768, 384]) ... torch.Size([768, 192])` 的报错，基本可判定为 **checkpoint 与 config 不匹配**。此时请将 `MSS_BS_ROFORMER_CONFIG` 指向与你的 ckpt 版本匹配的配置文件（例如 `config_musdb18_bs_roformer_384_8_2_485100_sage.yaml` 或 `config_musdb18_bs_roformer.yaml`）。
+
 **模型文件挂载**（在 `docker-compose.yml` 中配置）：
 ```yaml
 volumes:

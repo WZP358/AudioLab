@@ -2,9 +2,17 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import declarative_base
 import os
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# 确保从 backend 目录加载 .env 文件
+backend_dir = Path(__file__).resolve().parent.parent
+env_path = backend_dir / ".env"
+load_dotenv(dotenv_path=env_path)
+if env_path.exists():
+    logging.info(f"已加载 .env 文件: {env_path}")
+else:
+    logging.warning(f".env 文件不存在: {env_path}，将使用系统环境变量")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "mysql+aiomysql://audiolab:audiolab@db:3306/audiolab")
 

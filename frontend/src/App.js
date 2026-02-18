@@ -772,22 +772,21 @@ export default function AudioLabApp() {
   const [selectedAlgo, setSelectedAlgo] = useState(null);
   const [results, setResults] = useState(null);
   const [taskId, setTaskId] = useState(null);
-  // 进度条相关状态
-  const [progress, setProgress] = useState(0); // 0-100
   const [progressText, setProgressText] = useState(""); // 进度文本
   // 可视化的时间视窗 [0,1]，0 和 1 分别代表整段音频的起止
   const [viewRange, setViewRange] = useState({ start: 0, end: 1 });
   // 按 stem 维度存储主观评分：stemName -> { quality, interference, artifacts }
   const [stemScores, setStemScores] = useState({});
 
-  // 当前播放的音频状态（用于波形图同步）
-  const [playbackState, setPlaybackState] = useState({
-    currentTime: 0,
-    duration: 0,
-    playing: false,
-    seek: null, // seek 函数
-    audioRef: null, // 当前播放的音频元素引用
-  });
+  // ---- 播放进度统一同步（Input / Gold / Stem 共用一条“全局时间轴”）----
+  const inputPlaybackRef = useRef(null);
+  const goldPlaybackRef = useRef(null);
+  const stemPlaybackRef = useRef(null);
+  const activePlayerKeyRef = useRef(null); // 'input' | 'gold' | 'stem' | null
+
+  const [syncedCurrentTime, setSyncedCurrentTime] = useState(0);
+  const [syncedDuration, setSyncedDuration] = useState(0);
+  const [syncedPlaying, setSyncedPlaying] = useState(false);
   
   // 保存三个播放器的引用，用于互斥播放
   const inputSourceAudioRef = useRef(null);
@@ -846,6 +845,82 @@ export default function AudioLabApp() {
       [section]: !prev[section]
     }));
   };
+
+  const computeMasterDuration = useCallback(() => {
+    const dInput = inputPlaybackRef.current?.duration;
+    const dGold = goldPlaybackRef.current?.duration;
+    const dStem = stemPlaybackRef.current?.duration;
+    const pick = (d) => (typeof d === "number" && isFinite(d) && d > 0 ? d : 0);
+    return pick(dInput) || pick(dGold) || pick(dStem) || 0;
+  }, []);
+
+  const computeAnyPlaying = useCallback(() => {
+    return !!(
+      inputPlaybackRef.current?.playing ||
+      goldPlaybackRef.current?.playing ||
+      stemPlaybackRef.current?.playing
+    );
+  }, []);
+
+  const seekAll = useCallback(
+    (time, options = {}) => {
+      const t = Math.max(0, typeof time === "number" && isFinite(time) ? time : 0);
+      const skip = options?.skip;
+
+      // 先更新全局时间，保证波形图进度线立即响应
+      setSyncedCurrentTime(t);
+      setSyncedDuration(computeMasterDuration());
+
+      const targets = [
+        { key: "input", ref: inputPlaybackRef },
+        { key: "gold", ref: goldPlaybackRef },
+        { key: "stem", ref: stemPlaybackRef },
+      ];
+
+      targets.forEach(({ key, ref }) => {
+        if (skip && key === skip) return;
+        const fn = ref.current?.seek;
+        if (typeof fn === "function") fn(t);
+      });
+    },
+    [computeMasterDuration],
+  );
+
+  const handlePlayerStateChange = useCallback(
+    (key, state) => {
+      if (!state) return;
+      if (key === "input") inputPlaybackRef.current = state;
+      if (key === "gold") goldPlaybackRef.current = state;
+      if (key === "stem") stemPlaybackRef.current = state;
+
+      if (state.playing) activePlayerKeyRef.current = key;
+
+      // duration：优先 Input（混合音），否则 gold/stem 兜底
+      setSyncedDuration(computeMasterDuration());
+
+      // playing：三者任意一个播放即为 true（实际逻辑上会互斥，但这里更健壮）
+      setSyncedPlaying(computeAnyPlaying());
+
+      // currentTime：只跟随“当前正在播放/最近活跃”的那一路，避免被其他暂停播放器的回调干扰
+      const activeKey = activePlayerKeyRef.current;
+      const shouldFollow =
+        state.playing || activeKey === key || activeKey === null;
+      if (shouldFollow && typeof state.currentTime === "number" && isFinite(state.currentTime)) {
+        setSyncedCurrentTime(state.currentTime);
+      }
+    },
+    [computeAnyPlaying, computeMasterDuration],
+  );
+
+  const playbackState = useMemo(
+    () => ({
+      currentTime: syncedCurrentTime,
+      duration: syncedDuration,
+      playing: syncedPlaying,
+      seek: (t) => seekAll(t),
+    }),
+    [syncedCurrentTime, syncedDuration, syncedPlaying, seekAll],
+  );
 
   // 根据当前视窗计算等效放大倍数，供 UI 展示
   const zoomLevel = useMemo(() => {
@@ -1289,6 +1364,27 @@ export default function AudioLabApp() {
     setAudioUrl(url);
   };
 
+  const notifySeparationDone = useCallback(
+    (algoName) => {
+      const msg = algoName ? `处理完成：${algoName}` : "处理完成";
+      showSuccess(msg);
+      // 如果用户切到其他标签页，且已授权系统通知，则额外发一个系统通知（不主动弹权限请求）
+      try {
+        if (
+          document?.hidden &&
+          typeof window !== "undefined" &&
+          "Notification" in window &&
+          Notification.permission === "granted"
+        ) {
+          new Notification("AudioLab", { body: msg });
+        }
+      } catch (e) {
+        // ignore
+      }
+    },
+    [showSuccess],
+  );
+
   const runSeparation = async (algo) => {
     setIsProcessing(true);
     setSelectedAlgo(algo);
@@ -1296,7 +1392,6 @@ export default function AudioLabApp() {
     setStems([]);
     setCurrentStem(null);
     setTaskId(null);
-    setProgress(0);
     setProgressText("准备上传文件...");
 
     try {
@@ -1307,7 +1402,6 @@ export default function AudioLabApp() {
       }
 
       // 1) 上传文件，创建任务
-      setProgress(5);
       setProgressText("正在上传音频文件...");
       const form = new FormData();
       form.append("file", rawFile);
@@ -1339,7 +1433,6 @@ export default function AudioLabApp() {
       }
       
       setTaskId(taskIdStr);
-      setProgress(10);
       setProgressText("任务已创建，等待处理...");
 
       // 2) 轮询任务状态直到完成/失败
@@ -1383,44 +1476,17 @@ export default function AudioLabApp() {
       };
 
       let t = await poll();
-      const startTime = Date.now();
-      
-      // 根据算法类型估算处理时间（秒）
-      const estimatedTimeMap = {
-        "MDX23C": 300, // 5分钟
-        "Demucs4HT": 240, // 4分钟
-        "Band Split RoFormer": 360, // 6分钟
-        "SCNet": 300, // 5分钟
-      };
-      const estimatedTime = estimatedTimeMap[algo] || 300; // 默认5分钟
+      let lastStatus = null;
       
       while (t.status === "pending" || t.status === "processing") {
-        const elapsed = (Date.now() - startTime) / 1000; // 已用时间（秒）
-        
-        // 根据状态和已用时间计算进度
-        if (t.status === "pending") {
-          setProgress(10 + Math.min(20, (elapsed / 10) * 20)); // 10-30%
-          setProgressText("任务排队中，请稍候...");
-        } else if (t.status === "processing") {
-          // 处理中：基于已用时间和预估时间计算进度
-          const baseProgress = 30; // 从30%开始
-          const timeBasedProgress = Math.min(85, baseProgress + (elapsed / estimatedTime) * 55);
-          setProgress(timeBasedProgress);
-          
-          // 显示已用时间和预估剩余时间
-          const minutes = Math.floor(elapsed / 60);
-          const seconds = Math.floor(elapsed % 60);
-          const remaining = Math.max(0, estimatedTime - elapsed);
-          const remainingMinutes = Math.floor(remaining / 60);
-          const remainingSeconds = Math.floor(remaining % 60);
-          
-          if (remaining > 0) {
-            setProgressText(
-              `正在处理中... (已用时: ${minutes}分${seconds}秒, 预计剩余: ${remainingMinutes}分${remainingSeconds}秒)`
-            );
-          } else {
-            setProgressText(`正在处理中... (已用时: ${minutes}分${seconds}秒, 即将完成)`);
+        if (t.status !== lastStatus) {
+          if (t.status === "pending") {
+            setProgressText("任务排队中，请稍候...");
+          } else if (t.status === "processing") {
+            // 不展示进度条，仅提示处理中
+            setProgressText("正在处理中...");
           }
+          lastStatus = t.status;
         }
         
         await new Promise((res) => setTimeout(res, 1200));
@@ -1428,7 +1494,6 @@ export default function AudioLabApp() {
       }
       
       if (t.status !== "completed") {
-        setProgress(0);
         setProgressText("");
         // 如果任务有错误信息，显示它
         const errorMsg = t.comment || "任务失败或被中断";
@@ -1436,7 +1501,6 @@ export default function AudioLabApp() {
       }
       
       // 任务完成
-      setProgress(90);
       setProgressText("处理完成，正在加载结果...");
 
       // 3) 拉取 stems 列表，并用下载链接作为播放源
@@ -1453,8 +1517,6 @@ export default function AudioLabApp() {
       }
       
       const stemList = JSON.parse(stemsResponseText);
-      
-      setProgress(100);
       setProgressText("完成！");
       
       const stemsMapped = (stemList || []).map((s) => {
@@ -1508,6 +1570,7 @@ export default function AudioLabApp() {
       })));
 
       setStems(stemsWithFiles);
+      notifySeparationDone(algo);
 
       // 如果有鼓轨，默认选中鼓轨用于对比；否则选第一条
       const defaultStem =
@@ -1762,17 +1825,9 @@ export default function AudioLabApp() {
     } catch (e) {
       console.error(e);
       showError(`分离失败：${e?.message || e}`);
-      setProgress(0);
       setProgressText("");
     } finally {
       setIsProcessing(false);
-      // 延迟重置进度，让用户看到完成状态
-      if (progress === 100) {
-        setTimeout(() => {
-          setProgress(0);
-          setProgressText("");
-        }, 2000);
-      }
     }
   };
 
@@ -2188,6 +2243,7 @@ export default function AudioLabApp() {
                 {audioUrl && (
                   <CustomPlayer
                     src={audioUrl}
+                    onUserSeek={(t) => seekAll(t, { skip: "input" })}
                     onPlaybackStateChange={(state) => {
                       // 如果开始播放，暂停其他播放器
                       const wasPlaying = previousPlayingState.current.input;
@@ -2210,7 +2266,7 @@ export default function AudioLabApp() {
                         }
                       }
                       
-                      setPlaybackState(state);
+                      handlePlayerStateChange("input", state);
                     }}
                   />
                 )}
@@ -2319,6 +2375,7 @@ export default function AudioLabApp() {
                           file={gtFileRef.current || (gtFile?.raw instanceof File ? gtFile.raw : null)}
                           onSelect={() => {}}
                           theme="purple"
+                          onUserSeek={(t) => seekAll(t, { skip: "gold" })}
                           onPlaybackStateChange={(state) => {
                             // 如果开始播放，暂停其他播放器
                             const wasPlaying = previousPlayingState.current.gold;
@@ -2341,7 +2398,7 @@ export default function AudioLabApp() {
                               }
                             }
                             
-                            setPlaybackState(state);
+                            handlePlayerStateChange("gold", state);
                           }}
                         />
                       </div>
@@ -2425,36 +2482,14 @@ export default function AudioLabApp() {
                       />
                     )}
                   </div>
-                  {/* 进度条显示 */}
+                  {/* 处理中提示（不显示进度条） */}
                   {isProcessing && (
-                    <div className="mt-4 space-y-2">
-                      <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                        <span className="flex items-center gap-2">
-                          <Activity size={14} className="text-cyan-400 animate-pulse" />
-                          {progressText || "处理中..."}
-                        </span>
-                        <span className="font-mono text-cyan-400">{Math.round(progress)}%</span>
-                      </div>
-                      <div className="w-full h-2.5 bg-slate-700/50 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400 transition-all duration-500 ease-out relative"
-                          style={{ width: `${progress}%` }}
-                        >
-                          <div 
-                            className="absolute inset-0"
-                            style={{
-                              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-                              animation: 'shimmer 2s infinite',
-                              backgroundSize: '200% 100%',
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                      {progress > 0 && progress < 100 && (
-                        <div className="text-[10px] text-slate-500 text-center mt-1">
-                          请耐心等待，处理时间取决于音频长度和算法复杂度
-                        </div>
-                      )}
+                    <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
+                      <div className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-cyan-400" />
+                      <span className="flex items-center gap-2">
+                        <Activity size={14} className="text-cyan-400 animate-pulse" />
+                        {progressText || "处理中..."}
+                      </span>
                     </div>
                   )}
                   {/* 选中状态指示
@@ -2541,6 +2576,7 @@ export default function AudioLabApp() {
                           file={currentStem.file}
                           src={currentStem.src}
                           onSelect={() => {}}
+                          onUserSeek={(t) => seekAll(t, { skip: "stem" })}
                           onPlaybackStateChange={(state) => {
                             // 如果开始播放，暂停其他播放器
                             const wasPlaying = previousPlayingState.current.separated;
@@ -2563,7 +2599,7 @@ export default function AudioLabApp() {
                               }
                             }
                             
-                            setPlaybackState(state);
+                            handlePlayerStateChange("stem", state);
                           }}
                         />
                       </div>

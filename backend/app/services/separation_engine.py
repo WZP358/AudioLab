@@ -1,6 +1,8 @@
 import base64
 import os
 import logging
+import re
+import platform
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -14,8 +16,55 @@ import sys
 import httpx
 
 from app.models import Algorithm
+from app.utils.progress import print_progress_text, print_progress_bar
 
 logger = logging.getLogger(__name__)
+
+# Windows 上修复 asyncio 子进程问题
+if platform.system() == "Windows":
+    # 设置 Windows 事件循环策略以支持子进程
+    if sys.version_info >= (3, 8):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    else:
+        # Python 3.7 及以下版本
+        loop = asyncio.get_event_loop()
+        if isinstance(loop, asyncio.ProactorEventLoop):
+            asyncio.set_event_loop(asyncio.new_event_loop())
+
+
+# Windows 上运行子进程的辅助函数（同步）
+def _run_subprocess_windows(cmd, task_prefix):
+    """Windows 上运行子进程的辅助函数（同步）"""
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        universal_newlines=True
+    )
+
+    stdout_lines = []
+    last_progress = 0
+
+    # 实时读取输出
+    for line in proc.stdout:
+        line = line.rstrip()
+        if line:
+            stdout_lines.append(line)
+
+            # 尝试解析进度信息
+            progress_match = re.search(r'(\d+)%', line)
+            if progress_match:
+                progress = int(progress_match.group(1))
+                if progress != last_progress:
+                    print_progress_bar(progress, 100, prefix=f"{task_prefix} 分离进度", suffix=line[:50])
+                    last_progress = progress
+            elif any(keyword in line.lower() for keyword in ['epoch', 'batch', 'step', 'processing']):
+                print_progress_text(f"{task_prefix} {line[:80]}", clear_line=True)
+
+    returncode = proc.wait()
+    return returncode, stdout_lines, []
 
 
 @dataclass(frozen=True)
@@ -33,7 +82,7 @@ class SeparationResult:
 
 class SeparationEngine:
     async def separate(
-        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path
+        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None
     ) -> SeparationResult:
         raise NotImplementedError
 
@@ -54,14 +103,18 @@ class _MSSModelSpec:
 
 class MockSeparationEngine(SeparationEngine):
     async def separate(
-        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path
+        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None
     ) -> SeparationResult:
+        task_prefix = f"[任务 {task_id}]" if task_id else "[Mock]"
+        print_progress_text(f"{task_prefix} 开始 Mock 分离处理...")
+        
         results_dir.mkdir(parents=True, exist_ok=True)
         stem_names = ["Vocals", "Drums", "Bass", "Other"]
         stems: Dict[str, Path] = {}
 
         # 为了让"可视化分析/播放"更接近真实链路：mock 也输出可听的 WAV
         # 做法：用 ffmpeg 对输入音频进行不同的处理，为每个 stem 生成不同的音频内容
+        print_progress_text(f"{task_prefix} 准备输入文件...")
         with tempfile.TemporaryDirectory(prefix="audiolab_mock_") as td:
             base_wav = Path(td) / "base.wav"
             cmd_base = [
@@ -83,6 +136,7 @@ class MockSeparationEngine(SeparationEngine):
             proc_base = subprocess.run(cmd_base, capture_output=True, text=True)
 
             if proc_base.returncode == 0 and base_wav.exists() and base_wav.stat().st_size > 0:
+                print_progress_text(f"{task_prefix} 转换音频格式完成，开始生成 stems...")
                 # 为每个 stem 生成不同的音频内容
                 stem_filters = {
                     "Vocals": "highpass=f=200,volume=0.8",  # 高通滤波，保留高频（人声）
@@ -91,7 +145,9 @@ class MockSeparationEngine(SeparationEngine):
                     "Other": "volume=0.7,treble=g=-5",       # 降低高音，模拟其他乐器
                 }
                 
-                for stem_name in stem_names:
+                total_stems = len(stem_names)
+                for idx, stem_name in enumerate(stem_names, 1):
+                    print_progress_bar(idx, total_stems, prefix=f"{task_prefix} 生成 stems", suffix=f"{stem_name}")
                     stem_path = results_dir / f"{stem_name}.wav"
                     filter_complex = stem_filters.get(stem_name, "volume=0.8")
                     
@@ -123,6 +179,7 @@ class MockSeparationEngine(SeparationEngine):
                         stem_path.write_bytes(base_wav.read_bytes())
                         stems[stem_name] = stem_path
             else:
+                print_progress_text(f"{task_prefix} 音频转换失败，使用正弦波生成...")
                 # 兜底：为每个 stem 生成不同频率的正弦波（避免 0 字节导致 416）
                 import math
                 
@@ -133,7 +190,9 @@ class MockSeparationEngine(SeparationEngine):
                     "Other": 330.0,   # E4 音符
                 }
                 
-                for stem_name in stem_names:
+                total_stems = len(stem_names)
+                for idx, stem_name in enumerate(stem_names, 1):
+                    print_progress_bar(idx, total_stems, prefix=f"{task_prefix} 生成正弦波", suffix=f"{stem_name}")
                     stem_path = results_dir / f"{stem_name}.wav"
                     freq = stem_frequencies.get(stem_name, 440.0)
                     
@@ -195,7 +254,9 @@ class MSSLocalEngine(SeparationEngine):
         ),
         Algorithm.BAND_SPLIT_ROFORMER: _MSSModelSpec(
             model_type="bs_roformer",
-            default_config="config_musdb18_bs_roformer.yaml",
+            # 与 README 推荐的 `model_bs_roformer_ep_17_sdr_9.6568.ckpt` 匹配的是 384 维配置；
+            # 若你使用了其他变体（例如 dim=192），可通过环境变量 MSS_BS_ROFORMER_CONFIG 覆盖。
+            default_config="config_musdb18_bs_roformer_384.yaml",
             config_env="MSS_BS_ROFORMER_CONFIG",
             ckpt_env="MSS_BS_ROFORMER_CKPT",
         ),
@@ -268,7 +329,7 @@ class MSSLocalEngine(SeparationEngine):
         return spec, config_path, ckpt_path
 
     async def separate(
-        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path
+        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None
     ) -> SeparationResult:
         """
         使用 MSS 仓库的 inference.py 对单个音频文件做分离。
@@ -279,14 +340,17 @@ class MSSLocalEngine(SeparationEngine):
         3. 扫描 results_dir 下生成的 `<file_name>/<instr>.wav`，
            统一整理为 Vocals/Drums/Bass/Other 等 stem 名。
         """
+        task_prefix = f"[任务 {task_id}]" if task_id else "[MSS]"
         results_dir.mkdir(parents=True, exist_ok=True)
 
         if not input_path.exists():
             raise FileNotFoundError(f"输入文件不存在: {input_path}")
 
+        print_progress_text(f"{task_prefix} 准备模型配置...")
         spec, config_path, ckpt_path = self._resolve_model_spec(algorithm)
 
         # 为 inference.py 准备临时输入目录
+        print_progress_text(f"{task_prefix} 准备输入文件...")
         with tempfile.TemporaryDirectory(prefix="audiolab_mss_in_") as in_dir_str:
             in_dir = Path(in_dir_str)
             tmp_input = in_dir / input_path.name
@@ -315,25 +379,80 @@ class MSSLocalEngine(SeparationEngine):
                 "启动 MSS inference 子进程: %s",
                 " ".join(cmd),
             )
+            print_progress_text(f"{task_prefix} 启动分离进程...")
 
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await proc.communicate()
-
-            stdout_text = stdout.decode(errors="ignore") if stdout else ""
-            stderr_text = stderr.decode(errors="ignore") if stderr else ""
+            # Windows 上使用同步 subprocess 在线程中运行，其他平台使用异步
+            if platform.system() == "Windows":
+                # 在线程中运行同步 subprocess
+                returncode, stdout_lines, stderr_lines = await asyncio.to_thread(
+                    _run_subprocess_windows, cmd, task_prefix
+                )
+                stdout_text = '\n'.join(stdout_lines)
+                stderr_text = '\n'.join(stderr_lines)
+            else:
+                # Linux/Mac 使用异步 subprocess
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,  # 合并 stderr 到 stdout
+                )
+                
+                # 实时读取输出并显示进度
+                stdout_lines = []
+                stderr_lines = []
+                last_progress = 0
+                
+                async def read_stream(stream, is_stdout=True):
+                    """实时读取流并解析进度"""
+                    nonlocal last_progress
+                    buffer = ""
+                    while True:
+                        chunk = await stream.read(1024)
+                        if not chunk:
+                            break
+                        buffer += chunk.decode(errors="ignore")
+                        lines = buffer.split('\n')
+                        buffer = lines[-1]  # 保留不完整的行
+                        
+                        for line in lines[:-1]:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            
+                            if is_stdout:
+                                stdout_lines.append(line)
+                            else:
+                                stderr_lines.append(line)
+                            
+                            # 尝试解析进度信息
+                            # 常见的进度格式：百分比、进度条、epoch/batch 等
+                            progress_match = re.search(r'(\d+)%', line)
+                            if progress_match:
+                                progress = int(progress_match.group(1))
+                                if progress != last_progress:
+                                    print_progress_bar(progress, 100, prefix=f"{task_prefix} 分离进度", suffix=line[:50])
+                                    last_progress = progress
+                            elif any(keyword in line.lower() for keyword in ['epoch', 'batch', 'step', 'processing']):
+                                # 显示关键信息
+                                print_progress_text(f"{task_prefix} {line[:80]}", clear_line=True)
+                
+                # 读取 stdout（stderr 已合并）
+                await read_stream(proc.stdout, is_stdout=True)
+                
+                # 等待进程完成
+                returncode = await proc.wait()
+                
+                stdout_text = '\n'.join(stdout_lines)
+                stderr_text = '\n'.join(stderr_lines)
 
             if stdout_text:
                 logger.debug("MSS inference stdout:\n%s", stdout_text)
             if stderr_text:
                 logger.warning("MSS inference stderr:\n%s", stderr_text)
 
-            if proc.returncode != 0:
+            if returncode != 0:
                 # 构建详细的错误消息
-                error_msg = f"MSS inference 运行失败，exit code={proc.returncode}。"
+                error_msg = f"MSS inference 运行失败，exit code={returncode}。"
                 if stderr_text:
                     # 提取最后几行错误信息（通常最重要的错误在最后）
                     stderr_lines = stderr_text.strip().split('\n')
@@ -346,10 +465,30 @@ class MSSLocalEngine(SeparationEngine):
                     last_lines = stdout_lines[-5:] if len(stdout_lines) > 5 else stdout_lines
                     error_details = '\n'.join(last_lines)
                     error_msg += f"\n输出信息：\n{error_details}"
+
+                # 针对常见“checkpoint 与 config 不匹配”的报错，追加可操作的修复建议
+                combined_text = f"{stderr_text}\n{stdout_text}".lower()
+                if "size mismatch" in combined_text and "to_freqs" in combined_text:
+                    # Band Split RoFormer 最常见：dim=384 vs dim=192
+                    if algorithm == Algorithm.BAND_SPLIT_ROFORMER:
+                        # 这里不依赖 torch（后端主进程刻意避免重依赖），仅基于日志文本启发式提示
+                        if ("torch.size([768, 384])" in combined_text and "torch.size([768, 192])" in combined_text):
+                            error_msg += (
+                                "\n\n可能原因：Band Split RoFormer 的 checkpoint 与 config 结构不匹配（384 vs 192）。\n"
+                                "修复方式：使用与 checkpoint 匹配的配置文件。\n"
+                                "- 推荐：使用 `config_musdb18_bs_roformer_384_8_2_485100_sage.yaml`\n"
+                                "- 或设置环境变量 `MSS_BS_ROFORMER_CONFIG` 指向该 yaml（覆盖默认配置）"
+                            )
+                        elif ("torch.size([768, 192])" in combined_text and "torch.size([768, 384])" in combined_text):
+                            error_msg += (
+                                "\n\n可能原因：Band Split RoFormer 的 checkpoint 与 config 结构不匹配（192 vs 384）。\n"
+                                "修复方式：将 `MSS_BS_ROFORMER_CONFIG` 切换到与你 checkpoint 对应的配置（例如 dim=192 的 `config_musdb18_bs_roformer.yaml`）。"
+                            )
                 
                 raise RuntimeError(error_msg)
 
         # 解析输出的 stems
+        print_progress_text(f"{task_prefix} 解析输出结果...")
         # 期望目录结构：results_dir/<file_stem>/<instr>.wav
         out_dir = results_dir / file_stem
         if not out_dir.exists():
@@ -372,6 +511,7 @@ class MSSLocalEngine(SeparationEngine):
             "instrumental": "Instrumental",
         }
 
+        found_stems = []
         for p in out_dir.rglob("*"):
             if not p.is_file():
                 continue
@@ -414,12 +554,16 @@ class MSSLocalEngine(SeparationEngine):
 
             if final_path.exists() and final_path.stat().st_size > 0:
                 stems[stem_name] = final_path
+                found_stems.append(stem_name)
+                print_progress_text(f"{task_prefix} 找到 stem: {stem_name}")
 
         if not stems:
             raise RuntimeError(
                 f"MSS inference 未生成任何有效的 stem 文件，请检查模型配置和输入音频。"
             )
 
+        print_progress_text(f"{task_prefix} ✓ 分离完成，生成了 {len(stems)} 个 stems: {', '.join(found_stems)}")
+        
         # 当前不从 MSS 返回客观指标，统一为 None，后续如需要可以从 valid.py 补充
         return SeparationResult(
             stems=stems,
@@ -487,7 +631,7 @@ class HttpSeparationEngine(SeparationEngine):
         logger.info(f"HttpSeparationEngine 初始化: url={url}, timeout={timeout_s}s")
 
     async def separate(
-        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path
+        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None
     ) -> SeparationResult:
         """
         调用远程 HTTP API 进行音频分离
@@ -496,6 +640,7 @@ class HttpSeparationEngine(SeparationEngine):
             input_path: 输入音频文件路径
             algorithm: 要使用的算法
             results_dir: 结果输出目录
+            task_id: 任务ID（用于进度显示）
             
         Returns:
             SeparationResult: 包含分离后的 stems 和可选的客观指标
@@ -506,6 +651,7 @@ class HttpSeparationEngine(SeparationEngine):
             httpx.RequestError: 网络请求错误
             ValueError: 响应格式错误或缺少必要字段
         """
+        task_prefix = f"[任务 {task_id}]" if task_id else "[HTTP]"
         results_dir.mkdir(parents=True, exist_ok=True)
         
         if not input_path.exists():
@@ -516,15 +662,20 @@ class HttpSeparationEngine(SeparationEngine):
             f"开始调用 HTTP 分离服务: url={self._url}, "
             f"algorithm={algorithm.value}, file={input_path.name}, size={file_size} bytes"
         )
+        print_progress_text(f"{task_prefix} 准备上传文件到 HTTP 服务...")
+        print_progress_text(f"{task_prefix} 文件大小: {file_size / 1024 / 1024:.2f} MB")
 
         try:
+            print_progress_text(f"{task_prefix} 正在上传文件并等待处理...")
             async with httpx.AsyncClient(timeout=self._timeout_s) as client:
                 with open(input_path, "rb") as f:
                     files = {"file": (input_path.name, f, "application/octet-stream")}
                     data = {"algorithm": str(algorithm.value)}
                     
                     logger.debug(f"发送请求到 {self._url}, algorithm={algorithm.value}")
+                    print_progress_bar(50, 100, prefix=f"{task_prefix} HTTP 请求", suffix="上传中...")
                     resp = await client.post(self._url, files=files, data=data)
+                    print_progress_bar(80, 100, prefix=f"{task_prefix} HTTP 请求", suffix="处理中...")
 
                 resp.raise_for_status()
                 payload = resp.json()
@@ -554,10 +705,12 @@ class HttpSeparationEngine(SeparationEngine):
             raise ValueError(error_msg)
 
         # 解码并保存 stems
+        print_progress_text(f"{task_prefix} 接收响应，开始解码 stems...")
         stems: Dict[str, Path] = {}
         expected_stems = ["Vocals", "Drums", "Bass", "Other"]
         
-        for stem_name, b64 in stems_b64.items():
+        total_stems = len(stems_b64)
+        for idx, (stem_name, b64) in enumerate(stems_b64.items(), 1):
             if not isinstance(stem_name, str) or not isinstance(b64, str):
                 logger.warning(f"跳过无效的 stem 条目: stem_name={stem_name}, type={type(b64)}")
                 continue
@@ -572,6 +725,7 @@ class HttpSeparationEngine(SeparationEngine):
                 out_path.write_bytes(raw)
                 stems[stem_name] = out_path
                 logger.debug(f"已保存 stem: {stem_name}, size={len(raw)} bytes")
+                print_progress_bar(idx, total_stems, prefix=f"{task_prefix} 保存 stems", suffix=f"{stem_name} ({len(raw) / 1024:.1f} KB)")
                 
             except Exception as e:
                 logger.error(f"解码/保存 stem {stem_name} 时出错: {type(e).__name__}, {str(e)}")
@@ -605,6 +759,7 @@ class HttpSeparationEngine(SeparationEngine):
             f"HTTP 分离完成: stems={list(stems.keys())}, "
             f"metrics={{sdr={sdr}, sir={sir}, sar={sar}}}"
         )
+        print_progress_text(f"{task_prefix} ✓ HTTP 分离完成，生成了 {len(stems)} 个 stems")
 
         return SeparationResult(
             stems=stems,
@@ -629,7 +784,7 @@ class LocalSeparationEngine(SeparationEngine):
         self._command = command
 
     async def separate(
-        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path
+        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None
     ) -> SeparationResult:
         """
         保持向后兼容：如果你已经有现成的本地脚本（例如调用 ByteDance 的 music_source_separation），
@@ -639,6 +794,7 @@ class LocalSeparationEngine(SeparationEngine):
         - 脚本接收 3 个位置参数：<input_path> <results_dir> <algorithm_name>
         - 脚本负责在 results_dir 下生成 Vocals.wav / Drums.wav / Bass.wav / Other.wav 等文件。
         """
+        task_prefix = f"[任务 {task_id}]" if task_id else "[Local]"
         results_dir.mkdir(parents=True, exist_ok=True)
 
         if not input_path.exists():
@@ -646,43 +802,72 @@ class LocalSeparationEngine(SeparationEngine):
 
         cmd = f"{self._command} {input_path} {results_dir} {algorithm.name}"
         logger.info("调用本地分离脚本: %s", cmd)
+        print_progress_text(f"{task_prefix} 启动本地分离脚本...")
 
         proc = await asyncio.create_subprocess_shell(
             cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,  # 合并 stderr 到 stdout
         )
-        stdout, stderr = await proc.communicate()
+        
+        # 实时读取输出
+        output_lines = []
+        async def read_stream(stream):
+            buffer = ""
+            while True:
+                chunk = await stream.read(1024)
+                if not chunk:
+                    break
+                buffer += chunk.decode(errors="ignore")
+                lines = buffer.split('\n')
+                buffer = lines[-1]
+                for line in lines[:-1]:
+                    line = line.strip()
+                    if line:
+                        output_lines.append(line)
+                        # 显示关键信息
+                        if any(keyword in line.lower() for keyword in ['progress', 'processing', 'complete', 'done']):
+                            print_progress_text(f"{task_prefix} {line[:80]}", clear_line=True)
+        
+        await read_stream(proc.stdout)
+        returncode = await proc.wait()
+        
+        stdout_text = '\n'.join(output_lines)
+        stderr_text = ""  # 已合并到 stdout
 
-        if stdout:
-            logger.debug("LocalSeparationEngine stdout:\n%s", stdout.decode(errors="ignore"))
-        if stderr:
-            logger.warning("LocalSeparationEngine stderr:\n%s", stderr.decode(errors="ignore"))
+        if stdout_text:
+            logger.debug("LocalSeparationEngine stdout:\n%s", stdout_text)
+        if stderr_text:
+            logger.warning("LocalSeparationEngine stderr:\n%s", stderr_text)
 
-        if proc.returncode != 0:
-            raise RuntimeError(f"本地分离脚本执行失败，exit code={proc.returncode}")
+        if returncode != 0:
+            raise RuntimeError(f"本地分离脚本执行失败，exit code={returncode}")
 
+        print_progress_text(f"{task_prefix} 扫描输出文件...")
         stems: Dict[str, Path] = {}
         for name in ["Vocals", "Drums", "Bass", "Other"]:
             p = results_dir / f"{name}.wav"
             if p.exists() and p.stat().st_size > 0:
                 stems[name] = p
+                print_progress_text(f"{task_prefix} 找到 stem: {name}")
 
         if not stems:
             raise RuntimeError("本地脚本未在结果目录中生成任何有效 stem 文件。")
 
+        print_progress_text(f"{task_prefix} ✓ 本地分离完成，生成了 {len(stems)} 个 stems")
         return SeparationResult(stems=stems)
 
 
 def build_separation_engine_from_env() -> SeparationEngine:
     """
     根据环境变量构建分离引擎：
-    - SEPARATION_ENGINE=mock  ：使用 MockSeparationEngine（默认，用于前端联调和演示）；
+    - SEPARATION_ENGINE=mss   ：直接调用 ZFTurbo 的 Music-Source-Separation-Training 仓库进行本地推理（默认）；
+    - SEPARATION_ENGINE=mock  ：使用 MockSeparationEngine（用于前端联调和演示）；
     - SEPARATION_ENGINE=http  ：调用远程 HTTP 模型服务（云端/独立 GPU 服务器）；
-    - SEPARATION_ENGINE=local ：调用你自定义的本地脚本（例如 ByteDance 仓库封装脚本）；
-    - SEPARATION_ENGINE=mss   ：直接调用 ZFTurbo 的 Music-Source-Separation-Training 仓库进行本地推理。
+    - SEPARATION_ENGINE=local ：调用你自定义的本地脚本（例如 ByteDance 仓库封装脚本）。
     """
-    mode = (os.getenv("SEPARATION_ENGINE") or "mock").strip().lower()
+    mode = (os.getenv("SEPARATION_ENGINE") or "mss").strip().lower()
+    logger.info(f"分离引擎模式: {mode} (环境变量 SEPARATION_ENGINE={os.getenv('SEPARATION_ENGINE') or '未设置，使用默认值 mss'})")
 
     if mode == "http":
         url = os.getenv("MODEL_HTTP_URL")
@@ -698,8 +883,19 @@ def build_separation_engine_from_env() -> SeparationEngine:
         return LocalSeparationEngine(command=cmd)
 
     if mode == "mss":
-        return MSSLocalEngine()
+        try:
+            engine = MSSLocalEngine()
+            logger.info("MSS 本地引擎初始化成功")
+            return engine
+        except Exception as e:
+            logger.error(f"MSS 引擎初始化失败: {e}")
+            logger.warning("如果 MSS 引擎配置有问题，可以设置 SEPARATION_ENGINE=mock 使用模拟引擎进行测试")
+            raise
 
-    # 默认 mock
-    return MockSeparationEngine()
+    if mode == "mock":
+        logger.info("使用 Mock 引擎（仅用于测试）")
+        return MockSeparationEngine()
 
+    # 如果指定了未知模式，回退到 mss
+    logger.warning(f"未知的引擎模式 '{mode}'，使用默认的 mss 引擎")
+    return MSSLocalEngine()
