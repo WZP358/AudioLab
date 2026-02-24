@@ -1624,6 +1624,12 @@ export default function AudioLabApp() {
   const [objectiveError, setObjectiveError] = useState(null);
   const [taskId, setTaskId] = useState(null);
   const [progressText, setProgressText] = useState(""); // 进度文本
+  // 自定义残差 / 混合播放器相关状态
+  const [mixSelectedStems, setMixSelectedStems] = useState([]);
+  const [mixMode, setMixMode] = useState("remove"); // "keep" | "remove"
+  const [mixAudioFile, setMixAudioFile] = useState(null);
+  const [mixLoading, setMixLoading] = useState(false);
+  const [mixError, setMixError] = useState(null);
   // 可视化的时间视窗 [0,1]，0 和 1 分别代表整段音频的起止
   const [viewRange, setViewRange] = useState({ start: 0, end: 1 });
   // 波形显示增强：仅影响展示（便于对比），不改变任何音频/评分数据
@@ -1716,6 +1722,62 @@ export default function AudioLabApp() {
       ...prev,
       [section]: !prev[section]
     }));
+  };
+
+  // 根据当前选择的 stems 和模式，请求后端生成混合 / 残差音频
+  const generateMixedAudio = async () => {
+    if (!taskId) {
+      showError("请先完成一次音频分离任务");
+      return;
+    }
+    if (!stems || stems.length === 0) {
+      showError("当前没有可用的 stem");
+      return;
+    }
+    if (!mixSelectedStems || mixSelectedStems.length === 0) {
+      showError("请至少选择一个声部");
+      return;
+    }
+
+    setMixLoading(true);
+    setMixError(null);
+    try {
+      const url =
+        typeof taskId === "string"
+          ? `${API_BASE}/api/tasks/${encodeURIComponent(taskId)}/mix`
+          : `${API_BASE}/api/tasks/${encodeURIComponent(String(taskId))}/mix`;
+
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          stem_names: mixSelectedStems,
+          mode: mixMode,
+        }),
+      });
+
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt || `HTTP ${resp.status}`);
+      }
+
+      const blob = await resp.blob();
+      const fileName =
+        mixMode === "remove"
+          ? `residual_mix_remove_${(mixSelectedStems || []).join("_") || "none"}.wav`
+          : `custom_mix_keep_${(mixSelectedStems || []).join("_") || "none"}.wav`;
+
+      const file = new File([blob], fileName, { type: blob.type || "audio/wav" });
+      setMixAudioFile(file);
+    } catch (e) {
+      console.error("[generateMixedAudio] failed:", e);
+      setMixError(e.message || String(e));
+      showError(`生成混合音频失败：${e.message || e}`);
+    } finally {
+      setMixLoading(false);
+    }
   };
 
   // --- 自适应可视化分辨率（随着缩放自动提高）---
@@ -2721,6 +2783,10 @@ export default function AudioLabApp() {
       })));
 
       setStems(stemsWithFiles);
+      // 初始化自定义残差 / 混合播放器状态
+      setMixSelectedStems(stemsWithFiles.map((s) => s.name));
+      setMixAudioFile(null);
+      setMixError(null);
       notifySeparationDone(algo);
 
       // 如果有鼓轨，默认选中鼓轨用于对比；否则选第一条
@@ -3989,6 +4055,123 @@ export default function AudioLabApp() {
                                 // 残差播放器不作为“主时间轴”的 driver，只同步进度
                               }}
                             />
+                          </div>
+                        )}
+
+                        {/* 自定义残差 / 混合播放器 */}
+                        {stems && stems.length > 0 && (
+                          <div className="mt-4 space-y-2 bg-slate-900/60 border border-slate-700/60 rounded-lg p-3">
+                            <div className="flex items-center justify-between text-[11px] text-slate-400">
+                              <div>
+                                残差 / 自定义混合播放器
+                                <span className="ml-1 font-mono text-slate-300">
+                                  ({mixMode === "remove" ? "消除所选声源" : "只保留所选声源"})
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setMixMode("remove")}
+                                  className={`px-2 py-0.5 rounded border text-[10px] ${
+                                    mixMode === "remove"
+                                      ? "border-cyan-500 text-cyan-300 bg-cyan-500/10"
+                                      : "border-slate-600 text-slate-400 bg-slate-800/60 hover:bg-slate-700/80"
+                                  }`}
+                                >
+                                  消除这些
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setMixMode("keep")}
+                                  className={`px-2 py-0.5 rounded border text-[10px] ${
+                                    mixMode === "keep"
+                                      ? "border-emerald-500 text-emerald-300 bg-emerald-500/10"
+                                      : "border-slate-600 text-slate-400 bg-slate-800/60 hover:bg-slate-700/80"
+                                  }`}
+                                >
+                                  只保留这些
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 text-[11px]">
+                              {stems.map((s) => {
+                                const checked = mixSelectedStems.includes(s.name);
+                                return (
+                                  <label
+                                    key={s.name}
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border cursor-pointer ${
+                                      checked
+                                        ? "border-cyan-500 text-cyan-200 bg-cyan-500/10"
+                                        : "border-slate-600 text-slate-400 bg-slate-800/60 hover:bg-slate-700/80"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="accent-cyan-500"
+                                      checked={checked}
+                                      onChange={(e) => {
+                                        setMixSelectedStems((prev) => {
+                                          const prevArr = Array.isArray(prev) ? prev : [];
+                                          if (e.target.checked) {
+                                            return Array.from(new Set([...prevArr, s.name]));
+                                          }
+                                          return prevArr.filter((x) => x !== s.name);
+                                        });
+                                      }}
+                                    />
+                                    <span className="font-mono">{s.name}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={generateMixedAudio}
+                                disabled={
+                                  mixLoading ||
+                                  !taskId ||
+                                  !mixSelectedStems ||
+                                  mixSelectedStems.length === 0
+                                }
+                                className={`px-3 py-1.5 rounded text-[11px] font-mono border transition ${
+                                  mixLoading ||
+                                  !taskId ||
+                                  !mixSelectedStems ||
+                                  mixSelectedStems.length === 0
+                                    ? "border-slate-700 text-slate-600 bg-slate-900/40 cursor-not-allowed"
+                                    : "border-cyan-600/60 text-cyan-300 bg-cyan-600/10 hover:bg-cyan-600/20"
+                                }`}
+                              >
+                                {mixLoading ? "生成中..." : "生成混合音频"}
+                              </button>
+                              {mixError && (
+                                <span className="text-[11px] text-red-300 truncate max-w-xs">
+                                  {mixError}
+                                </span>
+                              )}
+                            </div>
+
+                            {mixAudioFile && (
+                              <div className="mt-2 overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900/60">
+                                <StemPlayer
+                                  name={
+                                    mixMode === "remove"
+                                      ? "Residual Mix (消除所选声源)"
+                                      : "Custom Mix (只保留所选声源)"
+                                  }
+                                  file={mixAudioFile}
+                                  onSelect={() => {}}
+                                  syncedTime={syncedCurrentTime}
+                                  onUserSeek={(t) => seekAll(t)}
+                                  onPlaybackStateChange={() => {
+                                    // 混合播放器只同步进度，不驱动主时间轴互斥逻辑
+                                  }}
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

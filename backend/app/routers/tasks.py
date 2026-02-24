@@ -7,6 +7,9 @@ import uuid
 import logging
 from pathlib import Path
 
+import numpy as np
+from pydantic import BaseModel
+
 from app.database import get_db
 from app.models import SeparationTask, StemFile, TaskStatus, Algorithm, User
 from app.schemas import (
@@ -19,7 +22,7 @@ from app.schemas import (
     AudioAnalysisPayload,
 )
 from app.services.separation_service import process_separation
-from app.services.analysis_service import analyze_audio_file, analysis_to_payload
+from app.services.analysis_service import analyze_audio_file, analysis_to_payload, _read_audio_any
 from app.services.objective_metrics import compute_bss_metrics_two_source, compute_residual_mix_minus_est
 from app.utils.log_helper import get_client_ip, get_user_agent
 import logging
@@ -27,6 +30,16 @@ import tempfile
 import soundfile as sf
 
 logger = logging.getLogger(__name__)
+
+
+class MixRequest(BaseModel):
+    """
+    多 stem 混合请求：
+    - stem_names: 参与运算的 stem 名称（与 StemFile.stem_name 大小写不敏感匹配）
+    - mode: "keep" 表示只保留这些 stem 混合；"remove" 表示从整体中消除这些 stem（等价于保留其它 stem）
+    """
+    stem_names: List[str]
+    mode: str = "remove"  # "keep" | "remove"
 
 
 async def get_optional_user(authorization: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)):
@@ -56,6 +69,133 @@ UPLOAD_DIR = Path("/app/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 RESULTS_DIR = Path("/app/results")
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@router.post("/{task_id}/mix")
+async def mix_stems_for_task(
+    task_id: str,
+    body: MixRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    根据用户选择的 stems 生成混合音频（可作为“自定义残差”或“自定义伴奏”使用）：
+    - mode == "keep": 只用这些 stem 相加做混音
+    - mode == "remove": 从所有 stem 中排除这些，再把剩余 stem 相加（等价于“消除这些声源”）
+    """
+    try:
+        task_id_int = int(task_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="无效的任务ID")
+
+    task = await db.get(SeparationTask, task_id_int)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if not body.stem_names:
+        raise HTTPException(status_code=400, detail="stem_names 不能为空")
+
+    # 拉取该任务下所有 stems
+    result = await db.execute(
+        select(StemFile).where(StemFile.task_id == task_id_int)
+    )
+    all_stems = list(result.scalars().all())
+    if not all_stems:
+        raise HTTPException(status_code=404, detail="该任务尚未生成任何 stem")
+
+    # 根据名称匹配（大小写不敏感）
+    target_names = {name.strip().lower() for name in body.stem_names if name.strip()}
+    if not target_names:
+        raise HTTPException(status_code=400, detail="stem_names 解析为空")
+
+    if body.mode not in ("keep", "remove"):
+        raise HTTPException(status_code=400, detail="mode 必须为 'keep' 或 'remove'")
+
+    if body.mode == "keep":
+        mix_stems = [
+            s for s in all_stems if s.stem_name and s.stem_name.lower() in target_names
+        ]
+    else:  # remove: 保留其余的
+        mix_stems = [
+            s for s in all_stems if s.stem_name and s.stem_name.lower() not in target_names
+        ]
+
+    if not mix_stems:
+        raise HTTPException(status_code=400, detail="根据当前选择没有任何 stem 参与混合")
+
+    # 读取所有参与混合的 stem 音频
+    arrays = []
+    sample_rate = None
+    num_channels = None
+    for s in mix_stems:
+        p = Path(s.file_path)
+        if not p.exists() or p.stat().st_size == 0:
+            raise HTTPException(status_code=404, detail=f"Stem 文件不存在或为空: {s.stem_name}")
+        y, sr, _ = _read_audio_any(p)  # y: float32, shape [T, C]
+        if y.size == 0:
+            continue
+        if sample_rate is None:
+            sample_rate = sr
+        elif sample_rate != sr:
+            raise HTTPException(status_code=500, detail="参与混合的 stems 采样率不一致，无法直接混合")
+        if num_channels is None:
+            num_channels = y.shape[1]
+        elif num_channels != y.shape[1]:
+            raise HTTPException(status_code=500, detail="参与混合的 stems 声道数不一致，无法直接混合")
+        arrays.append(y)
+
+    if not arrays or sample_rate is None or num_channels is None:
+        raise HTTPException(status_code=500, detail="无法读取有效的 stem 音频数据")
+
+    # 对齐长度并相加
+    max_len = max(a.shape[0] for a in arrays)
+    mix = np.zeros((max_len, num_channels), dtype=np.float32)
+    for a in arrays:
+        cur_len = a.shape[0]
+        if cur_len < max_len:
+            pad = np.zeros((max_len - cur_len, num_channels), dtype=np.float32)
+            a_pad = np.concatenate([a, pad], axis=0)
+        else:
+            a_pad = a[:max_len, :]
+        mix += a_pad
+
+    # 简单防止削波：归一化到 [-1, 1]
+    peak = float(np.max(np.abs(mix)))
+    if peak > 1.0e-6:
+        mix = np.clip(mix / max(1.0, peak), -1.0, 1.0)
+
+    # 输出到 /app/results/{task_id}/custom_mix_*.wav
+    out_dir = RESULTS_DIR / str(task_id_int)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_mode = body.mode
+    safe_tag = "_".join(sorted(target_names))[:80] or "mix"
+    safe_tag = "".join(ch for ch in safe_tag if ch.isalnum() or ch in "._-")
+    out_path = out_dir / f"custom_mix_{safe_mode}_{safe_tag}.wav"
+
+    try:
+        sf.write(out_path, mix, sample_rate, subtype="PCM_16")
+    except Exception as e:
+        logger.error(
+            "写入混合音频失败: task_id=%s mode=%s stems=%s err=%s",
+            task_id_int,
+            body.mode,
+            body.stem_names,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=f"写入混合音频失败: {type(e).__name__}: {str(e)}")
+
+    if not out_path.exists() or out_path.stat().st_size == 0:
+        raise HTTPException(status_code=500, detail="混合音频生成失败（文件为空或不存在）")
+
+    from fastapi.responses import FileResponse
+
+    return FileResponse(
+        path=str(out_path),
+        media_type="audio/wav",
+        filename=out_path.name,
+        headers={"Accept-Ranges": "bytes"},
+    )
 
 
 @router.post("/upload", response_model=TaskResponse)
