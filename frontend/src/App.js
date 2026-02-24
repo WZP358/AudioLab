@@ -1624,6 +1624,8 @@ export default function AudioLabApp() {
   const [objectiveError, setObjectiveError] = useState(null);
   const [taskId, setTaskId] = useState(null);
   const [progressText, setProgressText] = useState(""); // 进度文本
+  const [isCancelling, setIsCancelling] = useState(false); // 是否正在取消当前任务
+  const cancelSeparationRef = useRef({ requested: false }); // 取消标记，用于打断轮询
   // 自定义残差 / 混合播放器相关状态
   const [mixSelectedStems, setMixSelectedStems] = useState([]);
   const [mixMode, setMixMode] = useState("remove"); // "keep" | "remove"
@@ -2605,6 +2607,8 @@ export default function AudioLabApp() {
     setCurrentStem(null);
     setTaskId(null);
     setProgressText("准备上传文件...");
+    setIsCancelling(false);
+    cancelSeparationRef.current.requested = false;
 
     try {
       if (!rawFile) {
@@ -2647,7 +2651,7 @@ export default function AudioLabApp() {
       setTaskId(taskIdStr);
       setProgressText("任务已创建，等待处理...");
 
-      // 2) 轮询任务状态直到完成/失败
+      // 2) 轮询任务状态直到完成/失败/被取消
       // 先等待一小段时间，确保任务已写入数据库
       await new Promise((res) => setTimeout(res, 500));
       
@@ -2691,6 +2695,21 @@ export default function AudioLabApp() {
       let lastStatus = null;
       
       while (t.status === "pending" || t.status === "processing") {
+        // 用户在处理中途点击了“取消”
+        if (cancelSeparationRef.current.requested) {
+          setProgressText("正在取消任务...");
+          try {
+            await fetch(`${API_BASE}/api/tasks/${taskIdStr}/cancel`, {
+              method: "POST",
+            });
+          } catch (e) {
+            console.error("取消任务失败:", e);
+          }
+          setIsProcessing(false);
+          setIsCancelling(false);
+          setProgressText("任务已取消");
+          return;
+        }
         if (t.status !== lastStatus) {
           if (t.status === "pending") {
             setProgressText("任务排队中，请稍候...");
@@ -2705,6 +2724,14 @@ export default function AudioLabApp() {
         t = await poll();
       }
       
+      // 后端目前使用 FAILED + comment 标记“用户主动取消”
+      if (t.status === "failed" && (t.comment || "").includes("任务已被用户取消")) {
+        setProgressText("任务已取消");
+        setIsProcessing(false);
+        setIsCancelling(false);
+        return;
+      }
+
       if (t.status !== "completed") {
         setProgressText("");
         // 如果任务有错误信息，显示它
@@ -3888,12 +3915,32 @@ export default function AudioLabApp() {
                   </div>
                   {/* 处理中提示（不显示进度条） */}
                   {isProcessing && (
-                    <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
-                      <div className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-cyan-400" />
-                      <span className="flex items-center gap-2">
-                        <Activity size={14} className="text-cyan-400 animate-pulse" />
-                        {progressText || "处理中..."}
-                      </span>
+                    <div className="mt-4 flex flex-col gap-2 text-xs text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <div className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-cyan-400" />
+                        <span className="flex items-center gap-2">
+                          <Activity size={14} className="text-cyan-400 animate-pulse" />
+                          {progressText || "处理中..."}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!taskId || isCancelling) return;
+                            cancelSeparationRef.current.requested = true;
+                            setIsCancelling(true);
+                          }}
+                          disabled={!taskId || isCancelling}
+                          className={`inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                            !taskId || isCancelling
+                              ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                              : "bg-red-500/90 hover:bg-red-500 text-white shadow-sm shadow-red-500/40"
+                          }`}
+                        >
+                          {isCancelling ? "正在取消..." : "停止分离"}
+                        </button>
+                      </div>
                     </div>
                   )}
                   {/* 选中状态指示

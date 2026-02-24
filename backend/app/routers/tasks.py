@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.models import SeparationTask, StemFile, TaskStatus, Algorithm, User
+from app.services.separation_engine import mark_task_cancelled
 from app.schemas import (
     TaskResponse,
     StemResponse,
@@ -340,6 +341,46 @@ async def get_task(task_id: str, db: AsyncSession = Depends(get_db)):
         )
     
     logger.info(f"任务查询成功: task_id={task.id}, status={task.status}")
+    return task
+
+
+@router.post("/{task_id}/cancel", response_model=TaskResponse)
+async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    取消一个正在排队或处理中的分离任务。
+
+    说明：
+    - 该接口为“软取消”：如果后端分离引擎已经在运行，可能无法立刻中断计算；
+      但会将任务状态标记为 FAILED，并在 comment 中写入“任务已被用户取消”，
+      前端可以据此识别为“用户主动取消”，而不是普通失败。
+    """
+    try:
+        task_id_int = int(task_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="无效的任务ID")
+
+    task = await db.get(SeparationTask, task_id_int)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # 已经结束/失败的任务不允许重复取消，直接返回当前状态
+    if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
+        return task
+
+    # 使用 FAILED 状态 + 特殊 comment 表示“用户主动取消”
+    task.status = TaskStatus.FAILED
+    task.comment = "任务已被用户取消"
+
+    # 标记任务需要硬中断，分离引擎会轮询并终止对应的子进程
+    try:
+        mark_task_cancelled(task_id_int)
+    except Exception:
+        logger.warning("标记任务取消失败（不影响状态持久化）: task_id=%s", task_id_int)
+
+    await db.commit()
+    await db.refresh(task)
+
+    logger.info(f"任务已取消: task_id={task.id}, status={task.status}")
     return task
 
 

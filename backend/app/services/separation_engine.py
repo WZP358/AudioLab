@@ -20,6 +20,40 @@ from app.utils.progress import print_progress_text, print_progress_bar
 
 logger = logging.getLogger(__name__)
 
+# ---- 全局任务取消标记（软->硬中断桥梁） ----
+# 后端 /api/tasks/{task_id}/cancel 接口会通过 mark_task_cancelled 标记任务，
+# 分离引擎在读取子进程输出时轮询该标记，如果发现被取消，就终止子进程，尽快释放 GPU。
+_CANCELLED_TASK_IDS: set[int] = set()
+
+
+def mark_task_cancelled(task_id: int) -> None:
+    """标记任务已被用户取消（供 /cancel 接口调用）。"""
+    try:
+        _CANCELLED_TASK_IDS.add(int(task_id))
+    except Exception:
+        # 兜底：task_id 非法时直接忽略
+        return
+
+
+def is_task_marked_cancelled(task_id: Optional[int]) -> bool:
+    """供分离引擎在长耗时循环中轮询，判断任务是否被取消。"""
+    if task_id is None:
+        return False
+    try:
+        return int(task_id) in _CANCELLED_TASK_IDS
+    except Exception:
+        return False
+
+
+def clear_task_cancelled(task_id: Optional[int]) -> None:
+    """任务正常结束或异常退出后清理标记，避免集合无限增长。"""
+    if task_id is None:
+        return
+    try:
+        _CANCELLED_TASK_IDS.discard(int(task_id))
+    except Exception:
+        return
+
 # Windows 上修复 asyncio 子进程问题
 if platform.system() == "Windows":
     # 设置 Windows 事件循环策略以支持子进程
@@ -33,8 +67,8 @@ if platform.system() == "Windows":
 
 
 # Windows 上运行子进程的辅助函数（同步）
-def _run_subprocess_windows(cmd, task_prefix):
-    """Windows 上运行子进程的辅助函数（同步）"""
+def _run_subprocess_windows(cmd, task_prefix, task_id: Optional[int] = None):
+    """Windows 上运行子进程的辅助函数（同步，可响应取消标记）"""
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -47,8 +81,21 @@ def _run_subprocess_windows(cmd, task_prefix):
     stdout_lines = []
     last_progress = 0
 
-    # 实时读取输出
+    # 实时读取输出，同时轮询“是否被取消”
     for line in proc.stdout:
+        # 如果用户在处理中点击了“停止分离”，尝试终止子进程
+        if is_task_marked_cancelled(task_id):
+            print_progress_text(f"{task_prefix} 检测到用户取消，终止分离进程...", clear_line=True)
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            break
+
         line = line.rstrip()
         if line:
             stdout_lines.append(line)
@@ -385,7 +432,7 @@ class MSSLocalEngine(SeparationEngine):
             if platform.system() == "Windows":
                 # 在线程中运行同步 subprocess
                 returncode, stdout_lines, stderr_lines = await asyncio.to_thread(
-                    _run_subprocess_windows, cmd, task_prefix
+                    _run_subprocess_windows, cmd, task_prefix, task_id
                 )
                 stdout_text = '\n'.join(stdout_lines)
                 stderr_text = '\n'.join(stderr_lines)
@@ -407,6 +454,18 @@ class MSSLocalEngine(SeparationEngine):
                     nonlocal last_progress
                     buffer = ""
                     while True:
+                        # 每次读取前先检查是否被标记为取消
+                        if is_task_marked_cancelled(task_id):
+                            print_progress_text(f"{task_prefix} 检测到用户取消，终止分离进程...", clear_line=True)
+                            try:
+                                proc.terminate()
+                            except Exception:
+                                pass
+                            try:
+                                proc.kill()
+                            except Exception:
+                                pass
+                            return
                         chunk = await stream.read(1024)
                         if not chunk:
                             break
@@ -449,6 +508,10 @@ class MSSLocalEngine(SeparationEngine):
                 logger.debug("MSS inference stdout:\n%s", stdout_text)
             if stderr_text:
                 logger.warning("MSS inference stderr:\n%s", stderr_text)
+
+            # 如果任务已被用户取消，则统一抛出一个可识别的异常，供上层区分日志级别
+            if is_task_marked_cancelled(task_id):
+                raise RuntimeError("CANCELLED_BY_USER: MSS inference 进程已被用户取消")
 
             if returncode != 0:
                 # 构建详细的错误消息
