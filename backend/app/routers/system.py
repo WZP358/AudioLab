@@ -51,6 +51,8 @@ CONFIG_OPTIONS = {
     "user.require_admin_approval": ["true", "false"],
     "user.default_role": ["guest", "expert", "admin"],
     "log.level": ["DEBUG", "INFO", "WARNING", "ERROR"],
+    # 分离任务运行模式：CPU / GPU
+    "separation_compute_mode": ["cpu", "gpu"],
 }
 
 
@@ -1485,3 +1487,28 @@ async def get_storage_mode(
     except Exception as e:
         # 出错时返回默认值
         return {"storage_mode": "local"}
+
+
+@public_router.get("/compute-mode")
+async def get_compute_mode(
+    db: AsyncSession = Depends(get_db),
+):
+    """获取分离任务设备模式（公共端点，所有用户可访问）"""
+    try:
+        query = select(SystemConfig).where(SystemConfig.key == "separation_compute_mode")
+        result = await db.execute(query)
+        config = result.scalars().first()
+
+        if config and config.value:
+            mode = config.value.strip().lower()
+        else:
+            # 如果配置不存在，尝试从环境变量读取；否则默认 GPU
+            mode = (os.getenv("SEPARATION_COMPUTE_MODE") or "gpu").strip().lower()
+
+        if mode not in ["cpu", "gpu"]:
+            mode = "gpu"
+
+        return {"compute_mode": mode}
+    except Exception:
+        # 出错时返回默认值
+        return {"compute_mode": "gpu"}

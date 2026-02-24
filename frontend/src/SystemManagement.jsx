@@ -562,6 +562,8 @@ function SystemSettings({ token }) {
   });
   const [storageMode, setStorageMode] = useState("local");
   const [savingStorageMode, setSavingStorageMode] = useState(false);
+  const [computeMode, setComputeMode] = useState("gpu");
+  const [savingComputeMode, setSavingComputeMode] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [testingEmail, setTestingEmail] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -583,6 +585,13 @@ function SystemSettings({ token }) {
       const storageConfig = allData.items?.find(c => c.key === "storage_mode");
       if (storageConfig) {
         setStorageMode(storageConfig.value || "local");
+      }
+
+      // 查找 separation_compute_mode 配置
+      const computeConfig = allData.items?.find(c => c.key === "separation_compute_mode");
+      if (computeConfig) {
+        const raw = (computeConfig.value || "gpu").toString().toLowerCase();
+        setComputeMode(raw === "cpu" ? "cpu" : "gpu");
       }
       
       // 如果指定了分类，则筛选
@@ -684,6 +693,57 @@ function SystemSettings({ token }) {
       showError(err.message);
     } finally {
       setSavingStorageMode(false);
+    }
+  };
+
+  const handleComputeModeChange = async (newMode) => {
+    if (savingComputeMode) return;
+
+    setSavingComputeMode(true);
+    try {
+      // 更新或创建 separation_compute_mode 配置
+      let resp = await fetch(`${API_BASE}/api/admin/system/configs/separation_compute_mode`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          value: newMode,
+          description: "分离任务运行模式：cpu 或 gpu（仅在支持 GPU 的环境下生效）",
+          category: "separation",
+        }),
+      });
+
+      // 理论上不会返回 404（不存在时会创建），但保留兜底逻辑
+      if (!resp.ok && resp.status === 404) {
+        resp = await fetch(`${API_BASE}/api/admin/system/configs`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            key: "separation_compute_mode",
+            value: newMode,
+            description: "分离任务运行模式：cpu 或 gpu（仅在支持 GPU 的环境下生效）",
+            category: "separation",
+          }),
+        });
+      }
+
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(errBody.detail || "保存失败");
+      }
+
+      setComputeMode(newMode);
+      showSuccess(`分离任务运行模式已切换为：${newMode === "cpu" ? "CPU" : "GPU"}`);
+      fetchConfigs(); // 刷新配置列表
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setSavingComputeMode(false);
     }
   };
 
@@ -868,6 +928,53 @@ function SystemSettings({ token }) {
         </div>
         {savingStorageMode && (
           <div className="mt-4 text-sm text-slate-400">正在保存...</div>
+        )}
+      </div>
+
+      {/* 计算运行模式切换（CPU / GPU） */}
+      <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-white mb-2">分离任务运行模式</h3>
+            <p className="text-sm text-slate-400">
+              切换音频分离任务在后端运行时使用的计算设备（CPU 或 GPU）。GPU 模式依赖环境已正确安装 CUDA / PyTorch。
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handleComputeModeChange("cpu")}
+                disabled={savingComputeMode || computeMode === "cpu"}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  computeMode === "cpu"
+                    ? "bg-slate-100 text-slate-900"
+                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                } ${savingComputeMode ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  CPU
+                </span>
+              </button>
+              <button
+                onClick={() => handleComputeModeChange("gpu")}
+                disabled={savingComputeMode || computeMode === "gpu"}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  computeMode === "gpu"
+                    ? "bg-cyan-600 text-white"
+                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                } ${savingComputeMode ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                  GPU
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+        {savingComputeMode && (
+          <div className="mt-4 text-sm text-slate-400">正在保存运行模式...</div>
         )}
       </div>
 

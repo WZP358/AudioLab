@@ -1,12 +1,12 @@
-## 目录（Docker Only）
+## 目录
 
 - **1. 你将得到什么（产品故事版）**
 - **2. 架构总览（含 Mermaid 图）**
-- **3. 从零到跑起来（Docker Desktop 一条路）**
+- **3. 从零到跑起来（本地部署）**
 - **4. 第一次启动后你要做的三件事（init_db / init_system_configs / create_admin）**
 - **5. 作为用户使用系统（访客/专家）**
 - **6. 作为管理员管理系统**
-- **7. 配置（docker compose 环境变量 + SystemConfig）**
+- **7. 配置（环境变量 + SystemConfig）**
 - **8. API 速查表**
 - **9. 故障排查（FAQ）**
 - **10. 已知限制（按当前代码）**
@@ -223,18 +223,9 @@ graph TB
 
 ---
 
-## 3. 从零到跑起来（Docker Desktop 一条路，记得挂梯子（翻墙）！！！）
+## 3. 从零到跑起来（本地部署）
 
-### 3.1 前置条件
-
-- 安装 **Docker Desktop**
-- 确保 `docker` 与 `docker compose` 在命令行可用
-- 全程挂梯子（翻墙）
-
-![Docker Desktop 安装](docs/images/08-docker-desktop.png)
-*图 3.1：Docker Desktop 安装界面 - 确保 Docker 正常运行*
-
-### 3.2 准备 MSS 模型文件（可选，但推荐）
+### 3.1 准备 MSS 模型文件（可选，但推荐）
 
 如果你要使用 MSS 源分离算法（MDX23C、Demucs4HT、Band Split RoFormer、SCNet），需要先下载模型权重文件：
 
@@ -273,7 +264,7 @@ mkdir D:\code\models\mss
 - 如果下载速度慢，可以尝试使用代理或镜像源
 - 更多模型选项请参考：[Music-Source-Separation-Training 预训练模型列表](https://github.com/ZFTurbo/Music-Source-Separation-Training/blob/main/docs/pretrained_models.md)
 
-#### 3.2.3 验证模型文件
+#### 3.1.3 验证模型文件
 
 下载完成后，确保目录结构如下：
 
@@ -288,21 +279,15 @@ D:\code\models\mss\
 └── scnet_checkpoint_musdb18.ckpt
 ```
 
-#### 3.2.4 配置模型路径（可选）
+#### 3.1.4 配置模型路径（可选）
 
-如果模型文件不在默认位置 `D:\code\models\mss\`，需要修改 `backend/docker-compose.yml` 中的挂载路径：
+如果模型文件不在默认位置 `D:\code\models\mss\`，需要在后端运行环境中通过环境变量覆盖默认路径（见 **7.3 MSS 源分离引擎配置** 中的 `MSS_*_CKPT`）。
 
-```yaml
-volumes:
-  # 修改这一行，指向你的模型目录
-  - D:/code/models/mss:/app/models/mss
-```
-
-### 3.3 准备 MSS 代码仓库（必需）
+### 3.2 准备 MSS 代码仓库（必需）
 
 AudioLab 使用 [ZFTurbo/Music-Source-Separation-Training](https://github.com/ZFTurbo/Music-Source-Separation-Training) 仓库来执行音频分离。
 
-#### 3.3.1 克隆 MSS 仓库
+#### 3.2.1 克隆 MSS 仓库
 
 在 AudioLab 根目录下克隆 MSS 仓库：
 
@@ -315,55 +300,7 @@ git clone https://github.com/ZFTurbo/Music-Source-Separation-Training.git Music-
 - 这个目录**会被包含在 AudioLab 仓库中**（已从 `.gitignore` 中移除）
 - 如果不想上传到 GitHub，可以通过环境变量 `MSS_ROOT_DIR` 指定其他路径
 
-### 3.4 一键启动（包含：db + backend + frontend）
-
-在仓库根目录执行：
-
-```bash
-docker compose up -d --build
-```
-
-```mermaid
-flowchart TD
-    Start[开始启动] --> CheckDocker{Docker 运行中?}
-    CheckDocker -->|否| Error1[启动 Docker Desktop]
-    CheckDocker -->|是| Build[构建镜像]
-    Build --> StartDB[启动 MySQL 容器]
-    StartDB --> StartBackend[启动 Backend 容器]
-    StartBackend --> InstallDeps{首次启动?}
-    InstallDeps -->|是| InstallPyTorch[后台安装 PyTorch<br/>10-20 分钟]
-    InstallDeps -->|否| StartFrontend[启动 Frontend 容器]
-    InstallPyTorch --> StartFrontend
-    StartFrontend --> Ready[所有服务就绪]
-    Ready --> Access[访问 http://localhost:3000]
-    
-    style InstallPyTorch fill:#ffeb3b
-    style Ready fill:#4caf50
-    style Error1 fill:#f44336
-```
-
-![Docker 启动过程](docs/images/10-docker-startup.png)
-*图 3.3：Docker Compose 启动过程 - 显示容器构建和启动日志*
-
-**首次启动说明**：
-- MSS 依赖会在后台自动安装（PyTorch 等大包，约 10-20 分钟）
-- 安装过程中应用仍可正常使用，但 MSS 算法功能需等待依赖安装完成
-- 可通过 `docker logs audiolab-backend -f` 查看安装进度
-
-![PyTorch 安装进度](docs/images/11-pytorch-install.png)
-*图 3.4：PyTorch 安装进度 - 首次启动时的依赖安装过程*
-
-启动完成后：
-- 前端：`http://localhost:3000`
-- 后端：`http://localhost:8000/health`
-- 后端 Swagger：`http://localhost:8000/docs`
-
-![启动成功界面](docs/images/12-startup-success.png)
-*图 3.5：启动成功 - 浏览器访问 http://localhost:3000 看到的主界面*
-
-在浏览器打开网址`http://localhost:3000`，进入前端
-
-### 3.5 在 Windows 本地使用 GPU（可选，适合快速测试）
+### 3.3 在 Windows 本地使用 GPU（可选，适合快速测试）
 
 如果你希望在 Windows 主机（或 WSL2）上直接利用显卡做快速测试，而不是在容器内运行 GPU，项目提供了本地启动脚本和说明。
 
@@ -378,26 +315,15 @@ flowchart TD
      ```
   3. 脚本会把 `MSS_FORCE_CPU` 设为 `false`（本地优先使用 GPU），并以 `uvicorn` 启动服务（监听 `0.0.0.0:8000`）。
 
-- 在容器内启用 GPU（容器 GPU，需宿主机额外配置）：
-  - 默认 `docker-compose.yml` 现在使用 CPU 优先的镜像构建（避免在未配置 GPU 的宿主机上失败）。
-  - 若要在容器中启用 GPU，请使用 GPU 覆盖文件：
-    ```bash
-    docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
-    ```
-  - 说明：Windows 上需要 Docker Desktop + WSL2 + NVIDIA 驱动/WSL CUDA 支持，Linux 上需要安装 `nvidia-container-toolkit`。
-
-- 挂载与路径（与 MSS/模型相关）：
-  - MSS 仓库（示例）挂载：`./Music-Source-Separation-Training-main:/app/mss`
-  - 模型权重目录（示例 Windows 路径）：`D:/code/models/mss:/app/models/mss`
-  - 如果你的模型文件放在其他位置，请在 `docker-compose.yml` 中修改相应 `volumes` 挂载路径。
+  - 挂载与路径（与 MSS/模型相关）在本地通过环境变量和本地目录配置即可，无需容器挂载。
 
 - 注意：
   - 本地脚本尝试安装 PyTorch cu124 wheel（若与你的驱动/CUDA 版本不匹配，请手动安装合适的 PyTorch 版本）。
   - 如果你更倾向使用 `conda` 来管理 CUDA 版本，我可以把 `run_local_gpu.ps1` 改为支持 `conda` 环境。
  
-### 3.6 在本地（非 Docker）运行后端与初始化数据库（Windows / macOS / Linux）
+### 3.4 在本地运行后端与初始化数据库（Windows / macOS / Linux）
 
-如果你想直接在宿主机上运行后端（不使用 Docker），下面的步骤会指导你如何准备数据库、安装依赖并执行初始化脚本。
+本项目推荐直接在宿主机上运行后端，下面的步骤会指导你如何准备数据库、安装依赖并执行初始化脚本。
 
 注意：后端默认使用 MySQL（通过 `DATABASE_URL` 环境变量连接）。你可以在本地安装 MySQL / MariaDB，或者使用外部数据库服务。
 
@@ -452,53 +378,20 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 要点与常见问题：
-- 如果你没有本地 MySQL，可以先安装 MySQL/MariaDB，或临时用 Docker 只跑数据库：`docker run --name local-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=audiolab -e MYSQL_USER=audiolab -e MYSQL_PASSWORD=audiolab -p 3306:3306 -d mysql:8.0`
+- 如果你没有本地 MySQL，可以先安装 MySQL/MariaDB，或使用云数据库服务。
 - `DATABASE_URL` 必须使用 `mysql+aiomysql://user:pass@host:port/db` 格式，后端会从 `backend/.env` 或环境变量读取该值。
 - 如果执行 `python -m app.init_db` 出现连接错误，先确认 MySQL 已启动并允许来自本机的连接，检查端口与用户权限。
 - 初始化脚本会在完成后关闭数据库连接池，避免事件循环关闭时的警告。
 - 若需要 GPU，本地可运行 `.\run_local_gpu.ps1`（Windows），脚本会尝试安装带 CUDA 的 PyTorch 并以 `uvicorn` 启动后端。
 
-### 3.4 Docker 容器架构图
-
-```mermaid
-graph TB
-    subgraph "Docker Compose 服务"
-        DB[(MySQL 8<br/>:3306)]
-        Backend[Backend 容器<br/>:8000]
-        Frontend[Frontend 容器<br/>:3000]
-    end
-    
-    subgraph "Backend 容器内部"
-        FastAPI[FastAPI 应用]
-        MSS[MSS 引擎]
-        Models[模型文件挂载]
-    end
-    
-    subgraph "Frontend 容器内部"
-        React[React 应用]
-        Nginx[Nginx 服务器]
-    end
-    
-    Frontend -->|HTTP| Backend
-    Backend -->|SQL| DB
-    Backend -->|调用| MSS
-    MSS -->|读取| Models
-    
-    style DB fill:#4472c4,color:#fff
-    style Backend fill:#70ad47,color:#fff
-    style Frontend fill:#ffc000
-```
-
----
-
 ## 4. 第一次启动后你要做的三件事（强烈建议按顺序）
 
-> 下面命令都在**仓库根目录**执行（因为我们用的是根目录 `docker-compose.yml`）。
+> 下面命令都在**backend 目录（已激活虚拟环境）**执行。
 
 ### 4.1 初始化数据库表结构
 
 ```bash
-docker compose exec backend python -m app.init_db
+python -m app.init_db
 ```
 
 ![数据库初始化](docs/images/13-db-init.png)
@@ -507,7 +400,7 @@ docker compose exec backend python -m app.init_db
 ### 4.2 初始化系统设置（SystemConfig）
 
 ```bash
-docker compose exec backend python -m app.init_system_configs
+python -m app.init_system_configs
 ```
 
 ![系统设置初始化](docs/images/14-system-config-init.png)
@@ -516,7 +409,7 @@ docker compose exec backend python -m app.init_system_configs
 ### 4.3 创建/更新默认账号（一次创建 3 个：guest / expert / admin）
 
 ```bash
-docker compose exec backend python -m app.create_admin
+python -m app.create_admin
 ```
 
 ```mermaid
@@ -1048,11 +941,7 @@ SMTP_PASS=your_auth_code      # 邮箱授权码/应用密码（不是登录密�
 MAIL_FROM=your_email@qq.com    # 发件人邮箱（通常与SMTP_USER相同）
 ```
 
-然后重启 Docker 服务：
-```bash
-docker compose down
-docker compose up -d
-```
+然后重启后端进程（重新运行 `uvicorn` 或 `python run.py`）。
 
 #### 方式二：通过系统管理页面配置（适合运行时修改）
 
@@ -1116,10 +1005,7 @@ MAIL_FROM=your_email@outlook.com
 1. 访问 `http://localhost:3000`
 2. 点击“注册”，输入邮箱和验证码
 3. 如果配置正确，验证码会发送到你的邮箱
-4. 如果配置错误，查看后端日志：
-   ```bash
-   docker compose logs backend | grep EMAIL
-   ```
+4. 如果配置错误，查看后端日志（在运行后端的终端中搜索 `EMAIL` 关键字）。
 
 #### 开发环境建议
 
@@ -1166,12 +1052,12 @@ flowchart TD
     style RemoteReady fill:#2196f3
 ```
 
-**MSS 相关环境变量**（在 `docker-compose.yml` 中配置）：
-- **MSS_ROOT_DIR**：MSS 仓库路径（容器内路径，默认 `/app/mss`）
-- **MSS_MDX23C_CKPT**：MDX23C 模型权重路径（默认 `/app/models/mss/model_mdx23c_ep_168_sdr_7.0207.ckpt`）
-- **MSS_DEMUCS4HT_CKPT**：Demucs4HT 模型权重路径（默认 `/app/models/mss/955717e8-8726e21a.th`）
-- **MSS_BS_ROFORMER_CKPT**：Band Split RoFormer 模型权重路径（默认 `/app/models/mss/model_bs_roformer_ep_17_sdr_9.6568.ckpt`）
-- **MSS_SCNET_CKPT**：SCNet 模型权重路径（默认 `/app/models/mss/scnet_checkpoint_musdb18.ckpt`）
+**MSS 相关环境变量**（在本地运行环境中配置，例如 `backend/.env` 或操作系统环境变量）：
+- **MSS_ROOT_DIR**：MSS 仓库路径（本机路径，例如 `D:/code/AudioLab/Music-Source-Separation-Training-main`）
+- **MSS_MDX23C_CKPT**：MDX23C 模型权重路径（例如 `D:/code/models/mss/model_mdx23c_ep_168_sdr_7.0207.ckpt`）
+- **MSS_DEMUCS4HT_CKPT**：Demucs4HT 模型权重路径（例如 `D:/code/models/mss/955717e8-8726e21a.th`）
+- **MSS_BS_ROFORMER_CKPT**：Band Split RoFormer 模型权重路径（例如 `D:/code/models/mss/model_bs_roformer_ep_17_sdr_9.6568.ckpt`）
+- **MSS_SCNET_CKPT**：SCNet 模型权重路径（例如 `D:/code/models/mss/scnet_checkpoint_musdb18.ckpt`）
 
 **可选：覆盖 MSS 配置文件（高级）**：
 - 你也可以通过环境变量覆盖每个模型的 `config_path`（不设置则使用 MSS 仓库 `configs/` 下的默认值）：
@@ -1181,41 +1067,10 @@ flowchart TD
   - **MSS_SCNET_CONFIG**
 - 如果你遇到类似 `size mismatch ... to_freqs ... torch.Size([768, 384]) ... torch.Size([768, 192])` 的报错，基本可判定为 **checkpoint 与 config 不匹配**。此时请将 `MSS_BS_ROFORMER_CONFIG` 指向与你的 ckpt 版本匹配的配置文件（例如 `config_musdb18_bs_roformer_384_8_2_485100_sage.yaml` 或 `config_musdb18_bs_roformer.yaml`）。
 
-**模型文件挂载**（在 `docker-compose.yml` 中配置）：
-```yaml
-volumes:
-  - ./Music-Source-Separation-Training-main:/app/mss  # MSS 仓库
-  - D:/code/models/mss:/app/models/mss                # 模型权重目录
-```
-
-```mermaid
-graph LR
-    Host[宿主机] -->|挂载| Container[容器]
-    
-    subgraph "宿主机目录"
-        MSSRepo[Music-Source-Separation-Training-main]
-        ModelsDir[D:/code/models/mss]
-    end
-    
-    subgraph "容器内目录"
-        ContainerMSS[/app/mss]
-        ContainerModels[/app/models/mss]
-    end
-    
-    MSSRepo -.->|volume mount| ContainerMSS
-    ModelsDir -.->|volume mount| ContainerModels
-    
-    ContainerMSS --> Inference[inference.py]
-    ContainerModels --> Model1[MDX23C.ckpt]
-    ContainerModels --> Model2[Demucs4HT.th]
-    ContainerModels --> Model3[BS_RoFormer.ckpt]
-    ContainerModels --> Model4[SCNet.ckpt]
-```
-
 **注意事项**：
-- 确保模型文件已下载到指定目录
-- 如果模型路径不同，请修改 `docker-compose.yml` 中的挂载路径
-- MSS 依赖会在容器启动时自动安装（首次启动需要 10-20 分钟）
+- 确保模型文件已下载到指定目录（例如 `D:\code\models\mss`）
+- 如果模型路径不同，请通过环境变量覆盖默认值（见上面 `MSS_*_CKPT`）
+- MSS 依赖（PyTorch 等）需要在本地虚拟环境中提前安装好
 
 ### 7.4 其他重要环境变量清单
 
@@ -1428,14 +1283,10 @@ flowchart TD
 **情况一：使用 mock 模式（开发环境）**
 - 这是正常现象，邮件不会实际发送
 - 验证码会打印在后端日志中，格式：`[EMAIL MOCK] to=xxx code=xxxxxx`
-- 查看日志：`docker compose logs backend | grep EMAIL`
+- 查看日志：在运行后端的终端中查找 `[EMAIL MOCK]` 相关输出
 
 **情况二：使用 smtp 模式但收不到邮件**
-1. **检查配置是否正确**：
-   ```bash
-   # 查看当前环境变量
-   docker compose exec backend env | grep SMTP
-   ```
+1. **检查配置是否正确**：确认后端运行环境中的 `SMTP_*` 相关环境变量或 `backend/.env` 已正确设置。
 2. **确认使用的是授权码，不是登录密码**：
    - QQ 邮箱：需要在邮箱设置中生成 16 位授权码
    - Gmail：需要使用"应用专用密码"，不是普通密码
@@ -1444,10 +1295,7 @@ flowchart TD
    - 587 端口：通常使用 TLS（STARTTLS）
    - 465 端口：通常使用 SSL
    - 如果 587 不行，试试 465，反之亦然
-4. **查看后端错误日志**：
-   ```bash
-   docker compose logs backend | grep -i "email\|smtp\|error"
-   ```
+4. **查看后端错误日志**：在运行后端的终端或日志文件中搜索 `email` / `smtp` / `error` 关键字。
 5. **检查垃圾箱**：部分邮箱服务商可能将验证码邮件标记为垃圾邮件
 6. **确认邮箱服务商是否允许第三方登录**：
    - Gmail：需要开启"允许不够安全的应用访问"（或使用应用专用密码）
@@ -1473,7 +1321,7 @@ flowchart TD
 
 ### 9.3 “默认账号是什么？我用 admin@audiolab.com 登录失败”
 
-默认账号不是 `admin@audiolab.com`。请以 `docker compose exec backend python -m app.create_admin` 的输出为准：  
+默认账号不是 `admin@audiolab.com`。请以本地执行 `python -m app.create_admin` 的输出为准：  
 脚本会创建/更新 **guest / expert / admin** 三个账号。
 
 ---
@@ -1486,34 +1334,37 @@ flowchart TD
 
 ### 9.5 "MSS 算法分离失败 / ModuleNotFoundError"
 
-**情况一：MSS 依赖未安装完成**
-- MSS 依赖在后台安装，首次启动需要 10-20 分钟
-- 检查安装状态：`docker logs audiolab-backend | grep "MSS\|torch\|librosa"`
-- 手动检查依赖：`docker exec audiolab-backend python -c "import torch; import librosa; print('OK')"`
+**情况一：MSS 依赖未安装或不完整**
+- 建议在本地虚拟环境中手动安装并验证：
+  ```bash
+  cd backend
+  .\.venv\Scripts\Activate.ps1  # Windows
+  # 或 source .venv/bin/activate  # macOS / Linux
+  python -c "import torch; import librosa; print('OK')"
+  ```
 
 ![MSS 依赖检查](docs/images/38-mss-dependency-check.png)
 *图 9.5.1：MSS 依赖检查 - 如何验证依赖是否安装完成*
 
 **情况二：模型文件不存在**
-- 检查模型文件是否已下载到指定目录
-- 检查 `docker-compose.yml` 中的模型路径配置是否正确
-- 查看容器内模型文件：`docker exec audiolab-backend ls -lh /app/models/mss/`
+- 检查模型文件是否已下载到指定目录（例如 `D:\code\models\mss`）
+- 检查环境变量中的模型路径是否与实际路径一致
 
 ![模型文件检查](docs/images/39-model-files-check.png)
 *图 9.5.2：模型文件检查 - 验证模型文件是否正确挂载*
 
 **情况三：MSS 推理脚本执行失败**
-- 查看详细错误日志：`docker logs audiolab-backend | grep "MSS inference"`
-- 检查 MSS 仓库是否正确挂载：`docker exec audiolab-backend ls -la /app/mss/inference.py`
-- 检查 Python 版本兼容性（需要 Python 3.10）
+- 查看后端终端输出，聚焦 `MSS inference` 相关错误
+- 检查 MSS 仓库路径（如 `Music-Source-Separation-Training-main`）是否正确，且 `inference.py` 可被导入
+- 检查 Python 版本兼容性（建议使用 Python 3.10）
 
 ![MSS 推理错误诊断](docs/images/40-mss-inference-error.png)
 *图 9.5.3：MSS 推理错误诊断 - 常见错误和解决方案*
 
 **情况四：CUDA/GPU 相关问题**
-- 当前系统默认使用 CPU 模式（即使安装了 CUDA 库）
+- 当前系统在无额外配置时默认使用 CPU 模式
 - CPU 模式运行较慢但功能正常
-- 如需 GPU 加速，需要配置 Docker GPU 支持（nvidia-docker）
+- 如需 GPU 加速，可在本地环境中安装支持 CUDA 的 PyTorch，并确保显卡驱动与 CUDA 版本兼容
 
 ![GPU 配置示意图](docs/images/41-gpu-configuration.png)
 *图 9.5.4：GPU 配置示意图 - CPU 模式 vs GPU 模式的区别*
@@ -1524,7 +1375,7 @@ flowchart TD
 
 **解决方案**：已修复，后端现在支持字符串类型的任务 ID。如果仍遇到问题：
 - 刷新浏览器页面（清除缓存）
-- 检查后端日志：`docker logs audiolab-backend | grep "task_id"`
+- 在运行后端的终端或日志文件中搜索 `task_id` 相关错误
 
 ---
 
@@ -1555,8 +1406,8 @@ mindmap
 - **修改密码/找回密码**：目前无对应 UI 与 API
 - **MSS 算法性能**：
   - 默认使用 CPU 模式，处理速度较慢（几分钟到十几分钟，取决于音频长度）
-  - GPU 加速需要额外配置 Docker GPU 支持
-  - MSS 依赖首次安装需要 10-20 分钟（后台安装，不阻塞应用启动）
+  - GPU 加速需要在本地环境中正确安装 CUDA / PyTorch
+  - MSS 依赖首次安装需要一定时间（取决于网络与机器性能）
 - **模型文件**：需要手动下载模型权重文件到指定目录（见 3.2 节）
 
 ---
@@ -1721,9 +1572,7 @@ stateDiagram-v2
 - `35-analytics-dashboard.png` - 数据统计
 
 ### 安装和配置截图
-- `08-docker-desktop.png` - Docker Desktop
 - `09-model-files.png` - 模型文件目录
-- `10-docker-startup.png` - Docker 启动
 - `11-pytorch-install.png` - PyTorch 安装
 - `12-startup-success.png` - 启动成功
 - `13-db-init.png` - 数据库初始化

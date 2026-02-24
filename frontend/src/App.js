@@ -1665,7 +1665,8 @@ export default function AudioLabApp() {
 
   // Realtime stats from Firestore
   const [communityStats, setCommunityStats] = useState([]);
-  const [storageMode, setStorageMode] = useState("local");
+  const [, setStorageMode] = useState("local");
+  const [computeMode, setComputeMode] = useState("gpu");
   // 后端统计数据
   const [backendStats, setBackendStats] = useState([]);
   const [algorithmComparison, setAlgorithmComparison] = useState([]);
@@ -2391,6 +2392,64 @@ export default function AudioLabApp() {
       return () => clearInterval(interval);
     }
   }, [user]);
+
+  // Fetch Compute Mode from Backend (poll + tab focus)
+  useEffect(() => {
+    let cancelled = false;
+    let apiExists = true;
+    let intervalId = null;
+
+    const fetchComputeMode = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/system/compute-mode`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (!cancelled) {
+            const raw = (data.compute_mode || "gpu").toString().toLowerCase();
+            setComputeMode(raw === "cpu" ? "cpu" : "gpu");
+          }
+          return true;
+        }
+        if (resp.status === 404) {
+          if (!cancelled) {
+            setComputeMode("gpu");
+          }
+          return false;
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setComputeMode("gpu");
+        }
+        return false;
+      }
+      return false;
+    };
+
+    const setupInterval = () => {
+      if (!apiExists || intervalId) return;
+      intervalId = setInterval(() => {
+        fetchComputeMode();
+      }, 30000);
+    };
+
+    fetchComputeMode().then((exists) => {
+      apiExists = exists;
+      if (exists) setupInterval();
+    });
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible" && apiExists) {
+        fetchComputeMode();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   const fetchMyScores = useCallback(
     async ({ skip = 0, limit = 100 } = {}) => {
@@ -3505,16 +3564,16 @@ export default function AudioLabApp() {
 
           <div className="flex items-center gap-3">
             <div
-              title="当前数据源（由管理员在系统设置中配置）"
+              title="当前设备模式（由管理员在系统设置中配置）"
               className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700/50 bg-slate-800/50 text-slate-300"
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  storageMode === "local" ? "bg-emerald-400" : "bg-purple-400"
+                  computeMode === "cpu" ? "bg-amber-400" : "bg-emerald-400"
                 }`}
               ></span>
               <span className="text-xs font-bold tracking-wide">
-                数据源：{storageMode === "local" ? "本地" : "Firestore"}
+                设备：{computeMode === "cpu" ? "CPU" : "GPU"}
               </span>
             </div>
 

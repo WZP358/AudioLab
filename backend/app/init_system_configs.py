@@ -189,6 +189,14 @@ DEFAULT_CONFIGS = [
         "category": "task"
     },
     
+    # ==================== 分离/计算配置 ====================
+    {
+        "key": "separation_compute_mode",
+        "value": os.getenv("SEPARATION_COMPUTE_MODE", "gpu"),
+        "description": "分离任务运行模式：cpu 或 gpu（仅在支持 GPU 的环境下生效）",
+        "category": "separation"
+    },
+    
     # ==================== 存储配置 ====================
     {
         "key": "storage_mode",

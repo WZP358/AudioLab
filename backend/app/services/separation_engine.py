@@ -422,6 +422,11 @@ class MSSLocalEngine(SeparationEngine):
                 "--disable_detailed_pbar",
             ]
 
+            # 如果上游通过环境变量请求强制使用 CPU，则为 inference.py 添加 --force_cpu 参数
+            mss_force_cpu = (os.getenv("MSS_FORCE_CPU") or "").strip().lower()
+            if mss_force_cpu in ("1", "true", "yes", "on"):
+                cmd.append("--force_cpu")
+
             logger.info(
                 "启动 MSS inference 子进程: %s",
                 " ".join(cmd),

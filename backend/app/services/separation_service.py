@@ -1,14 +1,18 @@
 from pathlib import Path
 import logging
+import os
+
 from app.models import SeparationTask, StemFile, TaskStatus, Algorithm
 from app.database import AsyncSessionLocal
 from app.services.separation_engine import build_separation_engine_from_env, clear_task_cancelled
 from app.utils.progress import print_progress_text, print_progress_bar
+from app.utils.config_helper import get_config_value
 
 logger = logging.getLogger(__name__)
 
+
 async def process_separation(task_id: int, file_path: str, algorithm: Algorithm):
-    """处理音频分离任务（可通过环境变量切换 mock/http/local 引擎）"""
+    """处理音频分离任务（支持通过系统配置切换 CPU / GPU 运行模式）"""
     async with AsyncSessionLocal() as session:
         try:
             # 更新任务状态为处理中（若未被用户取消）
@@ -26,19 +30,59 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm)
 
             task.status = TaskStatus.PROCESSING
             await session.commit()
-            
-            print_progress_text(f"[任务 {task_id}] 初始化分离引擎...")
-            engine = build_separation_engine_from_env()
-            engine_type = type(engine).__name__
-            print_progress_text(f"[任务 {task_id}] 引擎类型: {engine_type}")
 
-            # 结果目录（与 tasks.py 保持一致）
-            results_dir = Path("/app/results") / str(task_id)
-            
-            print_progress_text(f"[任务 {task_id}] 开始执行分离...")
-            result = await engine.separate(
-                input_path=Path(file_path), algorithm=algorithm, results_dir=results_dir, task_id=task_id
-            )
+            # 根据系统配置决定运行模式（CPU / GPU）
+            try:
+                compute_mode = await get_config_value(
+                    session,
+                    key="separation_compute_mode",
+                    default="gpu",
+                    env_key="SEPARATION_COMPUTE_MODE",
+                    config_type=str,
+                )
+                mode = (str(compute_mode) or "gpu").strip().lower()
+            except Exception:
+                mode = "gpu"
+
+            if mode not in ("cpu", "gpu"):
+                mode = "gpu"
+
+            # 通过 CUDA_VISIBLE_DEVICES 控制子进程是否能看到 GPU
+            # 注意：MSS 仓库本身不识别 MSS_FORCE_CPU，我们仅用它做日志标记
+            old_cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+            try:
+                if mode == "cpu":
+                    os.environ["MSS_FORCE_CPU"] = "true"
+                    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+                    print_progress_text(
+                        f"[任务 {task_id}] 运行模式: CPU（CUDA_VISIBLE_DEVICES 置空，MSS_FORCE_CPU=true）"
+                    )
+                else:
+                    os.environ["MSS_FORCE_CPU"] = "false"
+                    # 在 GPU 模式下暂不强制修改 CUDA_VISIBLE_DEVICES，保持外部环境配置；
+                    # 真正的恢复逻辑在 finally 中处理（把值还原为本任务前的状态）。
+                    print_progress_text(
+                        f"[任务 {task_id}] 运行模式: GPU（MSS_FORCE_CPU=false）"
+                    )
+
+                print_progress_text(f"[任务 {task_id}] 初始化分离引擎...")
+                engine = build_separation_engine_from_env()
+                engine_type = type(engine).__name__
+                print_progress_text(f"[任务 {task_id}] 引擎类型: {engine_type}")
+
+                # 结果目录（与 tasks.py 保持一致）
+                results_dir = Path("/app/results") / str(task_id)
+                
+                print_progress_text(f"[任务 {task_id}] 开始执行分离...")
+                result = await engine.separate(
+                    input_path=Path(file_path), algorithm=algorithm, results_dir=results_dir, task_id=task_id
+                )
+            finally:
+                # 恢复 CUDA_VISIBLE_DEVICES，避免影响后续任务/其他代码
+                if old_cuda_visible is None:
+                    os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+                else:
+                    os.environ["CUDA_VISIBLE_DEVICES"] = old_cuda_visible
 
             # 再次刷新任务，避免覆盖可能在分离过程中被设置的“用户取消”状态
             await session.refresh(task)
