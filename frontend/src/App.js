@@ -1519,6 +1519,79 @@ const SingleSpectrogramView = ({
   );
 };
 
+// 简单电平表（借鉴 Au）：基于当前播放位置附近的波形包络估算 RMS / Peak，做相对电平对比
+const LevelMeter = ({ wave, playbackState, label, theme = "emerald" }) => {
+  const themeColor = theme === "cyan" ? "#22d3ee" : theme === "purple" ? "#a855f7" : "#10b981";
+
+  const { rmsDb, norm } = useMemo(() => {
+    const duration = playbackState?.duration || 0;
+    const t = playbackState?.currentTime || 0;
+    // 统一展开波形：支持 number[] 或 { min:number[], max:number[] } 包络
+    const resolveWaveArray = (input) => {
+      if (Array.isArray(input)) return input;
+      if (input && typeof input === "object") {
+        const wMin = input.min;
+        const wMax = input.max;
+        if (Array.isArray(wMin) && Array.isArray(wMax) && wMin.length && wMax.length) {
+          const n = Math.min(wMin.length, wMax.length);
+          const mid = new Array(n);
+          for (let i = 0; i < n; i += 1) {
+            const a = typeof wMin[i] === "number" && isFinite(wMin[i]) ? wMin[i] : 0;
+            const b = typeof wMax[i] === "number" && isFinite(wMax[i]) ? wMax[i] : 0;
+            mid[i] = (a + b) * 0.5;
+          }
+          return mid;
+        }
+      }
+      return [];
+    };
+
+    const data = resolveWaveArray(wave);
+    if (!duration || !data.length) {
+      return { rmsDb: -60, peakDb: -60, norm: 0 };
+    }
+    const pos = Math.max(0, Math.min(1, t / duration));
+    const center = Math.floor(pos * (data.length - 1));
+    const win = Math.max(4, Math.floor(data.length * 0.01));
+    const start = Math.max(0, center - win);
+    const end = Math.min(data.length - 1, center + win);
+    let sumSq = 0;
+    let peak = 0;
+    let count = 0;
+    for (let i = start; i <= end; i += 1) {
+      const v = typeof data[i] === "number" && isFinite(data[i]) ? data[i] : 0;
+      const a = Math.abs(v);
+      sumSq += a * a;
+      if (a > peak) peak = a;
+      count += 1;
+    }
+    const rms = count > 0 ? Math.sqrt(sumSq / count) : 0;
+    const toDb = (x) => (x > 1e-6 ? 20 * Math.log10(x) : -60);
+    const rmsDb = toDb(rms);
+    // 归一到 [0,1]，-60dB -> 0, 0dB -> 1
+    const norm = Math.max(0, Math.min(1, (rmsDb + 60) / 60));
+    return { rmsDb, norm };
+  }, [wave, playbackState]);
+
+  return (
+    <div className="flex items-center gap-2 text-[11px] text-slate-400">
+      <span className="w-16 truncate">{label}</span>
+      <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
+        <div
+          className="h-full transition-all"
+          style={{
+            width: `${(norm || 0) * 100}%`,
+            background: `linear-gradient(90deg, ${themeColor}, #f97316)`,
+          }}
+        />
+      </div>
+      <span className="w-12 text-right font-mono text-slate-300">
+        {Number.isFinite(rmsDb) ? rmsDb.toFixed(1) : "-∞"}dB
+      </span>
+    </div>
+  );
+};
+
 // --- Main Application ---
 // 与后端 app.models.Algorithm 保持一致的可选算法列表
 const ALGORITHMS = [
@@ -4287,7 +4360,31 @@ export default function AudioLabApp() {
                       </div>
                     </div>
 
-                    <div className="space-y-3">
+                    {/* 电平对比（参考 / 分离） */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <LevelMeter
+                        wave={goldWaveEnv || goldWave || gtWaveEnv || gtWave}
+                        playbackState={playbackState}
+                        label={gtFileRef.current ? "Gold Level" : "Mix Level"}
+                        theme="emerald"
+                      />
+                      <LevelMeter
+                        wave={
+                          currentStem?.waveformEnv
+                            ? currentStem.waveformEnv
+                            : currentStem?.waveform
+                              ? currentStem.waveform
+                              : results
+                                ? (sepWaveEnv || sepWave)
+                                : []
+                        }
+                        playbackState={playbackState}
+                        label="Separated Level"
+                        theme="cyan"
+                      />
+                    </div>
+
+                    <div className="space-y-3 pt-1">
                       {/* 参考波形：Gold Standard（若有）或 Mixture */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-[11px] text-slate-400">

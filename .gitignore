@@ -63,3 +63,10 @@ models/
 .dockerignore
 
 Music-Source-Separation-Training-main/
+
+
+*.wav
+*.mp3
+*.pth
+*.ckpt
+*.pt
