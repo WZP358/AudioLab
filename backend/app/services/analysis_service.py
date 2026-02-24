@@ -17,6 +17,9 @@ class AudioAnalysis:
     waveform: List[float]  # downsampled mono waveform in [-1, 1]
     spectrogram: List[List[float]]  # 2D: [freq_bins][time_bins], normalized to [0, 1]
     bit_depth: Optional[int] = None  # 位深度，如果无法获取则为 None
+    # NOTE: dataclass 要求：无默认值字段必须在默认值字段之前
+    waveform_min: Optional[List[float]] = None  # envelope min per bucket (optional)
+    waveform_max: Optional[List[float]] = None  # envelope max per bucket (optional)
 
 
 def _get_bit_depth_from_subtype(subtype: str) -> Optional[int]:
@@ -103,32 +106,39 @@ def _read_audio_any(path: Path) -> tuple[np.ndarray, int, Optional[int]]:
             return y, int(sr), 16
 
 
-def _downsample_waveform(y: np.ndarray, points: int = 800) -> List[float]:
-    if y.size == 0 or points <= 0:
-        return []
-    if y.size <= points:
-        # pad to fixed length for stable UI
-        out = np.pad(y, (0, points - y.size), mode="constant")
-        return out.astype(np.float32).tolist()
+def _downsample_waveform_envelope(
+    y: np.ndarray, points: int = 800
+) -> tuple[List[float], List[float], List[float]]:
+    """
+    生成“更像 DAW”的波形包络数据：
+    - waveform_min：每桶最小值
+    - waveform_max：每桶最大值
+    - waveform：为了向后兼容保留的中线（(min+max)/2）
 
-    # simple peak-pick per window for visibility (more stable than naive decimation)
+    说明：
+    - 只返回固定点数，保证 payload 体积可控
+    - 比“每桶一个点（平均/抽样）”更可靠：瞬态不会被完全抹掉
+    """
+    if y.size == 0 or points <= 0:
+        return [], [], []
+    points = int(points)
+    if y.size <= points:
+        out = np.pad(y, (0, points - y.size), mode="constant").astype(np.float32)
+        out = np.clip(out, -1.0, 1.0)
+        return out.tolist(), out.tolist(), out.tolist()
+
     win = int(np.ceil(y.size / points))
     target_size = win * points
-    if target_size > y.size:
-        # 如果目标大小超过实际大小，需要填充或调整
-        # 方法1：填充到目标大小
-        trimmed = np.pad(y, (0, target_size - y.size), mode="constant")
-    else:
-        # 如果目标大小小于等于实际大小，截取
-        trimmed = y[:target_size]
-    
+    trimmed = (
+        np.pad(y, (0, target_size - y.size), mode="constant")
+        if target_size > y.size
+        else y[:target_size]
+    )
     frames = trimmed.reshape(points, win)
-    peak = frames.max(axis=1)
-    trough = frames.min(axis=1)
-    # interleave max/min into a single trace by averaging (keeps sign information)
-    trace = (peak + trough) * 0.5
-    trace = np.clip(trace, -1.0, 1.0)
-    return trace.astype(np.float32).tolist()
+    w_max = np.clip(frames.max(axis=1), -1.0, 1.0).astype(np.float32)
+    w_min = np.clip(frames.min(axis=1), -1.0, 1.0).astype(np.float32)
+    w_mid = np.clip((w_max + w_min) * 0.5, -1.0, 1.0).astype(np.float32)
+    return w_mid.tolist(), w_min.tolist(), w_max.tolist()
 
 
 def _stft_magnitude(y: np.ndarray, *, n_fft: int, hop_length: int) -> np.ndarray:
@@ -217,11 +227,21 @@ def analyze_audio_file(
 
     duration_s = float(mono.size / sr) if sr > 0 else 0.0
 
-    waveform = _downsample_waveform(mono, points=waveform_points)
+    waveform, waveform_min, waveform_max = _downsample_waveform_envelope(
+        mono, points=waveform_points
+    )
 
     mag = _stft_magnitude(mono, n_fft=n_fft, hop_length=hop_length)  # [freq, time]
     if mag.size == 0:
-        return AudioAnalysis(sample_rate=int(sr), duration_s=duration_s, waveform=waveform, spectrogram=[], bit_depth=bit_depth)
+        return AudioAnalysis(
+            sample_rate=int(sr),
+            duration_s=duration_s,
+            waveform=waveform,
+            waveform_min=waveform_min,
+            waveform_max=waveform_max,
+            spectrogram=[],
+            bit_depth=bit_depth,
+        )
 
     # log compression
     mag_db = 20.0 * np.log10(np.maximum(mag, 1e-8))
@@ -238,6 +258,8 @@ def analyze_audio_file(
         sample_rate=int(sr),
         duration_s=duration_s,
         waveform=waveform,
+        waveform_min=waveform_min,
+        waveform_max=waveform_max,
         spectrogram=spectrogram,
         bit_depth=bit_depth,
     )
@@ -248,6 +270,8 @@ def analysis_to_payload(a: AudioAnalysis) -> Dict[str, Any]:
         "sample_rate": a.sample_rate,
         "duration_s": a.duration_s,
         "waveform": a.waveform,
+        "waveform_min": a.waveform_min,
+        "waveform_max": a.waveform_max,
         "spectrogram": a.spectrogram,
         "bit_depth": a.bit_depth,
     }

@@ -26,6 +26,8 @@ import {
   Upload,
   ZoomIn,
   ZoomOut,
+  Maximize2,
+  Minimize2,
   BarChart2,
   Award,
   Music,
@@ -55,6 +57,8 @@ import {
   PolarRadiusAxis,
   BarChart,
   Bar,
+  ScatterChart,
+  Scatter,
 } from "recharts";
 
 // --- App ID for LocalStorage ---
@@ -115,82 +119,6 @@ const genLocalId = () => {
 // --- Storage mode toggle (UI-only for now; Firestore not configured) ---
 // Note: Storage mode functions are kept for future use but currently unused
 
-// --- Simulation Data Helpers ---
-// 模拟音频数据生成器 (用于可视化)
-const generateWaveformData = (points, complexity = 1) => {
-  return Array.from({ length: points }, (_, i) => {
-    const x = i / 10;
-    return (
-      Math.sin(x) * 0.5 +
-      Math.sin(x * 2.5) * 0.3 * complexity +
-      (Math.random() - 0.5) * 0.1
-    );
-  });
-};
-
-const generateSpectrumData = (width, height) => {
-  // 简单的热力图模拟数据
-  const data = [];
-  for (let i = 0; i < width; i += 5) {
-    const col = [];
-    for (let j = 0; j < height; j += 5) {
-      col.push(Math.random());
-    }
-    data.push(col);
-  }
-  return data;
-};
-
-// 从用户上传的"金标准"单源音频中提取波形（用于可视化对比）
-const decodeFileToWaveform = async (file, points = 800) => {
-  if (!file) return [];
-  try {
-    const AudioCtx =
-      typeof window !== "undefined" &&
-      (window.AudioContext || window.webkitAudioContext);
-    if (!AudioCtx) {
-      throw new Error("当前浏览器不支持 Web Audio API");
-    }
-
-    const arrayBuffer = await file.arrayBuffer();
-    const audioCtx = new AudioCtx();
-    let audioBuffer;
-
-    // 部分浏览器的 decodeAudioData 仍然使用回调形式，这里做个兼容
-    if (audioCtx.decodeAudioData.length === 1) {
-      audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-    } else {
-      audioBuffer = await new Promise((resolve, reject) => {
-        audioCtx.decodeAudioData(arrayBuffer, resolve, reject);
-      });
-    }
-
-    const channelData = audioBuffer.getChannelData(0); // 只取第一个声道
-    const totalSamples = channelData.length;
-    const bucketSize = Math.max(1, Math.floor(totalSamples / points));
-
-    const waveform = [];
-    for (let i = 0; i < points; i += 1) {
-      const start = i * bucketSize;
-      if (start >= totalSamples) break;
-      let sum = 0;
-      let count = 0;
-      for (let j = 0; j < bucketSize && start + j < totalSamples; j++) {
-        sum += channelData[start + j];
-        count += 1;
-      }
-      waveform.push(count ? sum / count : 0);
-    }
-
-    // 及时释放 AudioContext，避免过多实例
-    audioCtx.close();
-    return waveform.length ? waveform : generateWaveformData(points, 1);
-  } catch (e) {
-    console.warn("解析金标准音频失败，将退回示例波形：", e);
-    return generateWaveformData(points, 1);
-  }
-};
-
 // --- Components ---
 
 // 1. 用户面板组件（仅用于普通用户界面，管理员不会看到）
@@ -246,30 +174,99 @@ const AuthPanel = ({ user, onLogout }) => {
 };
 
 // 2. 波形/频谱可视化组件 (核心难点实现)
+// eslint-disable-next-line no-unused-vars
 const WaveformComparator = ({
   groundTruth,
   goldWave,
   separated,
+  // 说明：新的设计里只做“两路波形对比”（参考 vs 分离），不再做 Time Domain Difference Overlay
+  // showMixture/showGold 用于选择“参考波形”来源（原始混合音 vs 金标准），一次只展示其中一路。
   showMixture = true,
   showGold = true,
   showSeparated = true,
+  autoGain = true,
+  yZoom = 1.0,
+  errorThreshold = 0.15,
+  heightPx = 360,
   viewRange,
   onViewRangeChange,
   playbackState = { currentTime: 0, duration: 0, playing: false, seek: null },
 }) => {
   const canvasRef = useRef(null);
+  const wrapperRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(null); // 0~1 归一化
   const [dragCurrentX, setDragCurrentX] = useState(null); // 0~1 归一化
   const [scrubbing, setScrubbing] = useState(false); // 是否正在拖动播放进度线
   const [scrubPosition, setScrubPosition] = useState(null); // 拖动时的临时位置
+  const [hoverX, setHoverX] = useState(null); // 0~1 归一化（视窗内）
+  const [layout, setLayout] = useState({ w: 800, h: 256 });
+
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  const unpackWave = useCallback((input) => {
+    // 支持两种输入：
+    // 1) 旧：number[]（中线）
+    // 2) 新：{ min: number[], max: number[] }（包络）
+    if (Array.isArray(input)) {
+      return { mid: input, min: null, max: null };
+    }
+    if (input && typeof input === "object") {
+      const wMin = input.min;
+      const wMax = input.max;
+      if (Array.isArray(wMin) && Array.isArray(wMax) && wMin.length && wMax.length) {
+        // 为了 diff/hover 等逻辑，生成一个中线（不改变原始 min/max）
+        const n = Math.min(wMin.length, wMax.length);
+        const mid = new Array(n);
+        for (let i = 0; i < n; i += 1) {
+          const a = typeof wMin[i] === "number" && isFinite(wMin[i]) ? wMin[i] : 0;
+          const b = typeof wMax[i] === "number" && isFinite(wMax[i]) ? wMax[i] : 0;
+          mid[i] = (a + b) * 0.5;
+        }
+        return { mid, min: wMin, max: wMax };
+      }
+    }
+    return { mid: [], min: null, max: null };
+  }, []);
+  const getValAt = useCallback((arr, pos01) => {
+    if (!Array.isArray(arr) || arr.length === 0) return 0;
+    if (arr.length === 1) return arr[0] || 0;
+    const p = clamp01(pos01);
+    const idx = Math.floor(p * (arr.length - 1));
+    const v = arr[idx];
+    return typeof v === "number" && isFinite(v) ? v : 0;
+  }, []);
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries?.[0];
+      const rect = entry?.contentRect;
+      if (!rect) return;
+      const w = Math.max(1, Math.floor(rect.width));
+      const h = Math.max(1, Math.floor(rect.height));
+      setLayout((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const width = canvas.width;
-    const height = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = layout.w || canvas.clientWidth || 800;
+    const cssHeight = layout.h || canvas.clientHeight || 256;
+    const width = cssWidth;
+    const height = cssHeight;
+
+    // 设置真实像素尺寸（更清晰）
+    const pxW = Math.max(1, Math.floor(cssWidth * dpr));
+    const pxH = Math.max(1, Math.floor(cssHeight * dpr));
+    if (canvas.width !== pxW) canvas.width = pxW;
+    if (canvas.height !== pxH) canvas.height = pxH;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // 清空
     ctx.clearRect(0, 0, width, height);
@@ -278,83 +275,173 @@ const WaveformComparator = ({
     ctx.strokeStyle = "#1e293b";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let x = 0; x < width; x += 50) {
+    const gridX = Math.max(40, Math.floor(width / 16));
+    const gridY = Math.max(28, Math.floor(height / 8));
+    for (let x = 0; x < width; x += gridX) {
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
     }
+    for (let y = 0; y < height; y += gridY) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
     ctx.stroke();
 
-    const centerY = height / 2;
-    const scaleY = height / 2.2;
+    // 垂直布局：上半段绘制“参考波形”(Reference)，下半段绘制“分离结果”(Separated)
+    const refCenterY = height * 0.25;
+    const sepCenterY = height * 0.75;
     const vrStart = Math.max(0, Math.min(1, viewRange?.start ?? 0));
     const vrEnd = Math.max(vrStart, Math.min(1, viewRange?.end ?? 1));
     const span = Math.max(0.0001, vrEnd - vrStart);
 
-    const mixture = Array.isArray(groundTruth) ? groundTruth : [];
-    const sep = Array.isArray(separated) ? separated : [];
-    const gold = Array.isArray(goldWave) ? goldWave : [];
+    const mixW = unpackWave(groundTruth);
+    const sepW = unpackWave(separated);
+    const goldW = unpackWave(goldWave);
 
-    // 绘制混合音（Mixture / Ground）——绿色半透明
-    if (showMixture && mixture.length) {
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(16, 185, 129, 0.6)"; // Emerald
-      ctx.lineWidth = 2;
-      for (let i = 0; i < width; i += 1) {
-        const pos = vrStart + (i / width) * span; // 0~1
-        const dataIndex = Math.floor(pos * (mixture.length - 1));
-        const val = mixture[dataIndex] || 0;
-        if (i === 0) ctx.moveTo(i, centerY + val * scaleY);
-        else ctx.lineTo(i, centerY + val * scaleY);
+    const mixture = Array.isArray(mixW.mid) ? mixW.mid : [];
+    const sep = Array.isArray(sepW.mid) ? sepW.mid : [];
+    const gold = Array.isArray(goldW.mid) ? goldW.mid : [];
+
+    const getPeakAbsInView = (arr) => {
+      if (!Array.isArray(arr) || arr.length === 0) return 0;
+      if (arr.length === 1) return Math.abs(arr[0] || 0);
+      const s = Math.max(0, Math.min(arr.length - 1, Math.floor(vrStart * (arr.length - 1))));
+      const e = Math.max(s, Math.min(arr.length - 1, Math.ceil(vrEnd * (arr.length - 1))));
+      let peak = 0;
+      for (let i = s; i <= e; i += 1) {
+        const v = arr[i];
+        if (typeof v !== "number" || !isFinite(v)) continue;
+        const a = Math.abs(v);
+        if (a > peak) peak = a;
       }
-      ctx.stroke();
-    }
+      return peak;
+    };
 
-    // 绘制金标准单源（Gold）——紫色半透明
-    if (showGold && gold.length) {
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(168, 85, 247, 0.7)"; // Purple
-      ctx.lineWidth = 2;
-      for (let i = 0; i < width; i += 1) {
-        const pos = vrStart + (i / width) * span;
-        const dataIndex = Math.floor(pos * (gold.length - 1));
-        const val = gold[dataIndex] || 0;
-        if (i === 0) ctx.moveTo(i, centerY + val * scaleY);
-        else ctx.lineTo(i, centerY + val * scaleY);
-      }
-      ctx.stroke();
-    }
+    // 选择参考波形：优先使用 Gold，其次是 Mixture
+    const refWaveArr = showGold && gold.length ? gold : mixture;
 
-    // 绘制 Separated (蓝色半透明)
-    if (showSeparated && sep.length) {
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(6, 182, 212, 0.8)"; // Cyan
-      ctx.lineWidth = 2;
-      for (let i = 0; i < width; i += 1) {
-        const pos = vrStart + (i / width) * span;
-        const dataIndex = Math.floor(pos * (sep.length - 1));
-        const val = sep[dataIndex] || 0;
-        if (i === 0) ctx.moveTo(i, centerY + val * scaleY);
-        else ctx.lineTo(i, centerY + val * scaleY);
-      }
-      ctx.stroke();
-    }
-
-    // 绘制差异高亮 (红色区域)
-    ctx.fillStyle = "rgba(239, 68, 68, 0.3)"; // Red
+    // 为参考与分离两条轨道分别画“零线”
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.35)"; // slate-400
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    for (let i = 0; i < width; i += 1) {
-      const pos = vrStart + (i / width) * span;
-      const dataIndex = Math.floor(pos * (groundTruth.length - 1));
-      const gt = groundTruth[dataIndex] || 0;
-      const sep = separated[dataIndex] || 0;
-      const diff = Math.abs(gt - sep);
+    ctx.moveTo(0, refCenterY);
+    ctx.lineTo(width, refCenterY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, sepCenterY);
+    ctx.lineTo(width, sepCenterY);
+    ctx.stroke();
 
-      // 只有当差异足够大时才绘制
-      if (diff > 0.15) {
-        const y1 = centerY + gt * scaleY;
-        const y2 = centerY + sep * scaleY;
-        ctx.fillRect(i, Math.min(y1, y2), 1, Math.abs(y1 - y2));
+    // 显示缩放：autoGain 会基于“当前视窗 + 当前可见曲线”计算统一放大倍数（仅显示，不改数据）
+    let baseScaleY = (height * 0.38);
+    if (autoGain) {
+      let peak = 0;
+      peak = Math.max(peak, getPeakAbsInView(refWaveArr));
+      if (showSeparated) peak = Math.max(peak, getPeakAbsInView(sep));
+      const denom = peak > 1e-6 ? peak : 1.0;
+      baseScaleY = (height * 0.44) / denom; // 留边距
+    }
+    const safeZoom = typeof yZoom === "number" && isFinite(yZoom) ? Math.max(0.1, Math.min(10, yZoom)) : 1.0;
+    const scaleY = baseScaleY * safeZoom;
+
+    const drawEnvelopeOrLine = (centerY, w, rgbaStroke, rgbaFill) => {
+      const midArr = w?.mid;
+      const minArr = w?.min;
+      const maxArr = w?.max;
+      if (!Array.isArray(midArr) || midArr.length === 0) return;
+
+      // 如果有 min/max，则画“包络填充 + 边界线”
+      if (Array.isArray(minArr) && Array.isArray(maxArr) && minArr.length && maxArr.length) {
+        ctx.beginPath();
+        ctx.fillStyle = rgbaFill;
+        // 上边界：max
+        for (let i = 0; i < width; i += 1) {
+          const pos = vrStart + (i / width) * span;
+          const v = getValAt(maxArr, pos);
+          if (i === 0) ctx.moveTo(i, centerY + v * scaleY);
+          else ctx.lineTo(i, centerY + v * scaleY);
+        }
+        // 下边界：min（反向闭合）
+        for (let i = width - 1; i >= 0; i -= 1) {
+          const pos = vrStart + (i / width) * span;
+          const v = getValAt(minArr, pos);
+          ctx.lineTo(i, centerY + v * scaleY);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // 边界线（更清晰）
+        ctx.strokeStyle = rgbaStroke;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        for (let i = 0; i < width; i += 1) {
+          const pos = vrStart + (i / width) * span;
+          const v = getValAt(maxArr, pos);
+          if (i === 0) ctx.moveTo(i, centerY + v * scaleY);
+          else ctx.lineTo(i, centerY + v * scaleY);
+        }
+        ctx.stroke();
+        ctx.beginPath();
+        for (let i = 0; i < width; i += 1) {
+          const pos = vrStart + (i / width) * span;
+          const v = getValAt(minArr, pos);
+          if (i === 0) ctx.moveTo(i, centerY + v * scaleY);
+          else ctx.lineTo(i, centerY + v * scaleY);
+        }
+        ctx.stroke();
+        return;
       }
+
+      // 否则退化为中线（旧逻辑）
+      ctx.beginPath();
+      ctx.strokeStyle = rgbaStroke;
+      ctx.lineWidth = 2;
+      for (let i = 0; i < width; i += 1) {
+        const pos = vrStart + (i / width) * span;
+        const val = getValAt(midArr, pos);
+        if (i === 0) ctx.moveTo(i, centerY + val * scaleY);
+        else ctx.lineTo(i, centerY + val * scaleY);
+      }
+      ctx.stroke();
+    };
+
+    // --- 绘制参考波形（上半段） ---
+    if (Array.isArray(refWaveArr) && refWaveArr.length) {
+      const refWave =
+        showGold && gold.length
+          ? goldW
+          : mixW;
+      drawEnvelopeOrLine(
+        refCenterY,
+        refWave,
+        showGold && gold.length
+          ? "rgba(168, 85, 247, 0.88)" // Gold: purple
+          : "rgba(16, 185, 129, 0.88)", // Mixture: emerald
+        showGold && gold.length
+          ? "rgba(168, 85, 247, 0.16)"
+          : "rgba(16, 185, 129, 0.16)",
+      );
+    }
+
+    // --- 绘制分离结果（下半段） ---
+    if (showSeparated && sep.length) {
+      drawEnvelopeOrLine(
+        sepCenterY,
+        sepW,
+        "rgba(6, 182, 212, 0.9)", // cyan
+        "rgba(6, 182, 212, 0.14)",
+      );
+    }
+
+    // Hover 指示线（更容易在两路波形上读位置）
+    if (hoverX !== null && isFinite(hoverX)) {
+      const x = Math.max(0, Math.min(1, hoverX)) * width;
+      ctx.strokeStyle = "rgba(226, 232, 240, 0.35)"; // slate-200
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
     }
 
     // 绘制播放进度竖线
@@ -382,7 +469,24 @@ const WaveformComparator = ({
         ctx.fill();
       }
     }
-  }, [groundTruth, goldWave, separated, showMixture, showGold, showSeparated, viewRange, playbackState, scrubbing, scrubPosition]);
+  }, [
+    groundTruth,
+    goldWave,
+    separated,
+    showMixture,
+    showGold,
+    showSeparated,
+    autoGain,
+    yZoom,
+    viewRange,
+    playbackState,
+    scrubbing,
+    scrubPosition,
+    hoverX,
+    layout,
+    getValAt,
+    unpackWave,
+  ]);
 
   const getNormalizedX = (event) => {
     const canvas = canvasRef.current;
@@ -458,6 +562,10 @@ const WaveformComparator = ({
   };
 
   const handleMouseMove = (e) => {
+    // 非拖拽/非 scrub 时也记录 hover，方便读取
+    if (!dragging && !scrubbing) {
+      setHoverX(getNormalizedX(e));
+    }
     // 拖动进度线时，实时更新播放位置
     if (scrubbing) {
       const nx = getNormalizedX(e);
@@ -522,6 +630,7 @@ const WaveformComparator = ({
   };
 
   const handleMouseLeave = (e) => {
+    setHoverX(null);
     if (scrubbing) {
       setScrubbing(false);
       setScrubPosition(null);
@@ -533,8 +642,12 @@ const WaveformComparator = ({
 
   return (
     <div
-      className="relative w-full h-64 bg-slate-950 rounded-lg overflow-hidden border border-slate-700 shadow-inner"
-      style={{ cursor: scrubbing ? 'grabbing' : dragging ? 'crosshair' : 'pointer' }}
+      ref={wrapperRef}
+      className="relative w-full bg-slate-950 rounded-lg overflow-hidden border border-slate-700 shadow-inner"
+      style={{
+        height: `${Math.max(220, Number(heightPx) || 360)}px`,
+        cursor: scrubbing ? "grabbing" : dragging ? "crosshair" : "pointer",
+      }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -543,11 +656,62 @@ const WaveformComparator = ({
     >
       <canvas
         ref={canvasRef}
-        width={800}
-        height={256}
         className="w-full h-full object-cover"
       />
-      {/* 选中区域可视化 */}
+
+      {/* Hover 读数（便于精确对比） */}
+      {hoverX !== null && isFinite(hoverX) && (
+        (() => {
+          const vrStart = clamp01(viewRange?.start ?? 0);
+          const vrEnd = Math.max(vrStart, clamp01(viewRange?.end ?? 1));
+          const span = Math.max(0.0001, vrEnd - vrStart);
+          const globalPos = vrStart + clamp01(hoverX) * span; // 0~1
+
+          const mixture = Array.isArray(groundTruth) ? groundTruth : [];
+          const sep = Array.isArray(separated) ? separated : [];
+          const gold = Array.isArray(goldWave) ? goldWave : [];
+          const diffBase = showGold && gold.length ? gold : mixture;
+
+          const t = playbackState?.duration > 0 ? globalPos * playbackState.duration : null;
+          const fmt = (v) => (typeof v === "number" && isFinite(v) ? v.toFixed(3) : "N/A");
+
+          const baseVal = getValAt(diffBase, globalPos);
+          const sepVal = getValAt(sep, globalPos);
+          const diff = Math.abs(baseVal - sepVal);
+
+          return (
+            <div className="absolute top-2 left-2 pointer-events-none select-none">
+              <div className="bg-slate-900/70 border border-slate-700/60 backdrop-blur-sm rounded-lg px-3 py-2 text-[11px] font-mono text-slate-200 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-slate-400">pos</span>
+                  <span>{(globalPos * 100).toFixed(1)}%</span>
+                  {t !== null && (
+                    <>
+                      <span className="text-slate-500">·</span>
+                      <span className="text-slate-300">{t.toFixed(2)}s</span>
+                    </>
+                  )}
+                  <span className="text-slate-500">·</span>
+                  <span className="text-slate-400">th</span>
+                  <span className="text-red-300">{Number(errorThreshold).toFixed(2)}</span>
+                </div>
+                <div className="mt-1 flex items-center gap-3">
+                  <span className="text-purple-300">{showGold && gold.length ? "Gold" : "Mix"}</span>
+                  <span>{fmt(baseVal)}</span>
+                  <span className="text-cyan-300">Alg</span>
+                  <span>{fmt(sepVal)}</span>
+                  <span className="text-red-300">|diff|</span>
+                  <span className={diff > errorThreshold ? "text-red-200" : "text-slate-300"}>
+                    {diff.toFixed(3)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })()
+      )}
+
+      {/* 选中区域可视化（仍然用于统一时间缩放；两路波形共享同一时间轴） */}
       {dragging && dragStartX !== null && dragCurrentX !== null && (
         <div
           className="absolute top-0 bottom-0 bg-cyan-500/20 border-x border-cyan-400/60 pointer-events-none"
@@ -561,6 +725,7 @@ const WaveformComparator = ({
   );
 };
 
+// eslint-disable-next-line no-unused-vars
 const SpectrumComparator = ({
   isActive,
   originalSpectrumData,
@@ -570,8 +735,9 @@ const SpectrumComparator = ({
 }) => {
   const originalCanvasRef = useRef(null);
   const separatedCanvasRef = useRef(null);
+  const diffCanvasRef = useRef(null);
 
-  const drawSpectrogram = useCallback((canvas, data) => {
+  const drawSpectrogram = useCallback((canvas, data, mode = "normal") => {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const w = canvas.width;
@@ -602,10 +768,21 @@ const SpectrumComparator = ({
         const vRaw = row[t] ?? 0;
         const v = Math.max(0, Math.min(1, vRaw));
 
-        // simple "inferno-ish" gradient (no deps)
-        const r = Math.floor(255 * Math.min(1, v * 1.4));
-        const g = Math.floor(255 * Math.min(1, Math.max(0, (v - 0.25) * 1.3)));
-        const b = Math.floor(255 * Math.max(0, 1 - v * 1.2));
+        let r;
+        let g;
+        let b;
+
+        if (mode === "diff") {
+          // 差分视图：更偏红的热力图，高误差区域一眼可见
+          r = Math.floor(255 * v);
+          g = Math.floor(80 * Math.max(0, v - 0.15));
+          b = Math.floor(60 * (1 - v));
+        } else {
+          // 默认视图：简化的 inferno-ish 渐变
+          r = Math.floor(255 * Math.min(1, v * 1.4));
+          g = Math.floor(255 * Math.min(1, Math.max(0, (v - 0.25) * 1.3)));
+          b = Math.floor(255 * Math.max(0, 1 - v * 1.2));
+        }
 
         const idx = (y * w + x) * 4;
         image.data[idx + 0] = r;
@@ -626,6 +803,49 @@ const SpectrumComparator = ({
     if (!isActive) return;
     drawSpectrogram(separatedCanvasRef.current, separatedSpectrumData);
   }, [isActive, separatedSpectrumData, viewRange, drawSpectrogram]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    if (
+      !Array.isArray(originalSpectrumData) ||
+      !Array.isArray(separatedSpectrumData) ||
+      originalSpectrumData.length === 0 ||
+      separatedSpectrumData.length === 0
+    ) {
+      return;
+    }
+    const fBins = Math.min(originalSpectrumData.length, separatedSpectrumData.length);
+    const tBins = Array.isArray(originalSpectrumData[0])
+      ? Math.min(
+          originalSpectrumData[0].length,
+          Array.isArray(separatedSpectrumData[0]) ? separatedSpectrumData[0].length : 0,
+        )
+      : 0;
+    if (!tBins) return;
+
+    // 构造 |Mix - Alg| 差分频谱矩阵，值域 [0,1]
+    const diff = new Array(fBins);
+    let globalMax = 1e-8;
+    for (let f = 0; f < fBins; f += 1) {
+      const rowA = originalSpectrumData[f] || [];
+      const rowB = separatedSpectrumData[f] || [];
+      const rowOut = new Array(tBins);
+      for (let t = 0; t < tBins; t += 1) {
+        const a = rowA[t] ?? 0;
+        const b = rowB[t] ?? 0;
+        const v = Math.abs(a - b);
+        rowOut[t] = v;
+        if (v > globalMax) globalMax = v;
+      }
+      diff[f] = rowOut;
+    }
+    // 归一化到 [0,1]，防止极少数点把整体推得太暗
+    const normDiff = diff.map((row) =>
+      row.map((v) => (globalMax > 0 ? Math.min(1, v / globalMax) : 0)),
+    );
+
+    drawSpectrogram(diffCanvasRef.current, normDiff, "diff");
+  }, [isActive, originalSpectrumData, separatedSpectrumData, viewRange, drawSpectrogram]);
 
   const [dragging, setDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(null);
@@ -693,8 +913,70 @@ const SpectrumComparator = ({
       </div>
     );
 
+  // 频带误差（低/中/高）基于原始 vs 分离频谱的差分粗略估计
+  let lowErr = null;
+  let midErr = null;
+  let highErr = null;
+  if (
+    Array.isArray(originalSpectrumData) &&
+    Array.isArray(separatedSpectrumData) &&
+    originalSpectrumData.length &&
+    separatedSpectrumData.length
+  ) {
+    const fBins = Math.min(originalSpectrumData.length, separatedSpectrumData.length);
+    const tBins = Array.isArray(originalSpectrumData[0])
+      ? Math.min(
+          originalSpectrumData[0].length,
+          Array.isArray(separatedSpectrumData[0]) ? separatedSpectrumData[0].length : 0,
+        )
+      : 0;
+    if (tBins) {
+      let lowSum = 0;
+      let midSum = 0;
+      let highSum = 0;
+      let lowCount = 0;
+      let midCount = 0;
+      let highCount = 0;
+      for (let f = 0; f < fBins; f += 1) {
+        const bandPos = f / (fBins - 1 || 1); // 0~1，从低频到高频
+        const rowA = originalSpectrumData[f] || [];
+        const rowB = separatedSpectrumData[f] || [];
+        for (let t = 0; t < tBins; t += 1) {
+          const a = rowA[t] ?? 0;
+          const b = rowB[t] ?? 0;
+          const diff = a - b;
+          const e = diff * diff;
+          if (bandPos < 0.25) {
+            lowSum += e;
+            lowCount += 1;
+          } else if (bandPos < 0.7) {
+            midSum += e;
+            midCount += 1;
+          } else {
+            highSum += e;
+            highCount += 1;
+          }
+        }
+      }
+      const safe = (s, c) => (c > 0 ? s / c : 0);
+      lowErr = safe(lowSum, lowCount);
+      midErr = safe(midSum, midCount);
+      highErr = safe(highSum, highCount);
+    }
+  }
+
+  const fmtBand = (v) =>
+    typeof v === "number" && isFinite(v) ? v.toExponential(2) : "N/A";
+
+  const bandData = [
+    { band: "Low", value: typeof lowErr === "number" && isFinite(lowErr) ? lowErr : 0 },
+    { band: "Mid", value: typeof midErr === "number" && isFinite(midErr) ? midErr : 0 },
+    { band: "High", value: typeof highErr === "number" && isFinite(highErr) ? highErr : 0 },
+  ];
+
   return (
-    <div className="grid grid-cols-2 gap-2 h-40">
+    <div className="h-40 grid grid-rows-[1fr_auto] gap-1">
+      <div className="grid grid-cols-3 gap-2">
       {/* 左侧：原始频谱 */}
       <div
         className="bg-slate-950 rounded border border-slate-700 p-1 relative overflow-hidden group"
@@ -715,7 +997,7 @@ const SpectrumComparator = ({
         </div>
       </div>
 
-      {/* 右侧：分离后频谱 */}
+      {/* 中间：分离后频谱 */}
       <div
         className="bg-slate-950 rounded border border-slate-700 p-1 relative overflow-hidden group"
         onMouseDown={(e) => handleMouseDown(e, separatedCanvasRef)}
@@ -733,15 +1015,32 @@ const SpectrumComparator = ({
         <div className="absolute top-1 left-2 text-xs text-cyan-400 font-mono bg-black/50 px-1 rounded">
           Separated
         </div>
-        <div className="absolute bottom-2 right-2 text-xs text-red-400 font-mono bg-black/80 px-1 rounded border border-red-900/50">
-          High Freq Loss
+      </div>
+
+      {/* 右侧：差分频谱 |Mix - Alg| */}
+      <div
+        className="bg-slate-950 rounded border border-slate-700 p-1 relative overflow-hidden group"
+        onMouseDown={(e) => handleMouseDown(e, separatedCanvasRef)}
+        onMouseMove={(e) => handleMouseMove(e, separatedCanvasRef)}
+        onMouseUp={(e) => handleMouseUp(e, separatedCanvasRef)}
+        onMouseLeave={(e) => handleMouseUp(e, separatedCanvasRef)}
+        onDoubleClick={handleDoubleClick}
+      >
+        <canvas
+          ref={diffCanvasRef}
+          width={256}
+          height={160}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute top-1 left-2 text-xs text-red-300 font-mono bg-black/50 px-1 rounded">
+          |Mix-Alg|
         </div>
       </div>
       {/* 选中区域可视化（覆盖整个组件宽度，便于感知当前缩放动作） */}
       {dragging && dragStartX !== null && dragCurrentX !== null && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0"
-          style={{ gridColumn: "1 / span 2" }}
+          style={{ gridColumn: "1 / span 3" }}
         >
           <div
             className="absolute top-0 bottom-0 bg-cyan-500/16 border-x border-cyan-400/50"
@@ -752,6 +1051,470 @@ const SpectrumComparator = ({
           />
         </div>
       )}
+      </div>
+
+      {/* 频带误差概要：低/中/高频段的平均差分能量（越小越好） */}
+      <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+        <div className="flex-1 h-16">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={bandData}
+              margin={{ top: 4, right: 8, left: 0, bottom: 8 }}
+              barCategoryGap={18}
+            >
+              <CartesianGrid vertical={false} stroke="#1f2937" strokeDasharray="3 3" />
+              <XAxis
+                dataKey="band"
+                tick={{ fontSize: 10, fill: "#9ca3af" }}
+                axisLine={{ stroke: "#4b5563" }}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#9ca3af" }}
+                axisLine={{ stroke: "#4b5563" }}
+                tickFormatter={(v) =>
+                  typeof v === "number" && v > 0 ? v.toExponential(1) : "0"
+                }
+              />
+              <RechartsTooltip
+                contentStyle={{
+                  backgroundColor: "#020617",
+                  border: "1px solid #1f2937",
+                  fontSize: 11,
+                }}
+                formatter={(value) => fmtBand(value)}
+                labelFormatter={(label) => `${label} Band`}
+              />
+              <Bar
+                dataKey="value"
+                fill="#22d3ee"
+                radius={[3, 3, 0, 0]}
+                maxBarSize={24}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="ml-4 flex flex-col gap-1 font-mono">
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span>Low</span>
+            <span className="text-slate-200">{fmtBand(lowErr)}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-sky-400" />
+            <span>Mid</span>
+            <span className="text-slate-200">{fmtBand(midErr)}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-red-400" />
+            <span>High</span>
+            <span className="text-slate-200">{fmtBand(highErr)}</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 单音频波形视图：一条音频 = 一块独立波形面板（Au 风格）
+const SingleWaveformView = ({
+  wave,
+  heightPx = 160,
+  color = "rgba(56, 189, 248, 0.92)", // cyan-400
+  fillColor = "rgba(56, 189, 248, 0.16)",
+  autoGain = true,
+  yZoom = 1.0,
+  viewRange,
+  playbackState = { currentTime: 0, duration: 0, playing: false, seek: null },
+}) => {
+  const canvasRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const [layout, setLayout] = useState({ w: 800, h: heightPx });
+  const [hoverX, setHoverX] = useState(null);
+
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+  const unpackWave = useCallback((input) => {
+    if (Array.isArray(input)) {
+      return { mid: input, min: null, max: null };
+    }
+    if (input && typeof input === "object") {
+      const wMin = input.min;
+      const wMax = input.max;
+      if (Array.isArray(wMin) && Array.isArray(wMax) && wMin.length && wMax.length) {
+        const n = Math.min(wMin.length, wMax.length);
+        const mid = new Array(n);
+        for (let i = 0; i < n; i += 1) {
+          const a = typeof wMin[i] === "number" && isFinite(wMin[i]) ? wMin[i] : 0;
+          const b = typeof wMax[i] === "number" && isFinite(wMax[i]) ? wMax[i] : 0;
+          mid[i] = (a + b) * 0.5;
+        }
+        return { mid, min: wMin, max: wMax };
+      }
+    }
+    return { mid: [], min: null, max: null };
+  }, []);
+
+  const getValAt = useCallback((arr, pos01) => {
+    if (!Array.isArray(arr) || arr.length === 0) return 0;
+    if (arr.length === 1) return arr[0] || 0;
+    const p = clamp01(pos01);
+    const idx = Math.floor(p * (arr.length - 1));
+    const v = arr[idx];
+    return typeof v === "number" && isFinite(v) ? v : 0;
+  }, []);
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries?.[0];
+      const rect = entry?.contentRect;
+      if (!rect) return;
+      const w = Math.max(1, Math.floor(rect.width));
+      const h = Math.max(1, Math.floor(rect.height));
+      setLayout((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = layout.w || canvas.clientWidth || 800;
+    const cssHeight = layout.h || canvas.clientHeight || heightPx;
+    const width = cssWidth;
+    const height = cssHeight;
+
+    const pxW = Math.max(1, Math.floor(cssWidth * dpr));
+    const pxH = Math.max(1, Math.floor(cssHeight * dpr));
+    if (canvas.width !== pxW) canvas.width = pxW;
+    if (canvas.height !== pxH) canvas.height = pxH;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    ctx.clearRect(0, 0, width, height);
+
+    // 背景 & 网格
+    ctx.fillStyle = "#020617";
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = "#1e293b";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const gridX = Math.max(40, Math.floor(width / 16));
+    const gridY = Math.max(24, Math.floor(height / 8));
+    for (let x = 0; x < width; x += gridX) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+    }
+    for (let y = 0; y < height; y += gridY) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
+    ctx.stroke();
+
+    const centerY = height / 2;
+    const vrStart = Math.max(0, Math.min(1, viewRange?.start ?? 0));
+    const vrEnd = Math.max(vrStart, Math.min(1, viewRange?.end ?? 1));
+    const span = Math.max(0.0001, vrEnd - vrStart);
+
+    const wv = unpackWave(wave);
+    const midArr = Array.isArray(wv.mid) ? wv.mid : [];
+    const minArr = Array.isArray(wv.min) ? wv.min : null;
+    const maxArr = Array.isArray(wv.max) ? wv.max : null;
+
+    // 零线
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.45)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(0, centerY);
+    ctx.lineTo(width, centerY);
+    ctx.stroke();
+
+    const getPeakAbsInView = (arr) => {
+      if (!Array.isArray(arr) || arr.length === 0) return 0;
+      const s = Math.max(0, Math.min(arr.length - 1, Math.floor(vrStart * (arr.length - 1))));
+      const e = Math.max(s, Math.min(arr.length - 1, Math.ceil(vrEnd * (arr.length - 1))));
+      let peak = 0;
+      for (let i = s; i <= e; i += 1) {
+        const v = arr[i];
+        if (typeof v !== "number" || !isFinite(v)) continue;
+        const a = Math.abs(v);
+        if (a > peak) peak = a;
+      }
+      return peak;
+    };
+
+    let baseScaleY = height * 0.44;
+    if (autoGain) {
+      const peak = getPeakAbsInView(midArr);
+      const denom = peak > 1e-6 ? peak : 1.0;
+      baseScaleY = (height * 0.44) / denom;
+    }
+    const safeZoom = typeof yZoom === "number" && isFinite(yZoom) ? Math.max(0.1, Math.min(10, yZoom)) : 1.0;
+    const scaleY = baseScaleY * safeZoom;
+
+    // 先绘制包络填充（若有）
+    if (minArr && maxArr && minArr.length && maxArr.length) {
+      ctx.beginPath();
+      ctx.fillStyle = fillColor;
+      for (let i = 0; i < width; i += 1) {
+        const pos = vrStart + (i / width) * span;
+        const v = getValAt(maxArr, pos);
+        if (i === 0) ctx.moveTo(i, centerY + v * scaleY);
+        else ctx.lineTo(i, centerY + v * scaleY);
+      }
+      for (let i = width - 1; i >= 0; i -= 1) {
+        const pos = vrStart + (i / width) * span;
+        const v = getValAt(minArr, pos);
+        ctx.lineTo(i, centerY + v * scaleY);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // 中线
+    if (midArr.length) {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      for (let i = 0; i < width; i += 1) {
+        const pos = vrStart + (i / width) * span;
+        const v = getValAt(midArr, pos);
+        if (i === 0) ctx.moveTo(i, centerY + v * scaleY);
+        else ctx.lineTo(i, centerY + v * scaleY);
+      }
+      ctx.stroke();
+    }
+
+    // hover 竖线
+    if (hoverX !== null && isFinite(hoverX)) {
+      const x = clamp01(hoverX) * width;
+      ctx.strokeStyle = "rgba(226, 232, 240, 0.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+
+    // 全局播放进度竖线
+    if (playbackState?.duration > 0) {
+      const globalPos = playbackState.currentTime / playbackState.duration;
+      const posInView = (globalPos - vrStart) / span;
+      if (posInView >= 0 && posInView <= 1) {
+        const x = posInView * width;
+        ctx.strokeStyle = "#fbbf24";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+        ctx.fillStyle = "#fbbf24";
+        ctx.beginPath();
+        ctx.arc(x, height - 6, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }, [wave, autoGain, yZoom, viewRange, playbackState, layout, hoverX, unpackWave, getValAt, heightPx, color, fillColor]);
+
+  const getNormalizedX = (event) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return 0;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    return Math.max(0, Math.min(1, x / rect.width));
+  };
+
+  const handleMouseMove = (e) => {
+    setHoverX(getNormalizedX(e));
+  };
+
+  const handleMouseLeave = () => setHoverX(null);
+
+  const handleClick = (e) => {
+    if (!playbackState?.seek || !playbackState?.duration) return;
+    const nx = getNormalizedX(e);
+    const vrStart = Math.max(0, Math.min(1, viewRange?.start ?? 0));
+    const vrEnd = Math.max(vrStart, Math.min(1, viewRange?.end ?? 1));
+    const span = Math.max(0.0001, vrEnd - vrStart);
+    const globalPos = vrStart + nx * span;
+    const time = globalPos * playbackState.duration;
+    playbackState.seek(time);
+  };
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="w-full"
+      style={{ height: heightPx }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      onClick={handleClick}
+    >
+      <canvas ref={canvasRef} className="w-full h-full rounded border border-slate-700 bg-slate-950" />
+    </div>
+  );
+};
+
+// 单音频频谱视图：一条音频 = 一块独立 Spectrogram 面板（带进度红线）
+const SingleSpectrogramView = ({
+  spectrum,
+  heightPx = 180,
+  viewRange,
+  onViewRangeChange,
+  playbackState = { currentTime: 0, duration: 0 },
+}) => {
+  const canvasRef = useRef(null);
+
+  const drawSpectrogram = useCallback(
+    (canvas, data) => {
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#020617";
+      ctx.fillRect(0, 0, w, h);
+
+      if (!Array.isArray(data) || data.length === 0) return;
+      const fBins = data.length;
+      const tBins = Array.isArray(data[0]) ? data[0].length : 0;
+      if (!tBins) return;
+
+      const vrStart = Math.max(0, Math.min(1, viewRange?.start ?? 0));
+      const vrEnd = Math.max(vrStart, Math.min(1, viewRange?.end ?? 1));
+      const span = Math.max(0.0001, vrEnd - vrStart);
+
+      const image = ctx.createImageData(w, h);
+      for (let y = 0; y < h; y += 1) {
+        const f = Math.floor(((h - 1 - y) / h) * fBins);
+        const row = data[f] || [];
+        for (let x = 0; x < w; x += 1) {
+          const pos = vrStart + (x / w) * span;
+          const t = Math.floor(pos * (tBins - 1));
+          const vRaw = row[t] ?? 0;
+          const v = Math.max(0, Math.min(1, vRaw));
+
+          // 与主频谱视图保持一致的配色
+          const r = Math.floor(255 * Math.min(1, v * 1.4));
+          const g = Math.floor(255 * Math.min(1, Math.max(0, (v - 0.25) * 1.3)));
+          const b = Math.floor(255 * Math.max(0, 1 - v * 1.2));
+
+          const idx = (y * w + x) * 4;
+          image.data[idx + 0] = r;
+          image.data[idx + 1] = g;
+          image.data[idx + 2] = b;
+          image.data[idx + 3] = 255;
+        }
+      }
+      ctx.putImageData(image, 0, 0);
+
+      // 绘制进度红线：基于全局播放时间，确保两路频谱同步
+      if (playbackState?.duration > 0) {
+        const globalPos = playbackState.currentTime / playbackState.duration;
+        const posInView = (globalPos - vrStart) / span;
+        if (posInView >= 0 && posInView <= 1) {
+          const x = posInView * w;
+          ctx.strokeStyle = "#f97373"; // 柔和红色
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, h);
+          ctx.stroke();
+        }
+      }
+    },
+    [viewRange, playbackState],
+  );
+
+  useEffect(() => {
+    drawSpectrogram(canvasRef.current, spectrum);
+  }, [spectrum, viewRange, drawSpectrogram]);
+
+  const getNormalizedX = (event) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return 0;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    return Math.max(0, Math.min(1, x / rect.width));
+  };
+
+  const handleDragZoom = (() => {
+    let dragging = false;
+    let startX = 0;
+
+    const finalize = (nxStart, nxEnd) => {
+      if (!onViewRangeChange) return;
+      const s = Math.min(nxStart, nxEnd);
+      const e = Math.max(nxStart, nxEnd);
+      if (e - s < 0.01) return;
+      const baseStart = viewRange?.start ?? 0;
+      const baseEnd = viewRange?.end ?? 1;
+      const baseSpan = Math.max(0.0001, baseEnd - baseStart);
+      const newStart = baseStart + s * baseSpan;
+      const newEnd = baseStart + e * baseSpan;
+      onViewRangeChange({
+        start: Math.max(0, Math.min(1, newStart)),
+        end: Math.max(0, Math.min(1, newEnd)),
+      });
+    };
+
+    const onMouseDown = (e) => {
+      dragging = true;
+      startX = getNormalizedX(e);
+    };
+
+    const onMouseMove = (e) => {
+      if (!dragging) return;
+      // 仅记录末端位置，不需要单独保存 currentX
+      getNormalizedX(e);
+    };
+
+    const onMouseUp = (e) => {
+      if (!dragging) return;
+      const nx = getNormalizedX(e);
+      dragging = false;
+      finalize(startX, nx);
+    };
+
+    const onMouseLeave = () => {
+      dragging = false;
+    };
+
+    return { onMouseDown, onMouseMove, onMouseUp, onMouseLeave };
+  })();
+
+  const handleDoubleClick = () => {
+    if (onViewRangeChange) onViewRangeChange({ start: 0, end: 1 });
+  };
+
+  if (!Array.isArray(spectrum) || !spectrum.length) {
+    return (
+      <div className="h-40 flex items-center justify-center text-slate-500 bg-slate-950 rounded border border-slate-700">
+        无频谱数据
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="w-full"
+      style={{ height: heightPx }}
+      onMouseDown={handleDragZoom.onMouseDown}
+      onMouseMove={handleDragZoom.onMouseMove}
+      onMouseUp={handleDragZoom.onMouseUp}
+      onMouseLeave={handleDragZoom.onMouseLeave}
+      onDoubleClick={handleDoubleClick}
+    >
+      <canvas
+        ref={canvasRef}
+        width={256}
+        height={heightPx}
+        className="w-full h-full rounded border border-slate-700 bg-slate-950"
+      />
     </div>
   );
 };
@@ -790,6 +1553,10 @@ export default function AudioLabApp() {
   const [progressText, setProgressText] = useState(""); // 进度文本
   // 可视化的时间视窗 [0,1]，0 和 1 分别代表整段音频的起止
   const [viewRange, setViewRange] = useState({ start: 0, end: 1 });
+  // 波形显示增强：仅影响展示（便于对比），不改变任何音频/评分数据
+  const [waveAutoGain, setWaveAutoGain] = useState(true);
+  const [waveYZoom, setWaveYZoom] = useState(1.6);
+  const [waveExpanded, setWaveExpanded] = useState(false);
   // 按 stem 维度存储主观评分：stemName -> { quality, interference, artifacts }
   const [stemScores, setStemScores] = useState({});
 
@@ -807,7 +1574,13 @@ export default function AudioLabApp() {
   const inputSourceAudioRef = useRef(null);
   const goldStandardAudioRef = useRef(null);
   const separatedStemAudioRef = useRef(null);
-  const previousPlayingState = useRef({ input: false, gold: false, separated: false });
+  const residualStemAudioRef = useRef(null);
+  const previousPlayingState = useRef({
+    input: false,
+    gold: false,
+    separated: false,
+    residual: false,
+  });
 
   // Realtime stats from Firestore
   const [communityStats, setCommunityStats] = useState([]);
@@ -815,6 +1588,12 @@ export default function AudioLabApp() {
   // 后端统计数据
   const [backendStats, setBackendStats] = useState([]);
   const [algorithmComparison, setAlgorithmComparison] = useState([]);
+  // 按算法聚合的客观指标统计（用于客观指标雷达图等）
+  const [objectiveStats, setObjectiveStats] = useState([]);
+  // 单条“主观 + 客观”联合样本点，用于相关性散点图
+  const [subjectiveObjectivePoints, setSubjectiveObjectivePoints] = useState([]);
+  // 按算法的 SDR 样本分布（用于近似箱线/蜂群散点）
+  const [objectiveDistribution, setObjectiveDistribution] = useState([]);
   const [loadingStats, setLoadingStats] = useState(false);
   // 当前专家自己的评分记录（用于“删除某一次手滑评分”）
   const [myScoreRecords, setMyScoreRecords] = useState([]);
@@ -825,16 +1604,17 @@ export default function AudioLabApp() {
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
-  // 波形/频谱：默认先用 mock，占位；任务完成后用后端分析结果覆盖
-  const [gtWave, setGtWave] = useState(() => generateWaveformData(800, 1)); // 原始混合音（mixture）
-  const [sepWave, setSepWave] = useState([]); // 算法分离结果波形（separated）
-  const [goldWave, setGoldWave] = useState(null); // 金标准单源波形（可选，来自用户上传）
-  // 可见性开关：允许单独显示/隐藏混合音、金标准单源与分离结果
-  const [showMixture, setShowMixture] = useState(true);
-  const [showGold, setShowGold] = useState(true);
-  const [showSeparated, setShowSeparated] = useState(true);
+  // 波形/频谱：等待后端分析结果（空数组表示暂无数据，避免 mock 误导）
+  // 波形支持 DAW 式包络(envelope)：min/max 两条曲线，避免“每桶一个点”导致瞬态被压扁
+  const [gtWave, setGtWave] = useState([]); // 原始混合音（mixture，中线兼容）
+  const [gtWaveEnv, setGtWaveEnv] = useState(null); // { min: number[], max: number[] }
+  const [sepWave, setSepWave] = useState([]); // 算法分离结果波形（separated，中线兼容）
+  const [sepWaveEnv, setSepWaveEnv] = useState(null); // { min: number[], max: number[] }（供后续扩展/调试使用）
   const [gtSpectrum, setGtSpectrum] = useState([]);
   const [sepSpectrum, setSepSpectrum] = useState([]);
+  const [goldWave, setGoldWave] = useState(null); // Gold Standard 波形（可选）
+  const [goldWaveEnv, setGoldWaveEnv] = useState(null); // Gold Standard 包络（可选）
+  const [goldSpectrum, setGoldSpectrum] = useState(null); // Gold Standard 频谱（可选）
   const [gtFile, setGtFile] = useState(null); // 用户上传的"金标准"单源
   const gtFileRef = useRef(null); // 使用 ref 保存文件对象，避免状态更新时丢失
   // 音频元数据：采样率和位深度
@@ -843,8 +1623,8 @@ export default function AudioLabApp() {
     bitDepth: null,
     fileFormat: null, // 文件格式，用于显示解释
   });
-  // 暂停时自动放大频谱图对应时间带
-  const [autoZoomSpectrumOnPause, setAutoZoomSpectrumOnPause] = useState(false);
+  // 暂停时自动放大频谱图对应时间带（目前仅内部使用，不暴露 UI 开关）
+  const [autoZoomSpectrumOnPause] = useState(false);
   // 音频资源选择器状态
   const [showResourceSelector, setShowResourceSelector] = useState(false);
   const [resourceSelectorType, setResourceSelectorType] = useState(null); // 'input' 或 'gold'
@@ -864,6 +1644,135 @@ export default function AudioLabApp() {
       [section]: !prev[section]
     }));
   };
+
+  // --- 自适应可视化分辨率（随着缩放自动提高）---
+  // 说明：后端 /analysis 已支持 waveform_points/spec_time_bins/spec_freq_bins 参数
+  // 这里只在 zoom-in（viewRange 变小）时提升分辨率，不在 zoom-out 时降级，避免频繁拉取
+  const analysisAdaptiveRef = useRef({
+    taskId: null,
+    target: null,
+    waveform_points: 800,
+    spec_time_bins: 256,
+    spec_freq_bins: 128,
+    inFlightKey: null,
+  });
+  const analysisAbortRef = useRef(null);
+  const analysisDebounceRef = useRef(null);
+
+  const getAdaptiveParams = useCallback((zoom) => {
+    // zoom 约等于 1/span；这里用分段函数避免过于激进
+    const z = typeof zoom === "number" && isFinite(zoom) ? Math.max(1, zoom) : 1;
+    if (z <= 2) return { waveform_points: 800, spec_time_bins: 256, spec_freq_bins: 128 };
+    if (z <= 4) return { waveform_points: 2000, spec_time_bins: 384, spec_freq_bins: 128 };
+    if (z <= 8) return { waveform_points: 4000, spec_time_bins: 512, spec_freq_bins: 128 };
+    return { waveform_points: 8000, spec_time_bins: 768, spec_freq_bins: 128 };
+  }, []);
+
+  useEffect(() => {
+    const taskIdStr = typeof taskId === "string" ? taskId : taskId != null ? String(taskId) : "";
+    const targetStem = currentStem?.name || "";
+    if (!taskIdStr || !targetStem) return;
+    if (isProcessing) return;
+
+    const span = Math.max(0.0001, (viewRange?.end ?? 1) - (viewRange?.start ?? 0));
+    const zoom = 1 / span;
+    const want = getAdaptiveParams(zoom);
+
+    const prev = analysisAdaptiveRef.current;
+    const prevKey = `${prev.taskId}::${prev.target}::${prev.waveform_points}::${prev.spec_time_bins}::${prev.spec_freq_bins}`;
+    const wantKey = `${taskIdStr}::${targetStem}::${want.waveform_points}::${want.spec_time_bins}::${want.spec_freq_bins}`;
+
+    // 同一个参数，不要重复拉；以及避免“降级”导致反复请求
+    const isSame = prevKey === wantKey;
+    const isDowngrade =
+      prev.taskId === taskIdStr &&
+      prev.target === targetStem &&
+      (want.waveform_points <= prev.waveform_points) &&
+      (want.spec_time_bins <= prev.spec_time_bins) &&
+      (want.spec_freq_bins <= prev.spec_freq_bins);
+    if (isSame || isDowngrade) return;
+
+    // 防抖：用户拖拽缩放时不要每一帧都请求
+    if (analysisDebounceRef.current) clearTimeout(analysisDebounceRef.current);
+    analysisDebounceRef.current = setTimeout(async () => {
+      // 取消上一请求
+      if (analysisAbortRef.current) {
+        try { analysisAbortRef.current.abort(); } catch { /* ignore */ }
+      }
+      const ac = new AbortController();
+      analysisAbortRef.current = ac;
+      analysisAdaptiveRef.current = {
+        taskId: taskIdStr,
+        target: targetStem,
+        waveform_points: want.waveform_points,
+        spec_time_bins: want.spec_time_bins,
+        spec_freq_bins: want.spec_freq_bins,
+        inFlightKey: wantKey,
+      };
+
+      try {
+        const url =
+          `${API_BASE}/api/tasks/${encodeURIComponent(taskIdStr)}/analysis` +
+          `?target=${encodeURIComponent(targetStem)}` +
+          `&include_all_stems=false` +
+          `&waveform_points=${encodeURIComponent(String(want.waveform_points))}` +
+          `&spec_time_bins=${encodeURIComponent(String(want.spec_time_bins))}` +
+          `&spec_freq_bins=${encodeURIComponent(String(want.spec_freq_bins))}`;
+
+        const resp = await fetch(url, { signal: ac.signal });
+        if (!resp.ok) throw new Error(await resp.text());
+
+        let analysisResponseText = await resp.text();
+        const analysisIdPattern = /"task_id"\s*:\s*(\d+)/g;
+        if (analysisIdPattern.test(analysisResponseText)) {
+          analysisResponseText = analysisResponseText.replace(
+            /"task_id"\s*:\s*(\d+)/g,
+            `"task_id":"$1"`,
+          );
+        }
+        const a = JSON.parse(analysisResponseText);
+
+        // original（mixture）
+        if (a?.original?.waveform?.length) setGtWave(a.original.waveform);
+        if (Array.isArray(a?.original?.waveform_min) && Array.isArray(a?.original?.waveform_max)) {
+          setGtWaveEnv({ min: a.original.waveform_min, max: a.original.waveform_max });
+        }
+        if (a?.original?.spectrogram?.length) setGtSpectrum(a.original.spectrogram);
+
+        // target（当前 stem）
+        if (a?.target?.waveform?.length) setSepWave(a.target.waveform);
+        if (Array.isArray(a?.target?.waveform_min) && Array.isArray(a?.target?.waveform_max)) {
+          setSepWaveEnv({ min: a.target.waveform_min, max: a.target.waveform_max });
+        }
+        if (a?.target?.spectrogram?.length) setSepSpectrum(a.target.spectrogram);
+
+        // 同步写回 stems 数组中“当前 stem”的缓存，方便后续复用
+        setStems((prevStems) =>
+          (prevStems || []).map((st) => {
+            if (!st || st.name !== targetStem) return st;
+            return {
+              ...st,
+              waveform: Array.isArray(a?.target?.waveform) ? a.target.waveform : st.waveform,
+              waveformEnv:
+                Array.isArray(a?.target?.waveform_min) && Array.isArray(a?.target?.waveform_max)
+                  ? { min: a.target.waveform_min, max: a.target.waveform_max }
+                  : st.waveformEnv || null,
+              spectrum: Array.isArray(a?.target?.spectrogram) ? a.target.spectrogram : st.spectrum,
+            };
+          }),
+        );
+
+      } catch (e) {
+        // Abort 属于正常行为，不提示
+        const msg = e?.name === "AbortError" ? "" : (e?.message || String(e));
+        if (msg) console.warn("自适应 analysis 拉取失败（可忽略）：", msg);
+      }
+    }, 260);
+
+    return () => {
+      if (analysisDebounceRef.current) clearTimeout(analysisDebounceRef.current);
+    };
+  }, [taskId, currentStem?.name, viewRange, isProcessing, getAdaptiveParams]);
 
   const computeMasterDuration = useCallback(() => {
     const dInput = inputPlaybackRef.current?.duration;
@@ -1290,11 +2199,46 @@ export default function AudioLabApp() {
           setBackendStats(detailedData);
         }
 
-        // 获取算法对比统计
+        // 获取算法对比统计（主观评分聚合）
         const comparisonResp = await fetch(`${API_BASE}/api/scores/stats/algorithm-comparison`);
         if (comparisonResp.ok) {
           const comparisonData = await comparisonResp.json();
           setAlgorithmComparison(comparisonData);
+        }
+
+        // 获取客观指标统计（按算法聚合 SDR/SIR/SAR）
+        try {
+          const objResp = await fetch(`${API_BASE}/api/tasks/stats/objective`);
+          if (objResp.ok) {
+            const objData = await objResp.json();
+            setObjectiveStats(Array.isArray(objData) ? objData : []);
+          }
+        } catch (e) {
+          console.warn("Failed to fetch objective stats:", e);
+        }
+
+        // 获取“主观 + 客观”联合样本点（用于相关性散点）
+        try {
+          const jointResp = await fetch(
+            `${API_BASE}/api/scores/stats/subjective-objective-points?limit=800`,
+          );
+          if (jointResp.ok) {
+            const jointData = await jointResp.json();
+            setSubjectiveObjectivePoints(Array.isArray(jointData) ? jointData : []);
+          }
+        } catch (e) {
+          console.warn("Failed to fetch subjective-objective points:", e);
+        }
+
+        // 获取按算法的 SDR 样本分布（用于分布型可视化）
+        try {
+          const distResp = await fetch(`${API_BASE}/api/tasks/stats/objective-distribution`);
+          if (distResp.ok) {
+            const distData = await distResp.json();
+            setObjectiveDistribution(Array.isArray(distData) ? distData : []);
+          }
+        } catch (e) {
+          console.warn("Failed to fetch objective SDR distribution:", e);
         }
       } catch (err) {
         console.error("Failed to fetch backend stats:", err);
@@ -1400,6 +2344,39 @@ export default function AudioLabApp() {
   const handlePick = () => fileInputRef.current?.click();
 
   // 处理从资源库选择的音频
+  const analyzeGoldForVisualization = useCallback(
+    async (file) => {
+      if (!file) return;
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("waveform_points", "800");
+        formData.append("spec_freq_bins", "128");
+        formData.append("spec_time_bins", "256");
+
+        const resp = await fetch(`${API_BASE}/api/tasks/analysis/gold`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!resp.ok) {
+          console.warn("Gold 分析失败:", await resp.text());
+          return;
+        }
+        const a = await resp.json();
+        if (Array.isArray(a.waveform)) setGoldWave(a.waveform);
+        if (Array.isArray(a.waveform_min) && Array.isArray(a.waveform_max)) {
+          setGoldWaveEnv({ min: a.waveform_min, max: a.waveform_max });
+        } else {
+          setGoldWaveEnv(null);
+        }
+        if (Array.isArray(a.spectrogram)) setGoldSpectrum(a.spectrogram);
+      } catch (e) {
+        console.warn("Gold 分析请求异常:", e);
+      }
+    },
+    [],
+  );
+
   const handleResourceSelect = async (file, resource) => {
     if (resourceSelectorType === 'input') {
       // 设置为 INPUT SOURCE
@@ -1411,16 +2388,14 @@ export default function AudioLabApp() {
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
     } else if (resourceSelectorType === 'gold') {
-      // 设置为 GOLD STANDARD STEM
+      // 设置为 GOLD STANDARD STEM，并触发后端分析用于可视化
       gtFileRef.current = file;
       setGtFile({
         name: file.name,
         size: (file.size / 1024 / 1024).toFixed(2) + " MB",
         raw: file,
       });
-      // 解析波形
-      const wf = await decodeFileToWaveform(file, 800);
-      setGoldWave(wf);
+      analyzeGoldForVisualization(file);
     }
     setShowResourceSelector(false);
     setResourceSelectorType(null);
@@ -1628,8 +2603,9 @@ export default function AudioLabApp() {
           name: s.stem_name,
           // 后端下载链接（备用），我们会尝试预抓取并转换为本地 File 以确保播放稳定
           src: `${API_BASE}/api/tasks/${taskIdStr}/stems/${stemIdStr}/download`,
-          waveform: generateWaveformData(800, Math.random() * 2), // fallback
-          spectrum: generateSpectrumData(160, 90), // fallback
+          waveform: [], // 等后端 analysis 返回真实数据再填充，避免 mock 误导
+          waveformEnv: null,
+          spectrum: [], // 同上
         };
       });
 
@@ -1691,8 +2667,8 @@ export default function AudioLabApp() {
         comment: t.comment,
       });
 
-      // 波形：先用模拟数据占位（后续可以从音频解码真实绘制）
-      setSepWave(generateWaveformData(800, 1));
+      // 波形：等待后端 analysis 返回真实数据（无数据则保持为空，避免 mock 误导）
+      setSepWave([]);
 
       // 5) 拉取后端分析结果（波形 + 频谱），用于替换 mock
       try {
@@ -1709,6 +2685,17 @@ export default function AudioLabApp() {
           const a = JSON.parse(analysisResponseText);
           if (a?.original?.waveform?.length) setGtWave(a.original.waveform);
           if (a?.target?.waveform?.length) setSepWave(a.target.waveform);
+          // 新：后端可能返回 waveform_min/waveform_max（DAW 式包络）
+          if (Array.isArray(a?.original?.waveform_min) && Array.isArray(a?.original?.waveform_max)) {
+            setGtWaveEnv({ min: a.original.waveform_min, max: a.original.waveform_max });
+          } else {
+            setGtWaveEnv(null);
+          }
+          if (Array.isArray(a?.target?.waveform_min) && Array.isArray(a?.target?.waveform_max)) {
+            setSepWaveEnv({ min: a.target.waveform_min, max: a.target.waveform_max });
+          } else {
+            setSepWaveEnv(null);
+          }
           if (a?.original?.spectrogram?.length) setGtSpectrum(a.original.spectrogram);
           if (a?.target?.spectrogram?.length) setSepSpectrum(a.target.spectrogram);
           // 保存音频元数据（优先使用 original 的，如果没有则使用 target 的，再尝试从 stems 获取）
@@ -1911,6 +2898,10 @@ export default function AudioLabApp() {
                 return {
                   ...st,
                   waveform: Array.isArray(d.waveform) ? d.waveform : st.waveform,
+                  waveformEnv:
+                    Array.isArray(d.waveform_min) && Array.isArray(d.waveform_max)
+                      ? { min: d.waveform_min, max: d.waveform_max }
+                      : st.waveformEnv || null,
                   spectrum: Array.isArray(d.spectrogram)
                     ? d.spectrogram
                     : st.spectrum,
@@ -1970,6 +2961,10 @@ export default function AudioLabApp() {
         sar: typeof data?.sar === "number" ? data.sar : null,
         comment: data?.comment || "",
         target_stem: data?.target_stem || stemName,
+        // 可选：SDR/SIR/SAR 的时间曲线（由后端返回），用于 SDR vs Time 可视化
+        sdrCurve: Array.isArray(data?.sdr_curve) ? data.sdr_curve : null,
+        sirCurve: Array.isArray(data?.sir_curve) ? data.sir_curve : null,
+        sarCurve: Array.isArray(data?.sar_curve) ? data.sar_curve : null,
       };
 
       setObjectiveByStem((prev) => ({ ...(prev || {}), [stemName]: next }));
@@ -2258,6 +3253,41 @@ export default function AudioLabApp() {
     }));
   }, [communityStats]);
 
+  // 将按算法的 SDR 样本分布转换为“蜂群散点 + 算法索引”形式，便于绘图
+  const objectiveSdrScatterModel = useMemo(() => {
+    if (!Array.isArray(objectiveDistribution) || objectiveDistribution.length === 0) {
+      return { points: [], algoPositions: {}, algoOrder: [], xDomain: [0, 1] };
+    }
+    const algoOrder = objectiveDistribution
+      .map((d) => d.algorithm)
+      .filter((v, idx, arr) => v != null && arr.indexOf(v) === idx);
+    const algoPositions = {};
+    algoOrder.forEach((name, idx) => {
+      // 从 1 开始留点左右边距
+      algoPositions[name] = idx + 1;
+    });
+
+    const points = [];
+    objectiveDistribution.forEach((row) => {
+      const algo = row.algorithm;
+      const baseX = algoPositions[algo];
+      if (!baseX || !Array.isArray(row.sdr_values)) return;
+      row.sdr_values.forEach((sdr) => {
+        if (typeof sdr !== "number" || !isFinite(sdr)) return;
+        // 适度 horizontal jitter，让同一算法的样本不完全重叠
+        const jitter = (Math.random() - 0.5) * 0.5; // [-0.25, 0.25]
+        points.push({
+          algorithm: algo,
+          x: baseX + jitter,
+          sdr,
+        });
+      });
+    });
+
+    const xDomain = [0.5, algoOrder.length + 0.5];
+    return { points, algoPositions, algoOrder, xDomain };
+  }, [objectiveDistribution]);
+
 
   if (!user) {
     return <AuthPage onLoginSuccess={handleLoginSuccess} />;
@@ -2489,6 +3519,11 @@ export default function AudioLabApp() {
                           separatedStemAudioRef.current.pause();
                           previousPlayingState.current.separated = false;
                         }
+            // 暂停残差播放器
+            if (residualStemAudioRef.current && !residualStemAudioRef.current.paused) {
+              residualStemAudioRef.current.pause();
+              previousPlayingState.current.residual = false;
+            }
                       }
                       
                       handlePlayerStateChange("input", state);
@@ -2548,9 +3583,7 @@ export default function AudioLabApp() {
                             size: (f.size / 1024 / 1024).toFixed(2) + " MB",
                             raw: f, // 仍然保存，但主要使用 ref
                           });
-                          // 将其解析为用于可视化的波形，但不要覆盖后端返回的原始混合波形（gtWave）
-                          const wf = await decodeFileToWaveform(f, 800);
-                          setGoldWave(wf);
+                          analyzeGoldForVisualization(f);
                         }}
                       />
                     </label>
@@ -2584,8 +3617,9 @@ export default function AudioLabApp() {
                         onClick={() => {
                           gtFileRef.current = null;
                           setGtFile(null);
-                          // 清除金标准单源波形（退回到无金标状态），但保留后端的混合音波形 gtWave
                           setGoldWave(null);
+                          setGoldWaveEnv(null);
+                          setGoldSpectrum(null);
                         }}
                         className="text-slate-500 hover:text-red-400 text-[11px]"
                       >
@@ -2622,6 +3656,11 @@ export default function AudioLabApp() {
                                 separatedStemAudioRef.current.pause();
                                 previousPlayingState.current.separated = false;
                               }
+                          // 暂停残差播放器
+                          if (residualStemAudioRef.current && !residualStemAudioRef.current.paused) {
+                            residualStemAudioRef.current.pause();
+                            previousPlayingState.current.residual = false;
+                          }
                             }
                             
                             handlePlayerStateChange("gold", state);
@@ -2824,16 +3863,62 @@ export default function AudioLabApp() {
                                 goldStandardAudioRef.current.pause();
                                 previousPlayingState.current.gold = false;
                               }
+                              // 暂停残差播放器
+                              if (residualStemAudioRef.current && !residualStemAudioRef.current.paused) {
+                                residualStemAudioRef.current.pause();
+                                previousPlayingState.current.residual = false;
+                              }
                             }
                             
                             handlePlayerStateChange("stem", state);
                           }}
                         />
                       </div>
-                      {/* <div className="mt-2 text-[10px] text-cyan-400 flex items-center gap-1">
-                        <span>已选择:</span>
-                        <span className="font-mono">{currentStem.name}</span>
-                      </div> */}
+                      {/* Residual Player: Mix - Alg，用于听剩余干扰与伪影 */}
+                      <div className="mt-3 space-y-1">
+                        <div className="text-[11px] text-slate-500">
+                          残差播放器 <span className="font-mono text-slate-300">Residual (Mix - Alg)</span>：用于听剩余干扰与伪影。
+                        </div>
+                        {taskId && (
+                          <div className="overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900/60">
+                            <StemPlayer
+                              name={`${currentStem.name} Residual`}
+                              src={
+                                typeof taskId === "string"
+                                  ? `${API_BASE}/api/tasks/${encodeURIComponent(taskId)}/residual?target=${encodeURIComponent(currentStem.name)}`
+                                  : `${API_BASE}/api/tasks/${encodeURIComponent(String(taskId))}/residual?target=${encodeURIComponent(currentStem.name)}`
+                              }
+                              onSelect={() => {}}
+                              syncedTime={syncedCurrentTime}
+                              onUserSeek={(t) => seekAll(t)}
+                              onPlaybackStateChange={(state) => {
+                                const wasPlaying = previousPlayingState.current.residual;
+                                const isNowPlaying = state.playing;
+
+                                previousPlayingState.current.residual = isNowPlaying;
+                                residualStemAudioRef.current = state.audioRef;
+
+                                if (isNowPlaying && !wasPlaying) {
+                                  if (inputSourceAudioRef.current && !inputSourceAudioRef.current.paused) {
+                                    inputSourceAudioRef.current.pause();
+                                    previousPlayingState.current.input = false;
+                                  }
+                                  if (goldStandardAudioRef.current && !goldStandardAudioRef.current.paused) {
+                                    goldStandardAudioRef.current.pause();
+                                    previousPlayingState.current.gold = false;
+                                  }
+                                  if (separatedStemAudioRef.current && !separatedStemAudioRef.current.paused) {
+                                    separatedStemAudioRef.current.pause();
+                                    previousPlayingState.current.separated = false;
+                                  }
+                                }
+
+                                // 残差播放器不作为“主时间轴”的 driver，只同步进度
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2898,47 +3983,194 @@ export default function AudioLabApp() {
                     <div>
                       {(() => {
                         const key = currentStem?.name;
-                        const cached = key && objectiveByStem?.[key] ? objectiveByStem[key] : null;
+                        const cached =
+                          key && objectiveByStem?.[key] ? objectiveByStem[key] : null;
                         const last =
                           results &&
                           (!key || !results.target_stem || results.target_stem === key)
                             ? results
                             : null;
                         const m = cached || last || {};
+
+                        const fmtDb = (v) =>
+                          typeof v === "number" && isFinite(v) ? v.toFixed(2) : "N/A";
+
+                        const clamp01 = (x) => Math.max(0, Math.min(1, x));
+                        const sdrNorm = clamp01((m.sdr || 0) / 15);
+                        const sirNorm = clamp01((m.sir || 0) / 20);
+                        const sarNorm = clamp01((m.sar || 0) / 20);
+
+                        // SDR vs Time：如果后端返回 sdr_curve，则构造按时间采样的折线数据
+                        let sdrCurveData = null;
+                        if (Array.isArray(m.sdrCurve) && m.sdrCurve.length > 1) {
+                          const n = m.sdrCurve.length;
+                          const duration =
+                            typeof syncedDuration === "number" && syncedDuration > 0
+                              ? syncedDuration
+                              : n; // 若未知时长，则时间轴用索引代替
+                          sdrCurveData = m.sdrCurve.map((val, idx) => {
+                            const pos = n > 1 ? idx / (n - 1) : 0;
+                            const tSec = duration * pos;
+                            return {
+                              time: Number.isFinite(tSec) ? Number(tSec.toFixed(2)) : idx,
+                              sdr: typeof val === "number" && isFinite(val) ? val : null,
+                            };
+                          });
+                        }
+
                         return (
                           <>
                             <div>
                               <div className="flex justify-between text-xs mb-1">
                                 <span className="text-slate-400">
-                                  SDR (Signal-Distortion)
+                                  SDR (Signal-to-Distortion)
                                 </span>
                                 <span className="text-emerald-400 font-mono">
-                                  {m.sdr != null ? m.sdr.toFixed(2) : "N/A"} dB
+                                  {fmtDb(m.sdr)} dB
                                 </span>
                               </div>
                               <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-emerald-500"
-                                  style={{ width: `${(((m.sdr || 0) / 15) * 100)}%` }}
+                                  className="h-full bg-emerald-500 transition-all"
+                                  style={{ width: `${sdrNorm * 100}%` }}
                                 ></div>
                               </div>
                             </div>
+
                             <div>
-                              <div className="flex justify-between text-xs mb-1">
+                              <div className="flex justify-between text-xs mb-1 mt-3">
                                 <span className="text-slate-400">
-                                  SIR (Interference)
+                                  SIR (Signal-to-Interference)
                                 </span>
                                 <span className="text-blue-400 font-mono">
-                                  {m.sir != null ? m.sir.toFixed(2) : "N/A"} dB
+                                  {fmtDb(m.sir)} dB
                                 </span>
                               </div>
                               <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-blue-500"
-                                  style={{ width: `${(((m.sir || 0) / 20) * 100)}%` }}
+                                  className="h-full bg-blue-500 transition-all"
+                                  style={{ width: `${sirNorm * 100}%` }}
                                 ></div>
                               </div>
                             </div>
+
+                            <div>
+                              <div className="flex justify-between text-xs mb-1 mt-3">
+                                <span className="text-slate-400">
+                                  SAR (Signal-to-Artifacts)
+                                </span>
+                                <span className="text-amber-300 font-mono">
+                                  {fmtDb(m.sar)} dB
+                                </span>
+                              </div>
+                              <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-amber-400 transition-all"
+                                  style={{ width: `${sarNorm * 100}%` }}
+                                ></div>
+                              </div>
+                              <div className="mt-1 text-[11px] text-slate-500">
+                                <span className="mr-2">
+                                  SDR：整体失真程度（越高越接近金标准）
+                                </span>
+                                <span className="mr-2">
+                                  SIR：串音/干扰抑制能力（越高越干净）
+                                </span>
+                                <span>
+                                  SAR：伪影控制能力（越高说明“水声”“机械噪声”等越少）
+                                </span>
+                              </div>
+                            </div>
+
+                            {sdrCurveData && (
+                              <div className="mt-4">
+                                <div className="flex justify-between items-center mb-1 text-xs">
+                                  <span className="text-slate-400">
+                                    SDR vs Time
+                                  </span>
+                                  <span className="font-mono text-slate-500">
+                                    Stem:{" "}
+                                    <span className="text-cyan-300">
+                                      {currentStem?.name || "N/A"}
+                                    </span>
+                                  </span>
+                                </div>
+                                <div className="h-28 bg-slate-900 rounded border border-slate-700/60 px-2 py-1.5">
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={sdrCurveData}>
+                                      <CartesianGrid
+                                        stroke="#1e293b"
+                                        strokeDasharray="3 3"
+                                        vertical={false}
+                                      />
+                                      <XAxis
+                                        dataKey="time"
+                                        tickFormatter={(v) =>
+                                          typeof v === "number" ? v.toFixed(1) : v
+                                        }
+                                        tick={{ fontSize: 9, fill: "#9ca3af" }}
+                                        axisLine={{ stroke: "#4b5563" }}
+                                        label={{
+                                          value: "Time (s)",
+                                          position: "insideRight",
+                                          offset: -4,
+                                          style: { fill: "#6b7280", fontSize: 9 },
+                                        }}
+                                      />
+                                      <YAxis
+                                        tick={{ fontSize: 9, fill: "#9ca3af" }}
+                                        axisLine={{ stroke: "#4b5563" }}
+                                        tickFormatter={(v) =>
+                                          typeof v === "number" ? v.toFixed(1) : v
+                                        }
+                                        label={{
+                                          value: "SDR (dB)",
+                                          angle: -90,
+                                          position: "insideLeft",
+                                          style: { fill: "#6b7280", fontSize: 9 },
+                                        }}
+                                      />
+                                      <RechartsTooltip
+                                        contentStyle={{
+                                          backgroundColor: "#020617",
+                                          border: "1px solid #1f2937",
+                                          fontSize: 11,
+                                        }}
+                                        formatter={(value) =>
+                                          typeof value === "number"
+                                            ? `${value.toFixed(2)} dB`
+                                            : value
+                                        }
+                                        labelFormatter={(label) =>
+                                          typeof label === "number"
+                                            ? `${label.toFixed(2)} s`
+                                            : label
+                                        }
+                                      />
+                                      <Legend
+                                        verticalAlign="top"
+                                        height={16}
+                                        wrapperStyle={{
+                                          paddingBottom: 4,
+                                          fontSize: 10,
+                                          color: "#9ca3af",
+                                        }}
+                                      />
+                                      <Line
+                                        type="monotone"
+                                        dataKey="sdr"
+                                        name="SDR(t)"
+                                        stroke="#22c55e"
+                                        strokeWidth={1.5}
+                                        dot={false}
+                                        isAnimationActive={false}
+                                      />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              </div>
+                            )}
+
                             <div className="p-3 bg-slate-800 rounded border border-slate-600 text-xs text-slate-300 mt-4 leading-relaxed">
                               <span className="text-cyan-400 font-bold">
                                 AI Summary:
@@ -2980,30 +4212,6 @@ export default function AudioLabApp() {
                       >
                         <ZoomIn size={14} />
                       </button>
-                      {/* Visibility toggles for mixture / gold / separated */}
-                      <div className="flex items-center gap-1 ml-3 pr-2">
-                        <button
-                          title="切换混合音（Mixture）可见性"
-                          onClick={() => setShowMixture((s) => !s)}
-                          className={`text-xs px-2 py-0.5 rounded ${showMixture ? "bg-emerald-600/20 text-emerald-300" : "bg-slate-800 text-slate-400"}`}
-                        >
-                          Mix
-                        </button>
-                        <button
-                          title="切换金标准单源（Gold）可见性"
-                          onClick={() => setShowGold((s) => !s)}
-                          className={`text-xs px-2 py-0.5 rounded ${showGold ? "bg-purple-600/20 text-purple-300" : "bg-slate-800 text-slate-400"}`}
-                        >
-                          Gold
-                        </button>
-                        <button
-                          title="切换分离结果（Algorithm）可见性"
-                          onClick={() => setShowSeparated((s) => !s)}
-                          className={`text-xs px-2 py-0.5 rounded ${showSeparated ? "bg-cyan-600/20 text-cyan-300" : "bg-slate-800 text-slate-400"}`}
-                        >
-                          Alg
-                        </button>
-                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2 text-xs text-slate-500">
@@ -3023,7 +4231,7 @@ export default function AudioLabApp() {
                 </div>
 
                 {/* Canvases */}
-                <div className="p-4 space-y-4">
+                <div className="p-4 space-y-6">
                   {/* Processing Overlay */}
                   {isProcessing && (
                     <div className="absolute inset-0 bg-slate-900/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm">
@@ -3037,91 +4245,158 @@ export default function AudioLabApp() {
                     </div>
                   )}
 
-                  {/* Waveform View */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
+                  {/* Waveform Comparison：两个波形图放在一起（Gold/Mix vs Separated） */}
+                  <div className="space-y-3">
+                    <div className="flex items-baseline justify-between">
                       <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">
-                        Time Domain (Difference Overlay)
+                        波形对比 · Waveform Comparison
                       </span>
-                      {/* 图例移到标题行右侧 */}
-                      <div className="flex gap-4 text-xs font-mono bg-slate-800/50 px-3 py-1.5 rounded border border-slate-700/50">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                          <span className="text-slate-300">Ground Truth</span>
+                      <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                        <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                          <input
+                            type="checkbox"
+                            checked={waveAutoGain}
+                            onChange={(e) => setWaveAutoGain(e.target.checked)}
+                            className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-2 focus:ring-cyan-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer"
+                          />
+                          <span>自动增益</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500">Y 缩放</span>
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="5"
+                            step="0.1"
+                            value={waveYZoom}
+                            onChange={(e) => setWaveYZoom(parseFloat(e.target.value))}
+                            className="w-32 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                          />
+                          <span className="font-mono text-slate-300 w-10 text-right">
+                            {Number(waveYZoom).toFixed(1)}x
+                          </span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
-                          <span className="text-slate-300">Algorithm</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-red-500/50"></span>
-                          <span className="text-slate-300">High Error</span>
-                        </div>
+                        <button
+                          onClick={() => setWaveExpanded((v) => !v)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700/70 text-slate-200 transition"
+                          title={waveExpanded ? "收起波形图" : "展开波形图"}
+                        >
+                          {waveExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                          <span>{waveExpanded ? "收起" : "展开"}</span>
+                        </button>
                       </div>
                     </div>
-                    <WaveformComparator
-                      groundTruth={gtWave}
-                      goldWave={goldWave}
-                      showMixture={showMixture}
-                      showGold={showGold}
-                      showSeparated={showSeparated}
-                      separated={
-                        currentStem?.waveform
-                          ? currentStem.waveform
-                          : results
-                            ? sepWave
-                            : []
-                      }
-                      viewRange={viewRange}
-                      onViewRangeChange={setViewRange}
-                      playbackState={playbackState}
-                    />
-                    {/* 操作说明放在波形图下方 */}
-                    <div className="flex justify-center">
-                      <div className="text-xs text-slate-400 bg-slate-800/30 px-3 py-1.5 rounded border border-slate-700/30">
-                        <span className="mr-4">点击/拖动 → 跳转播放位置</span>
-                        <span>Ctrl+拖动 → 缩放波形图</span>
+
+                    <div className="space-y-3">
+                      {/* 参考波形：Gold Standard（若有）或 Mixture */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="font-mono text-emerald-300">
+                            Reference
+                          </span>
+                          <span className="text-slate-500">
+                            {gtFileRef.current ? "Gold Standard Stem" : "Mixture（输入混合音）"}
+                          </span>
+                        </div>
+                        <SingleWaveformView
+                          wave={goldWaveEnv || goldWave || gtWaveEnv || gtWave}
+                          heightPx={waveExpanded ? 200 : 140}
+                          autoGain={waveAutoGain}
+                          yZoom={waveYZoom}
+                          viewRange={viewRange}
+                          playbackState={playbackState}
+                        />
+                      </div>
+
+                      {/* 分离结果波形 */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="font-mono text-cyan-300">
+                            Separated
+                          </span>
+                          <span className="text-slate-500">
+                            {currentStem?.name || "未选择 Stem"}
+                          </span>
+                        </div>
+                        <SingleWaveformView
+                          wave={
+                            currentStem?.waveformEnv
+                              ? currentStem.waveformEnv
+                              : currentStem?.waveform
+                                ? currentStem.waveform
+                                : results
+                                  ? (sepWaveEnv || sepWave)
+                                  : []
+                          }
+                          heightPx={waveExpanded ? 200 : 140}
+                          autoGain={waveAutoGain}
+                          yZoom={waveYZoom}
+                          viewRange={viewRange}
+                          playbackState={playbackState}
+                        />
                       </div>
                     </div>
                   </div>
 
-                  {/* Spectrum View */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
+                  {/* Spectrum Comparison：两个频谱瀑布图放在一起（Mix vs Separated） */}
+                  <div className="space-y-3 pt-4 border-t border-slate-800/80">
+                    <div className="flex items-baseline justify-between">
                       <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">
-                        Frequency Domain (Spectrogram)
+                        频谱对比 · Spectrogram / 语谱图
                       </span>
-                      {/* 暂停时自动放大选项 */}
-                      {playbackState.duration > 0 && (
-                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer hover:text-slate-300 transition">
-                          <input
-                            type="checkbox"
-                            checked={autoZoomSpectrumOnPause}
-                            onChange={(e) => setAutoZoomSpectrumOnPause(e.target.checked)}
-                            className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-2 focus:ring-cyan-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer"
-                          />
-                          <span className="select-none">
-                            暂停时自动放大对应时间带
-                          </span>
-                        </label>
-                      )}
+                      <div className="text-[11px] text-slate-500">
+                        参考频谱：优先 Gold Standard Stem，若无则退回 Mixture
+                      </div>
                     </div>
 
-                    <SpectrumComparator
-                      isActive={
-                        !!results &&
-                        !!(
-                          (currentStem && currentStem.spectrum) ||
-                          sepSpectrum.length
-                        )
-                      }
-                      originalSpectrumData={gtSpectrum}
-                      separatedSpectrumData={
-                        currentStem?.spectrum || sepSpectrum
-                      }
-                      viewRange={viewRange}
-                      onViewRangeChange={setViewRange}
-                    />
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="font-mono text-emerald-300">
+                            Reference Spectrogram
+                          </span>
+                          <span className="text-slate-500">
+                            {goldSpectrum ? "Gold Standard Stem" : "Mixture"}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <SingleSpectrogramView
+                            spectrum={goldSpectrum || gtSpectrum}
+                            heightPx={220}
+                            viewRange={viewRange}
+                            onViewRangeChange={setViewRange}
+                            playbackState={playbackState}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="font-mono text-cyan-300">
+                            Separated Spectrogram
+                          </span>
+                          <span className="text-slate-500">
+                            {currentStem?.name || "未选择 Stem"}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <SingleSpectrogramView
+                            spectrum={currentStem?.spectrum || sepSpectrum}
+                            heightPx={220}
+                            viewRange={viewRange}
+                            onViewRangeChange={setViewRange}
+                            playbackState={playbackState}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-center">
+                      <div className="text-xs text-slate-400 bg-slate-800/30 px-3 py-1.5 rounded border border-slate-700/30">
+                        <span className="mr-4">点击任一波形/语谱图 → 跳转播放位置（参考与分离同步）</span>
+                        <span>在频谱上拖拽选择 → 缩放时间窗，双击还原</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3556,44 +4831,204 @@ export default function AudioLabApp() {
               </div>
             )}
 
+            {/* 主观与客观指标相关性 + 客观指标雷达图 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 主观 Quality vs SDR 散点图 */}
+              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 h-96">
+                <h3 className="font-bold text-white mb-2">
+                  主观清晰度 (Quality) vs 客观 SDR
+                </h3>
+                <p className="text-xs text-slate-400 mb-4">
+                  每个点代表一次评估任务（task）：横轴为任务级 SDR，纵轴为专家给出的 Quality
+                  评分。点云形状可以帮助判断客观指标是否能较好预测主观听感。
+                </p>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      type="number"
+                      dataKey="sdr"
+                      name="SDR"
+                      stroke="#94a3b8"
+                      tick={{ fontSize: 10 }}
+                      domain={["auto", "auto"]}
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey="quality"
+                      name="Quality"
+                      stroke="#94a3b8"
+                      tick={{ fontSize: 10 }}
+                      domain={[0, 100]}
+                    />
+                    <RechartsTooltip
+                      cursor={{ strokeDasharray: "3 3" }}
+                      contentStyle={{
+                        backgroundColor: "#020617",
+                        borderColor: "#1e293b",
+                        color: "#e5e7eb",
+                        fontSize: 11,
+                      }}
+                      formatter={(value, name) => {
+                        if (name === "algorithm") return [value, "Algorithm"];
+                        if (name === "stem_name") return [value || "ALL", "Stem"];
+                        return [value, name];
+                      }}
+                      labelFormatter={(_, payload) => {
+                        const p = payload && payload[0] && payload[0].payload;
+                        if (!p) return "";
+                        return `Task ${p.task_id || ""}`;
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "10px" }} />
+                    <Scatter
+                      name="Samples"
+                      data={subjectiveObjectivePoints.filter(
+                        (p) => typeof p.sdr === "number" && typeof p.quality === "number",
+                      )}
+                      fill="#22c55e"
+                      opacity={0.8}
+                    />
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* 按算法聚合的客观指标雷达图 */}
+              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 h-96">
+                <h3 className="font-bold text-white mb-2">
+                  算法客观指标雷达图（SDR / SIR / SAR）
+                </h3>
+                <p className="text-xs text-slate-400 mb-4">
+                  基于当前有客观指标记录的任务，对每个算法汇总出平均 SDR / SIR / SAR。
+                  可以直观比较不同算法在抗干扰、伪影控制和整体分离质量上的 trade-off。
+                </p>
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart
+                    cx="50%"
+                    cy="50%"
+                    outerRadius="75%"
+                    data={[
+                      { metric: "SDR" },
+                      { metric: "SIR" },
+                      { metric: "SAR" },
+                    ]}
+                  >
+                    <PolarGrid stroke="#334155" />
+                    <PolarAngleAxis
+                      dataKey="metric"
+                      tick={{ fill: "#94a3b8", fontSize: 10 }}
+                    />
+                    <PolarRadiusAxis
+                      angle={30}
+                      tick={{ fill: "#64748b", fontSize: 9 }}
+                      axisLine={{ stroke: "#475569" }}
+                    />
+                    {objectiveStats.map((algoStat) => {
+                      const colorMap = {
+                        "Demucs v4": "#06b6d4",
+                        Spleeter: "#8b5cf6",
+                        OpenUnmix: "#f97316",
+                        BandSplitRNN: "#10b981",
+                        MDX23C: "#22c55e",
+                        Demucs4HT: "#0ea5e9",
+                        "Band Split RoFormer": "#a855f7",
+                        SCNet: "#facc15",
+                      };
+                      const color =
+                        colorMap[algoStat.algorithm] || "#38bdf8";
+                      const seriesKey = String(algoStat.algorithm);
+                      const seriesData = [
+                        { metric: "SDR", [seriesKey]: algoStat.avg_sdr ?? 0 },
+                        { metric: "SIR", [seriesKey]: algoStat.avg_sir ?? 0 },
+                        { metric: "SAR", [seriesKey]: algoStat.avg_sar ?? 0 },
+                      ];
+                      return (
+                        <Radar
+                          key={seriesKey}
+                          name={seriesKey}
+                          dataKey={seriesKey}
+                          data={seriesData}
+                          stroke={color}
+                          fill={color}
+                          fillOpacity={0.22}
+                        />
+                      );
+                    })}
+                    <Legend wrapperStyle={{ fontSize: "10px" }} />
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: "#020617",
+                        borderColor: "#1e293b",
+                        color: "#e5e7eb",
+                        fontSize: 11,
+                      }}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* SDR 分布蜂群散点图（近似箱线图效果） */}
             <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 h-96">
-              <h3 className="font-bold text-white mb-6">
-                评分趋势分析 (MOS Score)
+              <h3 className="font-bold text-white mb-2">
+                不同算法在多首歌曲上的 SDR 分布（近似箱线图）
               </h3>
+              <p className="text-xs text-slate-400 mb-4">
+                每一个绿色点代表某算法在一首歌上的 SDR。横轴为算法，纵轴为 SDR（dB）。
+                相比仅看平均值，这张图更能反映算法在不同歌曲上的稳定性与尾部表现。
+              </p>
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={[
-                    { name: "Jan", Demucs: 65, Spleeter: 60 },
-                    { name: "Feb", Demucs: 70, Spleeter: 62 },
-                    { name: "Mar", Demucs: 78, Spleeter: 61 },
-                    { name: "Apr", Demucs: 85, Spleeter: 63 },
-                    { name: "May", Demucs: 88, Spleeter: 65 },
-                    { name: "Jun", Demucs: 92, Spleeter: 64 },
-                  ]}
-                >
+                <ScatterChart>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="name" stroke="#94a3b8" />
-                  <YAxis stroke="#94a3b8" />
+                  <XAxis
+                    type="number"
+                    dataKey="x"
+                    domain={objectiveSdrScatterModel.xDomain}
+                    tickCount={objectiveSdrScatterModel.algoOrder.length}
+                    tickFormatter={(value) => {
+                      const entry = Object.entries(objectiveSdrScatterModel.algoPositions)
+                        .find(([, pos]) => Math.round(pos) === Math.round(value));
+                      return entry ? entry[0] : "";
+                    }}
+                    stroke="#94a3b8"
+                    tick={{ fontSize: 10 }}
+                    label={{ value: "Algorithm", position: "insideBottom", offset: -4, fill: "#9ca3af", fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="number"
+                    dataKey="sdr"
+                    name="SDR"
+                    stroke="#94a3b8"
+                    tick={{ fontSize: 10 }}
+                    domain={["auto", "auto"]}
+                    label={{ value: "SDR (dB)", angle: -90, position: "insideLeft", fill: "#9ca3af", fontSize: 11 }}
+                  />
                   <RechartsTooltip
+                    cursor={{ strokeDasharray: "3 3" }}
                     contentStyle={{
-                      backgroundColor: "#0f172a",
-                      borderColor: "#334155",
+                      backgroundColor: "#020617",
+                      borderColor: "#1e293b",
+                      color: "#e5e7eb",
+                      fontSize: 11,
+                    }}
+                    formatter={(value, name, props) => {
+                      if (name === "sdr") {
+                        return [`${value.toFixed(2)} dB`, "SDR"];
+                      }
+                      if (name === "algorithm") {
+                        return [props.payload.algorithm, "Algorithm"];
+                      }
+                      return [value, name];
                     }}
                   />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="Demucs"
-                    stroke="#06b6d4"
-                    strokeWidth={3}
+                  <Legend wrapperStyle={{ fontSize: "10px" }} />
+                  <Scatter
+                    name="SDR Samples"
+                    data={objectiveSdrScatterModel.points}
+                    fill="#22c55e"
+                    opacity={0.85}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="Spleeter"
-                    stroke="#8b5cf6"
-                    strokeWidth={3}
-                  />
-                </LineChart>
+                </ScatterChart>
               </ResponsiveContainer>
             </div>
           </div>

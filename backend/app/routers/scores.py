@@ -4,8 +4,15 @@ from sqlalchemy import select, func, distinct
 from typing import List, Dict, Optional
 
 from app.database import get_db
-from app.models import Score, Algorithm, Role, User
-from app.schemas import ScoreCreate, ScoreResponse, StatsResponse, DetailedStatsResponse, AlgorithmComparisonResponse
+from app.models import Score, Algorithm, Role, User, SeparationTask
+from app.schemas import (
+    ScoreCreate,
+    ScoreResponse,
+    StatsResponse,
+    DetailedStatsResponse,
+    AlgorithmComparisonResponse,
+    SubjectiveObjectivePoint,
+)
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/scores", tags=["scores"])
@@ -253,3 +260,74 @@ async def get_algorithm_comparison(db: AsyncSession = Depends(get_db)):
             )
 
     return comparison_list
+
+
+@router.get(
+    "/stats/subjective-objective-points",
+    response_model=List[SubjectiveObjectivePoint],
+)
+async def get_subjective_objective_points(
+    algorithm: Optional[Algorithm] = None,
+    stem_name: Optional[str] = None,
+    limit: int = 500,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    返回“主观评分 + 任务级客观指标”的联合样本点列表。
+
+    用途：
+    - 前端绘制「Quality vs SDR」等相关性散点图与回归线；
+    - 支持按 algorithm / stem_name 过滤。
+
+    说明：
+    - 仅返回存在任务级 sdr 的样本（即对应 SeparationTask.sdr 非空）。
+    """
+    limit = max(50, min(5000, int(limit or 500)))
+
+    stmt = (
+        select(
+            Score.task_id,
+            Score.algorithm,
+            Score.stem_name,
+            Score.quality,
+            Score.interference,
+            Score.artifacts,
+            SeparationTask.sdr,
+            SeparationTask.sir,
+            SeparationTask.sar,
+        )
+        .join(
+            SeparationTask,
+            (SeparationTask.id == Score.task_id)
+            & (SeparationTask.algorithm == Score.algorithm),
+        )
+        .where(SeparationTask.sdr.isnot(None))
+    )
+
+    if algorithm is not None:
+        stmt = stmt.where(Score.algorithm == algorithm)
+    if stem_name:
+        stmt = stmt.where(Score.stem_name == stem_name)
+
+    stmt = stmt.order_by(Score.created_at.desc()).limit(limit)
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    points: List[SubjectiveObjectivePoint] = []
+    for row in rows:
+        points.append(
+            SubjectiveObjectivePoint(
+                task_id=row.task_id,
+                algorithm=row.algorithm,
+                stem_name=row.stem_name,
+                quality=float(row.quality),
+                interference=float(row.interference),
+                artifacts=float(row.artifacts),
+                sdr=float(row.sdr) if row.sdr is not None else None,
+                sir=float(row.sir) if row.sir is not None else None,
+                sar=float(row.sar) if row.sar is not None else None,
+            )
+        )
+
+    return points

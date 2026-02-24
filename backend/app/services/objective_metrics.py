@@ -68,6 +68,35 @@ def _trim_to_min_len(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> Tuple[np.nd
     return a[:n], b[:n], c[:n]
 
 
+def compute_residual_mix_minus_est(
+    *,
+    mixture_path: Path,
+    estimate_path: Path,
+) -> np.ndarray:
+    """
+    计算残差音频 r = mix - est（用于“残差播放器”试听剩余干扰/伪影）。
+
+    - 统一为 mono / 44.1kHz，与 compute_bss_metrics_two_source 保持一致
+    - 简单去直流偏置，并做幅度归一化，避免写出 WAV 时过载失真
+    """
+    mix = _load_mono_44k(mixture_path)
+    est = _load_mono_44k(estimate_path)
+
+    n = int(min(mix.shape[0], est.shape[0]))
+    if n <= 0:
+        raise ValueError("音频长度为 0，无法计算残差")
+
+    mix = mix[:n] - float(np.mean(mix[:n]))
+    est = est[:n] - float(np.mean(est[:n]))
+    residual = mix - est
+
+    peak = float(np.max(np.abs(residual))) if residual.size else 0.0
+    if peak > 0:
+        residual = residual / peak * 0.98  # 留一点余量避免 16bit 裁剪
+
+    return residual.astype(np.float32, copy=False)
+
+
 def compute_bss_metrics_two_source(
     *,
     mixture_path: Path,

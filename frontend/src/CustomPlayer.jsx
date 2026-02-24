@@ -77,12 +77,14 @@ export default function CustomPlayer({ src, onPlaybackStateChange, onUserSeek, s
     if (!duration || duration <= 0) return;
 
     const clampedTime = Math.max(0, Math.min(syncedTime, duration));
-    // 避免高频 setState 造成抖动
-    if (Math.abs(clampedTime - currentTime) < 0.03) return;
 
+    // 避免高频 setState 造成抖动：和 audio 实际时间比较，而不是和自身状态互相触发
+    const currentAudioTime = audio.currentTime || 0;
+    if (Math.abs(clampedTime - currentAudioTime) < 0.03) return;
+
+    // 只更新 audio 指针，currentTime 交给 timeupdate 事件去同步，避免依赖 currentTime 造成循环
     audio.currentTime = clampedTime;
-    setCurrentTime(clampedTime);
-  }, [syncedTime, playing, duration, currentTime]);
+  }, [syncedTime, playing, duration]);
 
   // 将播放状态传递给父组件
   useEffect(() => {

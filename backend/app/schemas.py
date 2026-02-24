@@ -56,6 +56,8 @@ class AudioAnalysisPayload(BaseModel):
     sample_rate: int
     duration_s: float
     waveform: List[float]
+    waveform_min: Optional[List[float]] = None
+    waveform_max: Optional[List[float]] = None
     spectrogram: List[List[float]]
     bit_depth: Optional[int] = None
 
@@ -141,6 +143,53 @@ class AlgorithmComparisonResponse(BaseModel):
     overall_avg_artifacts: float
     total_scores: int
     stem_breakdown: List[StatsResponse]
+
+
+class ObjectiveAlgorithmStats(BaseModel):
+    """
+    按算法聚合的客观指标统计，用于可视化雷达图等。
+    说明：
+    - 仅统计已有 sdr/sir/sar 的任务（例如 HTTP 引擎或 mock 引擎返回了客观指标）。
+    """
+
+    algorithm: Algorithm
+    count_tasks: int
+    avg_sdr: Optional[float] = None
+    avg_sir: Optional[float] = None
+    avg_sar: Optional[float] = None
+
+
+class SubjectiveObjectivePoint(BaseModel):
+    """
+    单条“主观 + 客观”联合样本点：
+    - 通过 task_id + algorithm 关联 Score 与 SeparationTask
+    - 前端可据此绘制“主观评分 vs SDR/SIR/SAR”的散点图与回归线
+    """
+
+    task_id: int  # 在序列化时转为字符串，避免前端精度丢失
+    algorithm: Algorithm
+    stem_name: Optional[str] = None
+    quality: float
+    interference: float
+    artifacts: float
+    sdr: Optional[float] = None
+    sir: Optional[float] = None
+    sar: Optional[float] = None
+
+    @field_serializer("task_id")
+    def serialize_task_id(self, value: int, _info) -> str:
+        """将 task_id 序列化为字符串，避免前端大整数精度丢失"""
+        return str(value)
+
+
+class ObjectiveAlgorithmDistribution(BaseModel):
+    """
+    按算法返回 SDR 样本分布，用于前端做箱线图/散点分布可视化。
+    - 不在后端做复杂分位数计算，直接返回样本列表，交给前端灵活绘制。
+    """
+
+    algorithm: Algorithm
+    sdr_values: List[float]
 
 
 # Authentication Schemas

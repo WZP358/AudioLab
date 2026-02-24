@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, Request, Header
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from typing import List, Optional
 import os
 import uuid
@@ -8,13 +9,22 @@ from pathlib import Path
 
 from app.database import get_db
 from app.models import SeparationTask, StemFile, TaskStatus, Algorithm, User
-from app.schemas import TaskResponse, StemResponse, TaskAnalysisResponse, ObjectiveMetricsResponse
+from app.schemas import (
+    TaskResponse,
+    StemResponse,
+    TaskAnalysisResponse,
+    ObjectiveMetricsResponse,
+    ObjectiveAlgorithmStats,
+    ObjectiveAlgorithmDistribution,
+    AudioAnalysisPayload,
+)
 from app.services.separation_service import process_separation
 from app.services.analysis_service import analyze_audio_file, analysis_to_payload
-from app.services.objective_metrics import compute_bss_metrics_two_source
+from app.services.objective_metrics import compute_bss_metrics_two_source, compute_residual_mix_minus_est
 from app.utils.log_helper import get_client_ip, get_user_agent
 import logging
 import tempfile
+import soundfile as sf
 
 logger = logging.getLogger(__name__)
 
@@ -206,12 +216,89 @@ async def get_stems(task_id: str, db: AsyncSession = Depends(get_db)):
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    from sqlalchemy import select
     result = await db.execute(
         select(StemFile).where(StemFile.task_id == task_id_int)
     )
     stems = result.scalars().all()
     return stems
+
+
+@router.get("/stats/objective", response_model=List[ObjectiveAlgorithmStats])
+async def get_objective_stats(db: AsyncSession = Depends(get_db)):
+    """
+    按算法聚合任务级客观指标（SDR/SIR/SAR）。
+
+    用途：
+    - 为前端的“客观指标雷达图”“算法排行榜”等提供数据支撑；
+    - 只统计 sdr 非空的任务（即分离引擎或外部服务确实返回了客观指标）。
+    """
+    result = await db.execute(
+        select(
+            SeparationTask.algorithm.label("algorithm"),
+            func.count(SeparationTask.id).label("count_tasks"),
+            func.avg(SeparationTask.sdr).label("avg_sdr"),
+            func.avg(SeparationTask.sir).label("avg_sir"),
+            func.avg(SeparationTask.sar).label("avg_sar"),
+        )
+        .where(SeparationTask.sdr.isnot(None))
+        .group_by(SeparationTask.algorithm)
+    )
+
+    rows = result.all()
+    stats: List[ObjectiveAlgorithmStats] = []
+    for row in rows:
+        stats.append(
+            ObjectiveAlgorithmStats(
+                algorithm=row.algorithm,
+                count_tasks=int(row.count_tasks or 0),
+                avg_sdr=float(row.avg_sdr) if row.avg_sdr is not None else None,
+                avg_sir=float(row.avg_sir) if row.avg_sir is not None else None,
+                avg_sar=float(row.avg_sar) if row.avg_sar is not None else None,
+            )
+        )
+
+    return stats
+
+
+@router.get("/stats/objective-distribution", response_model=List[ObjectiveAlgorithmDistribution])
+async def get_objective_distribution(db: AsyncSession = Depends(get_db)):
+    """
+    返回每个算法对应的 SDR 样本分布（仅包含 sdr 非空的任务）。
+
+    前端可以基于该分布绘制箱线图/蜂群散点等“分布型”可视化，
+    以展示同一算法在多首歌曲上的性能波动情况。
+    """
+    result = await db.execute(
+        select(
+            SeparationTask.algorithm,
+            SeparationTask.sdr,
+        ).where(SeparationTask.sdr.isnot(None))
+    )
+
+    rows = result.all()
+    buckets: dict[Algorithm, list[float]] = {}
+    for algo, sdr in rows:
+        if sdr is None:
+            continue
+        if algo not in buckets:
+            buckets[algo] = []
+        # 统一转 float，避免 Decimal 等类型在序列化时出问题
+        try:
+            buckets[algo].append(float(sdr))
+        except (TypeError, ValueError):
+            continue
+
+    out: List[ObjectiveAlgorithmDistribution] = []
+    for algo, values in buckets.items():
+        # 可选：按大小截断极端 outlier，当前先直接返回
+        out.append(
+            ObjectiveAlgorithmDistribution(
+                algorithm=algo,
+                sdr_values=values,
+            )
+        )
+
+    return out
 
 
 @router.get("/{task_id}/stems/{stem_id}/download")
@@ -259,6 +346,9 @@ async def get_task_analysis(
     task_id: str,
     target: str = "Vocals",
     include_all_stems: bool = False,
+    waveform_points: int = 800,
+    spec_freq_bins: int = 128,
+    spec_time_bins: int = 256,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -279,17 +369,27 @@ async def get_task_analysis(
         raise HTTPException(status_code=404, detail="Task not found")
 
     # 拉取 stems
-    from sqlalchemy import select
-
     result = await db.execute(select(StemFile).where(StemFile.task_id == task_id_int))
     stems = list(result.scalars().all())
+
+    # 轻量分析参数（用于前端缩放时按需提高清晰度）
+    wp = max(200, min(20000, int(waveform_points or 800)))
+    sfreq = max(32, min(512, int(spec_freq_bins or 128)))
+    stime = max(64, min(1024, int(spec_time_bins or 256)))
 
     def safe_analyze(path_str: str):
         p = Path(path_str)
         if not p.exists() or p.stat().st_size == 0:
             return None
         try:
-            return analysis_to_payload(analyze_audio_file(p))
+            return analysis_to_payload(
+                analyze_audio_file(
+                    p,
+                    waveform_points=wp,
+                    spec_freq_bins=sfreq,
+                    spec_time_bins=stime,
+                )
+            )
         except Exception:
             # 例如 mp3 解码失败、音频损坏等：直接降级为空
             return None
@@ -320,6 +420,43 @@ async def get_task_analysis(
         target=target_payload,
         stems=stems_payload if include_all_stems else None,
     )
+
+
+@router.post("/analysis/gold", response_model=AudioAnalysisPayload)
+async def analyze_uploaded_gold(
+    file: UploadFile = File(...),
+    waveform_points: int = 800,
+    spec_freq_bins: int = 128,
+    spec_time_bins: int = 256,
+):
+    """
+    对用户上传的 Gold Standard Stem 做轻量分析（波形 + 频谱），
+    主要用于前端可视化对比。
+
+    注意：这里与任务本身解耦，仅分析单个上传文件，不写入数据库。
+    """
+    try:
+        raw = await file.read()
+        if not raw:
+            raise HTTPException(status_code=400, detail="Gold 文件为空")
+
+        suffix = Path(file.filename or "gold.wav").suffix or ".wav"
+        with tempfile.TemporaryDirectory(prefix="audiolab_gold_") as td:
+            tmp_path = Path(td) / f"gold{suffix}"
+            tmp_path.write_bytes(raw)
+
+            analysis = analyze_audio_file(
+                tmp_path,
+                waveform_points=waveform_points,
+                spec_freq_bins=spec_freq_bins,
+                spec_time_bins=spec_time_bins,
+            )
+            return AudioAnalysisPayload(**analysis_to_payload(analysis))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Gold 分析失败: file=%s err=%s", getattr(file, "filename", None), e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Gold 分析失败: {type(e).__name__}: {str(e)}")
 
 
 @router.post("/{task_id}/objective-metrics", response_model=ObjectiveMetricsResponse)
@@ -406,4 +543,86 @@ async def compute_objective_metrics(
         sir=float(m.sir),
         sar=float(m.sar),
         comment="已基于你上传的金标准参考 stem 计算 SDR/SIR/SAR（两源假设）。",
+    )
+
+
+@router.get("/{task_id}/residual")
+async def get_residual_audio(
+    task_id: str,
+    target: str = "Vocals",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    残差播放器音频：
+
+    - 计算 r(t) = mixture(t) - estimate(t)
+    - 用于听“剩余干扰 + 伪影”：如果还能听到大量人声，说明算法漏分离；
+      如果主要是鼓/贝斯等，则说明目标声部分离较干净。
+    """
+    try:
+      task_id_int = int(task_id)
+    except (ValueError, TypeError):
+      raise HTTPException(status_code=400, detail="无效的任务ID")
+
+    task = await db.get(SeparationTask, task_id_int)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    from sqlalchemy import select, func
+
+    result = await db.execute(
+        select(StemFile).where(
+            (StemFile.task_id == task_id_int)
+            & (func.lower(StemFile.stem_name) == target.lower())
+        )
+    )
+    stem = result.scalars().first()
+    if not stem:
+        raise HTTPException(status_code=404, detail=f"Stem not found: {target}")
+
+    mixture_path = Path(task.file_path)
+    estimate_path = Path(stem.file_path)
+    if not mixture_path.exists():
+        raise HTTPException(status_code=404, detail="Mixture file not found")
+    if not estimate_path.exists():
+        raise HTTPException(status_code=404, detail="Estimated stem file not found")
+
+    # 输出到临时 WAV 文件（mono, 44.1kHz）
+    tmp_dir = Path(tempfile.gettempdir()) / "audiolab_residual" / str(task_id_int)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    safe_target = "".join(ch for ch in target if ch.isalnum() or ch in "._-") or "stem"
+    out_path = tmp_dir / f"residual_{safe_target}.wav"
+
+    try:
+        residual = compute_residual_mix_minus_est(
+            mixture_path=mixture_path,
+            estimate_path=estimate_path,
+        )
+        # 与 _load_mono_44k 一致，采样率固定为 44.1k
+        sf.write(out_path, residual, 44100, subtype="PCM_16")
+    except Exception as e:
+        logger.error(
+            "生成残差音频失败: task_id=%s target=%s err=%s",
+            task_id_int,
+            target,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"生成残差音频失败: {type(e).__name__}: {str(e)}",
+        )
+
+    if not out_path.exists() or out_path.stat().st_size == 0:
+        raise HTTPException(status_code=500, detail="残差音频文件为空或不存在")
+
+    from fastapi.responses import FileResponse
+
+    return FileResponse(
+        path=out_path,
+        media_type="audio/wav",
+        filename=f"{safe_target}_residual.wav",
+        headers={
+            "Accept-Ranges": "bytes",  # 便于浏览器拖动/seek
+        },
     )
