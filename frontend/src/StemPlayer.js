@@ -1,6 +1,13 @@
 import { useRef, useState, useEffect, useMemo } from "react";
 import { Play, Pause, Download } from "lucide-react";
 
+// 控制是否输出调试日志：需要排查问题时改为 true
+const DEBUG_STEM_PLAYER = false;
+const debugLog = (...args) => {
+  if (!DEBUG_STEM_PLAYER) return;
+  console.log(...args);
+};
+
 // 1 帧 44.1 kHz 16-bit 单声道 WAVE 文件（44 字节头 + 2 字节采样）
 function createSilenceWav() {
   const sampleRate = 44100;
@@ -74,13 +81,13 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
       // 只有当文件标识符相同且名称也相同时，才复用 URL
       // 这样可以确保不同的 stem（即使大小相同）也会创建新的 URL
       if (fileId === prevFileId && file.name === fileRef.current?.name && prevUrlRef.current && prevUrlRef.current.startsWith('blob:')) {
-        console.log(`[StemPlayer] 复用已有 URL: ${prevUrlRef.current} (${name}, fileId: ${fileId})`);
+        debugLog(`[StemPlayer] 复用已有 URL: ${prevUrlRef.current} (${name}, fileId: ${fileId})`);
         return prevUrlRef.current;
       }
       
       try {
         const objectUrl = URL.createObjectURL(file);
-        console.log(`[StemPlayer] 创建 object URL 成功: ${name}`, {
+        debugLog(`[StemPlayer] 创建 object URL 成功: ${name}`, {
           url: objectUrl,
           fileName: file.name,
           fileType: file.type,
@@ -125,7 +132,7 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
     if (audio && url) {
       // 如果 URL 改变了，强制更新 src
       if (audio.src !== url) {
-        console.log(`[StemPlayer] 更新音频源: ${name}`, {
+        debugLog(`[StemPlayer] 更新音频源: ${name}`, {
           oldSrc: audio.src,
           newSrc: url,
           fileName: file?.name,
@@ -146,11 +153,11 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
         try {
           // 检查音频元素是否还在使用旧 URL
           if (audioRef.current && audioRef.current.src === urlToRevoke) {
-            console.log(`[StemPlayer] 延迟回收 URL（仍在使用的 URL，跳过）: ${urlToRevoke}`);
+            debugLog(`[StemPlayer] 延迟回收 URL（仍在使用的 URL，跳过）: ${urlToRevoke}`);
             return; // 仍在使用的 URL 不回收
           }
           URL.revokeObjectURL(urlToRevoke);
-          console.log(`[StemPlayer] 回收上一个 URL: ${urlToRevoke}`);
+          debugLog(`[StemPlayer] 回收上一个 URL: ${urlToRevoke}`);
         } catch (e) {
           console.warn(`[StemPlayer] 回收 URL 失败:`, e);
         }
@@ -195,6 +202,9 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
     a.download = file?.name || `${name || "stem"}.wav`;
     a.click();
   };
+
+  // 标记：当前这一次 state 更新是否来自外部 syncedTime 同步，如果是则不要再往上汇报，避免形成闭环
+  const skipNotifyRef = useRef(false);
 
   // 监听音频时间更新和播放状态变化
   useEffect(() => {
@@ -247,12 +257,15 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
     if (!duration || duration <= 0) return;
 
     const clampedTime = Math.max(0, Math.min(syncedTime, duration));
-    // 避免高频 setState 造成抖动
-    if (Math.abs(clampedTime - currentTime) < 0.03) return;
+    // 使用音频元素的当前时间来判断是否需要同步，避免把 currentTime 加入依赖导致的自触发循环
+    const audioTime = audio.currentTime || 0;
+    if (Math.abs(clampedTime - audioTime) < 0.03) return;
 
+    // 标记这次更新来自外部同步，后续 useEffect 不要再向父组件回调，避免形成“父 → 子 → 父”的闭环
+    skipNotifyRef.current = true;
     audio.currentTime = clampedTime;
     setCurrentTime(clampedTime);
-  }, [syncedTime, playing, duration, currentTime]);
+  }, [syncedTime, playing, duration]);
 
   // 使用 ref 保存回调，避免依赖变化导致无限循环
   const onPlaybackStateChangeRef = useRef(onPlaybackStateChange);
@@ -262,6 +275,12 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
 
   // 将播放状态传递给父组件
   useEffect(() => {
+    // 如果这次更新是由外部 syncedTime 驱动的，同步到本地即可，不再向父组件回调，防止无限循环
+    if (skipNotifyRef.current) {
+      skipNotifyRef.current = false;
+      return;
+    }
+
     if (onPlaybackStateChangeRef.current) {
       onPlaybackStateChangeRef.current({
         currentTime,
@@ -331,13 +350,13 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
             // 不阻塞 UI，仅记录错误
           }}
           onLoadedMetadata={() => {
-            console.log(`[StemPlayer] 音频元数据加载成功: ${name}`, {
+            debugLog(`[StemPlayer] 音频元数据加载成功: ${name}`, {
               duration: audioRef.current?.duration,
               url,
             });
           }}
           onCanPlay={() => {
-            console.log(`[StemPlayer] 音频可以播放: ${name}`, {
+            debugLog(`[StemPlayer] 音频可以播放: ${name}`, {
               url,
               readyState: audioRef.current?.readyState,
             });
