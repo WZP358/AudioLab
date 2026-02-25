@@ -20,6 +20,7 @@ class AudioAnalysis:
     # NOTE: dataclass 要求：无默认值字段必须在默认值字段之前
     waveform_min: Optional[List[float]] = None  # envelope min per bucket (optional)
     waveform_max: Optional[List[float]] = None  # envelope max per bucket (optional)
+    frequency_response: Optional[List[float]] = None  # 频率响应曲线：每个频率bin的平均幅度（dB），与spectrogram的频率bin对应
 
 
 def _get_bit_depth_from_subtype(subtype: str) -> Optional[int]:
@@ -189,6 +190,45 @@ def _downsample_2d(mat: np.ndarray, *, out_f: int, out_t: int) -> np.ndarray:
     return out
 
 
+def _compute_frequency_response(
+    mag: np.ndarray, *, sample_rate: int, n_fft: int, freq_bins: int = 256
+) -> List[float]:
+    """
+    计算频率响应曲线：对每个频率bin，计算所有时间帧的平均幅度（dB）。
+    
+    参数:
+        mag: STFT幅度谱 [freq, time]，线性幅度
+        sample_rate: 采样率
+        n_fft: FFT窗口大小
+        freq_bins: 输出的频率bin数量（用于降采样）
+    
+    返回:
+        频率响应曲线（dB值），长度为freq_bins
+    """
+    if mag.size == 0:
+        return []
+    
+    # 计算每个频率bin在所有时间帧上的平均幅度
+    avg_mag = np.mean(mag, axis=1)  # [freq]
+    
+    # 转换为dB
+    avg_mag_db = 20.0 * np.log10(np.maximum(avg_mag, 1e-8))
+    
+    # 如果需要降采样到指定频率bin数
+    if freq_bins > 0 and avg_mag_db.size > freq_bins:
+        # 使用线性插值降采样
+        original_indices = np.linspace(0, avg_mag_db.size - 1, avg_mag_db.size)
+        target_indices = np.linspace(0, avg_mag_db.size - 1, freq_bins)
+        avg_mag_db = np.interp(target_indices, original_indices, avg_mag_db)
+    elif avg_mag_db.size < freq_bins:
+        # 如果原始bin数少于目标，使用插值上采样
+        original_indices = np.linspace(0, avg_mag_db.size - 1, avg_mag_db.size)
+        target_indices = np.linspace(0, avg_mag_db.size - 1, freq_bins)
+        avg_mag_db = np.interp(target_indices, original_indices, avg_mag_db)
+    
+    return avg_mag_db.astype(np.float32).tolist()
+
+
 def analyze_audio_file(
     path: Path,
     *,
@@ -209,7 +249,14 @@ def analyze_audio_file(
     """
     y, sr, bit_depth = _read_audio_any(path)
     if y.size == 0:
-        return AudioAnalysis(sample_rate=0, duration_s=0.0, waveform=[], spectrogram=[], bit_depth=bit_depth)
+        return AudioAnalysis(
+            sample_rate=0,
+            duration_s=0.0,
+            waveform=[],
+            spectrogram=[],
+            bit_depth=bit_depth,
+            frequency_response=[],
+        )
 
     # to mono
     mono = y.mean(axis=1)
@@ -241,6 +288,7 @@ def analyze_audio_file(
             waveform_max=waveform_max,
             spectrogram=[],
             bit_depth=bit_depth,
+            frequency_response=[],
         )
 
     # log compression
@@ -254,6 +302,11 @@ def analyze_audio_file(
     pooled = _downsample_2d(norm, out_f=spec_freq_bins, out_t=spec_time_bins)
     spectrogram: List[List[float]] = pooled.astype(np.float32).tolist()
 
+    # 计算频率响应曲线（使用原始mag，在归一化之前）
+    frequency_response = _compute_frequency_response(
+        mag, sample_rate=int(sr), n_fft=n_fft, freq_bins=spec_freq_bins
+    )
+
     return AudioAnalysis(
         sample_rate=int(sr),
         duration_s=duration_s,
@@ -262,6 +315,7 @@ def analyze_audio_file(
         waveform_max=waveform_max,
         spectrogram=spectrogram,
         bit_depth=bit_depth,
+        frequency_response=frequency_response,
     )
 
 
@@ -274,5 +328,6 @@ def analysis_to_payload(a: AudioAnalysis) -> Dict[str, Any]:
         "waveform_max": a.waveform_max,
         "spectrogram": a.spectrogram,
         "bit_depth": a.bit_depth,
+        "frequency_response": a.frequency_response,
     }
 

@@ -60,6 +60,7 @@ class AudioAnalysisPayload(BaseModel):
     waveform_max: Optional[List[float]] = None
     spectrogram: List[List[float]]
     bit_depth: Optional[int] = None
+    frequency_response: Optional[List[float]] = None  # 频率响应曲线（dB值）
 
 
 class TaskAnalysisResponse(BaseModel):

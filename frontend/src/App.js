@@ -725,6 +725,170 @@ const WaveformComparator = ({
   );
 };
 
+// 频率分析图组件：对比标准音频和分离音频的频率响应曲线
+const FrequencyAnalysisPlot = ({
+  isActive,
+  originalFrequencyResponse,
+  separatedFrequencyResponse,
+  sampleRate = 44100,
+  nFreqBins = 128,
+}) => {
+  // 计算频率轴数据
+  const frequencyData = useMemo(() => {
+    // 检查数据是否有效
+    const hasOriginal = Array.isArray(originalFrequencyResponse) && originalFrequencyResponse.length > 0;
+    const hasSeparated = Array.isArray(separatedFrequencyResponse) && separatedFrequencyResponse.length > 0;
+    
+    // 调试信息
+    if (isActive && (!hasOriginal && !hasSeparated)) {
+      console.log('[FrequencyAnalysisPlot] 数据检查:', {
+        isActive,
+        hasOriginal,
+        hasSeparated,
+        originalLen: originalFrequencyResponse?.length,
+        separatedLen: separatedFrequencyResponse?.length,
+        originalType: typeof originalFrequencyResponse,
+        separatedType: typeof separatedFrequencyResponse,
+      });
+    }
+    
+    if (!isActive || (!hasOriginal && !hasSeparated)) {
+      return [];
+    }
+
+    // 使用实际的数据长度，而不是maxBins
+    const originalLen = hasOriginal ? originalFrequencyResponse.length : 0;
+    const separatedLen = hasSeparated ? separatedFrequencyResponse.length : 0;
+    const maxBins = Math.max(originalLen, separatedLen);
+    
+    if (maxBins === 0) {
+      return [];
+    }
+
+    const nyquist = sampleRate / 2;
+    
+    // 根据频率bin索引计算频率（线性分布，从0到nyquist）
+    // 注意：后端已经将频率响应降采样到spec_freq_bins，所以这里直接使用数据长度
+    const data = Array.from({ length: maxBins }, (_, i) => {
+      // 频率bin索引对应的频率：i / (maxBins - 1) * nyquist
+      // 对于rfft，频率范围是0到nyquist，共maxBins个点
+      // 当maxBins=1时，频率为0；否则线性分布
+      let freq = maxBins > 1 ? (i / (maxBins - 1)) * nyquist : 0;
+      // 确保频率不为0（避免对数刻度问题），最小值为0.1Hz
+      // 但保留0Hz作为DC分量（如果需要的话，可以跳过）
+      const safeFreq = freq === 0 ? 0.1 : freq;
+      const originalValue = hasOriginal && i < originalLen ? originalFrequencyResponse[i] : null;
+      const separatedValue = hasSeparated && i < separatedLen ? separatedFrequencyResponse[i] : null;
+      
+      // 只包含至少有一个有效值的数据点
+      if (originalValue === null && separatedValue === null) {
+        return null;
+      }
+      
+      return {
+        frequency: safeFreq,
+        original: originalValue,
+        separated: separatedValue,
+      };
+    }).filter((d) => d !== null);
+
+    if (data.length > 0) {
+      console.log('[FrequencyAnalysisPlot] 生成数据点:', {
+        dataPoints: data.length,
+        firstPoint: data[0],
+        lastPoint: data[data.length - 1],
+        sampleRate,
+        maxBins,
+      });
+    }
+
+    return data;
+  }, [isActive, originalFrequencyResponse, separatedFrequencyResponse, sampleRate]);
+
+  if (!isActive || frequencyData.length === 0) {
+    return (
+      <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-900/50 rounded-lg border border-slate-700/50">
+        <span>
+          频率分析数据不可用
+          {!isActive && " (未激活)"}
+          {isActive && frequencyData.length === 0 && " (数据为空)"}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-slate-900/50 rounded-lg border border-slate-700/50 p-4">
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={frequencyData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+            <XAxis
+              dataKey="frequency"
+              type="number"
+              scale="log"
+              domain={['auto', 'auto']}
+              label={{ value: '频率 (Hz)', position: 'insideBottom', offset: -5, style: { fill: '#94a3b8' } }}
+              tick={{ fill: '#94a3b8', fontSize: 11 }}
+              tickFormatter={(value) => {
+                if (!isFinite(value) || value <= 0) return '0';
+                if (value < 1) return value.toFixed(2);
+                if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+                return value.toFixed(0);
+              }}
+            />
+            <YAxis
+              label={{ value: '幅度 (dB)', angle: -90, position: 'insideLeft', style: { fill: '#94a3b8' } }}
+              tick={{ fill: '#94a3b8', fontSize: 11 }}
+            />
+            <RechartsTooltip
+              contentStyle={{
+                backgroundColor: '#1e293b',
+                border: '1px solid #475569',
+                borderRadius: '6px',
+                color: '#e2e8f0',
+              }}
+              formatter={(value, name) => {
+                if (value === null || value === undefined) return ['N/A', name];
+                return [`${value.toFixed(2)} dB`, name];
+              }}
+              labelFormatter={(label) => `频率: ${label >= 1000 ? `${(label / 1000).toFixed(2)}k` : label.toFixed(0)} Hz`}
+            />
+            <Legend
+              wrapperStyle={{ paddingTop: '10px' }}
+              iconType="line"
+              formatter={(value) => {
+                if (value === 'original') return '标准音频';
+                if (value === 'separated') return '分离音频';
+                return value;
+              }}
+            />
+            <Line
+              type="monotone"
+              dataKey="original"
+              stroke="#3b82f6"
+              strokeWidth={2}
+              dot={false}
+              name="original"
+              connectNulls={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="separated"
+              stroke="#ef4444"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              dot={false}
+              name="separated"
+              connectNulls={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
 // eslint-disable-next-line no-unused-vars
 const SpectrumComparator = ({
   isActive,
@@ -1694,9 +1858,12 @@ export default function AudioLabApp() {
   const [sepWaveEnv, setSepWaveEnv] = useState(null); // { min: number[], max: number[] }（供后续扩展/调试使用）
   const [gtSpectrum, setGtSpectrum] = useState([]);
   const [sepSpectrum, setSepSpectrum] = useState([]);
+  const [gtFrequencyResponse, setGtFrequencyResponse] = useState([]); // 标准音频频率响应
+  const [sepFrequencyResponse, setSepFrequencyResponse] = useState([]); // 分离音频频率响应
   const [goldWave, setGoldWave] = useState(null); // Gold Standard 波形（可选）
   const [goldWaveEnv, setGoldWaveEnv] = useState(null); // Gold Standard 包络（可选）
   const [goldSpectrum, setGoldSpectrum] = useState(null); // Gold Standard 频谱（可选）
+  const [goldFrequencyResponse, setGoldFrequencyResponse] = useState(null); // Gold Standard 频率响应（可选）
   const [gtFile, setGtFile] = useState(null); // 用户上传的"金标准"单源
   const gtFileRef = useRef(null); // 使用 ref 保存文件对象，避免状态更新时丢失
   // 音频元数据：采样率和位深度
@@ -1876,6 +2043,9 @@ export default function AudioLabApp() {
           setGtWaveEnv({ min: a.original.waveform_min, max: a.original.waveform_max });
         }
         if (a?.original?.spectrogram?.length) setGtSpectrum(a.original.spectrogram);
+        if (Array.isArray(a?.original?.frequency_response)) {
+          setGtFrequencyResponse(a.original.frequency_response);
+        }
 
         // target（当前 stem）
         if (a?.target?.waveform?.length) setSepWave(a.target.waveform);
@@ -1883,8 +2053,11 @@ export default function AudioLabApp() {
           setSepWaveEnv({ min: a.target.waveform_min, max: a.target.waveform_max });
         }
         if (a?.target?.spectrogram?.length) setSepSpectrum(a.target.spectrogram);
+        if (Array.isArray(a?.target?.frequency_response)) {
+          setSepFrequencyResponse(a.target.frequency_response);
+        }
 
-        // 同步写回 stems 数组中“当前 stem”的缓存，方便后续复用
+        // 同步写回 stems 数组中"当前 stem"的缓存，方便后续复用
         setStems((prevStems) =>
           (prevStems || []).map((st) => {
             if (!st || st.name !== targetStem) return st;
@@ -1896,6 +2069,7 @@ export default function AudioLabApp() {
                   ? { min: a.target.waveform_min, max: a.target.waveform_max }
                   : st.waveformEnv || null,
               spectrum: Array.isArray(a?.target?.spectrogram) ? a.target.spectrogram : st.spectrum,
+              frequencyResponse: Array.isArray(a?.target?.frequency_response) ? a.target.frequency_response : st.frequencyResponse,
             };
           }),
         );
@@ -2566,6 +2740,11 @@ export default function AudioLabApp() {
           setGoldWaveEnv(null);
         }
         if (Array.isArray(a.spectrogram)) setGoldSpectrum(a.spectrogram);
+        if (Array.isArray(a.frequency_response)) {
+          setGoldFrequencyResponse(a.frequency_response);
+        } else {
+          setGoldFrequencyResponse(null);
+        }
       } catch (e) {
         console.warn("Gold 分析请求异常:", e);
       }
@@ -2923,6 +3102,12 @@ export default function AudioLabApp() {
           }
           if (a?.original?.spectrogram?.length) setGtSpectrum(a.original.spectrogram);
           if (a?.target?.spectrogram?.length) setSepSpectrum(a.target.spectrogram);
+          if (Array.isArray(a?.original?.frequency_response)) {
+            setGtFrequencyResponse(a.original.frequency_response);
+          }
+          if (Array.isArray(a?.target?.frequency_response)) {
+            setSepFrequencyResponse(a.target.frequency_response);
+          }
           // 保存音频元数据（优先使用 original 的，如果没有则使用 target 的，再尝试从 stems 获取）
           const originalData = a?.original;
           const targetData = a?.target;
@@ -3130,6 +3315,7 @@ export default function AudioLabApp() {
                   spectrum: Array.isArray(d.spectrogram)
                     ? d.spectrogram
                     : st.spectrum,
+                  frequencyResponse: Array.isArray(d.frequency_response) ? d.frequency_response : st.frequencyResponse,
                 };
               }),
             );
@@ -4783,6 +4969,31 @@ export default function AudioLabApp() {
                         <span>在频谱上拖拽选择 → 缩放时间窗，双击还原</span>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Frequency Analysis Plot：频率分析图对比 */}
+                  <div className="space-y-3 pt-4 border-t border-slate-800/80">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">
+                        频率分析对比 · Frequency Analysis Plot
+                      </span>
+                      <div className="text-[11px] text-slate-500">
+                        标准音频（蓝色实线）vs 分离音频（红色虚线）
+                      </div>
+                    </div>
+
+                    <FrequencyAnalysisPlot
+                      isActive={!!(results && (
+                        (Array.isArray(goldFrequencyResponse) && goldFrequencyResponse.length > 0) ||
+                        (Array.isArray(gtFrequencyResponse) && gtFrequencyResponse.length > 0) ||
+                        (Array.isArray(sepFrequencyResponse) && sepFrequencyResponse.length > 0) ||
+                        (currentStem?.frequencyResponse && Array.isArray(currentStem.frequencyResponse) && currentStem.frequencyResponse.length > 0)
+                      ))}
+                      originalFrequencyResponse={goldFrequencyResponse || gtFrequencyResponse || []}
+                      separatedFrequencyResponse={currentStem?.frequencyResponse || sepFrequencyResponse || []}
+                      sampleRate={audioMetadata.sampleRate || 44100}
+                      nFreqBins={128}
+                    />
                   </div>
                 </div>
               </div>
