@@ -581,7 +581,7 @@ function SystemSettings({ token }) {
       const allData = await allResp.json();
       setAllConfigs(allData.items || []);
       
-      // 查找 storage_mode 配置
+      // 查找 storage_mode 配置（评分数据源模式，当前仅用于预留扩展）
       const storageConfig = allData.items?.find(c => c.key === "storage_mode");
       if (storageConfig) {
         setStorageMode(storageConfig.value || "local");
@@ -659,7 +659,7 @@ function SystemSettings({ token }) {
         },
         body: JSON.stringify({ 
           value: newMode,
-          description: "数据源模式：local（本地存储）或 firestore（Firestore云存储）",
+          description: "评分数据源模式配置（预留扩展；当前评分统一存储于后端数据库）",
           category: "system"
         }),
       });
@@ -675,7 +675,7 @@ function SystemSettings({ token }) {
           body: JSON.stringify({
             key: "storage_mode",
             value: newMode,
-            description: "数据源模式：local（本地存储）或 firestore（Firestore云存储）",
+            description: "评分数据源模式配置（预留扩展；当前评分统一存储于后端数据库）",
             category: "system",
           }),
         });
@@ -687,7 +687,7 @@ function SystemSettings({ token }) {
       }
       
       setStorageMode(newMode);
-      showSuccess(`数据源已切换为：${newMode === "local" ? "本地" : "Firestore"}`);
+      showSuccess(`评分数据源模式已更新为：${newMode === "local" ? "后端数据库" : "预留扩展模式"}`);
       fetchConfigs(); // 刷新配置列表
     } catch (err) {
       showError(err.message);
@@ -888,9 +888,9 @@ function SystemSettings({ token }) {
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold text-white mb-2">数据源设置</h3>
+            <h3 className="text-lg font-bold text-white mb-2">评分数据源（预留扩展）</h3>
             <p className="text-sm text-slate-400">
-              选择系统使用的数据存储方式。此设置会影响所有用户的数据访问方式。
+              当前所有评分数据统一存储在后端数据库。此处的数据源模式用于未来扩展（例如外部评测平台），暂不改变实际存储行为。
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -906,7 +906,7 @@ function SystemSettings({ token }) {
               >
                 <span className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full bg-emerald-400`}></span>
-                  本地存储
+                  后端数据库（当前实现）
                 </span>
               </button>
               <button
@@ -920,7 +920,7 @@ function SystemSettings({ token }) {
               >
                 <span className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full bg-purple-400`}></span>
-                  Firestore
+                  预留扩展模式
                 </span>
               </button>
             </div>
