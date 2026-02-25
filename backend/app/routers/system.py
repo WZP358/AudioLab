@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_, and_, desc
+from sqlalchemy import select, func, or_, and_, desc, exists
 from typing import Optional, List, Tuple
 from datetime import datetime, timedelta
 import json
@@ -20,7 +20,7 @@ import os
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "mysql+aiomysql://audiolab:audiolab@db:3306/audiolab")
 from app.models import (
-    User, SystemLog, SystemConfig, Notification,
+    User, SystemLog, SystemConfig, Notification, NotificationRead,
     OperationLog, AudioResource, SeparationTask
 )
 from app.routers.admin import get_current_admin
@@ -839,53 +839,88 @@ async def get_notifications(
     db: AsyncSession = Depends(get_db),
 ):
     """获取通知列表（管理员端，可以看到所有通知）"""
-    query = select(Notification)
-    conditions = []
-    
-    # 管理员可以看到所有通知，或针对自己的通知
-    conditions.append(
+    # 管理员可见的通知范围：all / admin / 针对自己的 specific / 角色对应通知
+    visibility_conditions = [
         or_(
             Notification.target_type == "all",
+            Notification.target_type == "admin",
             Notification.target_type == "guest",
             Notification.target_type == "expert",
             and_(
                 Notification.target_type == "specific",
-                Notification.target_id == current_user.id
-            )
+                Notification.target_id == current_user.id,
+            ),
+        )
+    ]
+
+    # 过滤过期通知
+    visibility_conditions.append(
+        or_(
+            Notification.expires_at.is_(None),
+            Notification.expires_at > datetime.utcnow(),
         )
     )
-    
-    if is_read is not None:
-        conditions.append(Notification.is_read == is_read)
+
+    # 基础条件
+    conditions = list(visibility_conditions)
     if type:
         conditions.append(Notification.type == type)
-    
-    if conditions:
-        query = query.where(and_(*conditions))
-    
+
+    # 按当前管理员的已读状态筛选（使用 NotificationRead 表，基于 EXISTS）
+    read_exists = exists(
+        select(NotificationRead.id).where(
+            NotificationRead.user_id == current_user.id,
+            NotificationRead.notification_id == Notification.id,
+        )
+    )
+
+    if is_read is True:
+        # 只要当前管理员有已读记录即可
+        conditions.append(read_exists)
+    elif is_read is False:
+        # 未读：当前管理员不存在已读记录
+        conditions.append(~read_exists)
+
+    base_query = select(Notification).where(and_(*conditions))
+
     # 总数
-    count_query = select(func.count()).select_from(Notification)
-    if conditions:
-        count_query = count_query.where(and_(*conditions))
+    count_query = select(func.count()).select_from(
+        base_query.subquery()
+    )
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
-    
+
     # 分页
     offset = (page - 1) * page_size
-    query = query.order_by(desc(Notification.created_at)).offset(offset).limit(page_size)
-    
+    query = base_query.order_by(desc(Notification.created_at)).offset(offset).limit(page_size)
+
     result = await db.execute(query)
     notifications = result.scalars().all()
-    
+
+    # 预加载当前管理员对这些通知的已读记录
+    notif_ids = [n.id for n in notifications]
+    read_map: dict[int, NotificationRead] = {}
+    if notif_ids:
+        read_result = await db.execute(
+            select(NotificationRead).where(
+                NotificationRead.user_id == current_user.id,
+                NotificationRead.notification_id.in_(notif_ids),
+            )
+        )
+        for r in read_result.scalars().all():
+            read_map[r.notification_id] = r
+
     return {
         "items": [
             {
-                "id": notif.id,
+                "id": str(notif.id),
                 "title": notif.title,
                 "content": notif.content,
                 "type": notif.type,
-                "is_read": notif.is_read,
-                "read_at": notif.read_at.isoformat() if notif.read_at else None,
+                "is_read": notif.id in read_map,
+                "read_at": read_map[notif.id].read_at.isoformat()
+                if notif.id in read_map and read_map[notif.id].read_at
+                else None,
                 "created_at": notif.created_at.isoformat() if notif.created_at else None,
                 "expires_at": notif.expires_at.isoformat() if notif.expires_at else None,
             }
@@ -894,7 +929,7 @@ async def get_notifications(
         "total": total,
         "page": page,
         "page_size": page_size,
-        "total_pages": (total + page_size - 1) // page_size
+        "total_pages": (total + page_size - 1) // page_size if total > 0 else 0,
     }
 
 
@@ -1051,16 +1086,74 @@ async def mark_notification_read(
                 status_code=400,
                 detail="此通知已过期"
             )
-        
-        if notification.is_read:
-            return {"message": "通知已经是已读状态"}
-        
-        notification.is_read = True
-        notification.read_at = datetime.utcnow()
-        
-        await db.commit()
-        
-        return {"message": "通知已标记为已读"}
+
+        # 查找当前用户是否已有已读记录
+        read_query = select(NotificationRead).where(
+            NotificationRead.user_id == current_user.id,
+            NotificationRead.notification_id == notification.id,
+        )
+        read_result = await db.execute(read_query)
+        read_record = read_result.scalars().first()
+
+        if not read_record:
+            # 创建已读记录（仅影响当前用户）
+            read_record = NotificationRead(
+                user_id=current_user.id,
+                notification_id=notification.id,
+                read_at=datetime.utcnow(),
+            )
+            db.add(read_record)
+            await db.commit()
+            await db.refresh(read_record)
+        else:
+            # 已经是已读，不需要重复写入
+            await db.commit()
+
+        # 标记成功后重新计算当前用户未读数量（基于 NotificationRead 表 + EXISTS）
+        user_role = getattr(current_user.role, "value", str(current_user.role))
+        target_conditions = [
+            Notification.target_type == "all",
+            and_(
+                Notification.target_type == "specific",
+                Notification.target_id == current_user.id,
+            ),
+        ]
+        if user_role == "guest":
+            target_conditions.append(Notification.target_type == "guest")
+        elif user_role == "expert":
+            target_conditions.append(Notification.target_type == "expert")
+        elif user_role == "admin":
+            target_conditions.append(Notification.target_type == "admin")
+
+        read_exists = exists(
+            select(NotificationRead.id).where(
+                NotificationRead.user_id == current_user.id,
+                NotificationRead.notification_id == Notification.id,
+            )
+        )
+
+        conditions = [
+            or_(*target_conditions),
+            or_(
+                Notification.expires_at.is_(None),
+                Notification.expires_at > datetime.utcnow(),
+            ),
+            ~read_exists,
+        ]
+
+        count_query = select(func.count(Notification.id)).where(and_(*conditions))
+        count_result = await db.execute(count_query)
+        unread_count = count_result.scalar_one()
+
+        return {
+            "message": "通知已标记为已读",
+            "notification": {
+                "id": notification.id,
+                "is_read": True,
+                "read_at": read_record.read_at.isoformat() if read_record.read_at else None,
+            },
+            "unread_count": unread_count,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -1094,16 +1187,64 @@ async def mark_notification_read_admin(
                 status_code=404,
                 detail=f"通知ID {notification_id} 不存在，请检查通知ID是否正确"
             )
-        
-        if notification.is_read:
-            return {"message": "通知已经是已读状态"}
-        
-        notification.is_read = True
-        notification.read_at = datetime.utcnow()
-        
-        await db.commit()
-        
-        return {"message": "通知已标记为已读"}
+
+        # 查找当前管理员是否已有已读记录
+        read_query = select(NotificationRead).where(
+            NotificationRead.user_id == current_user.id,
+            NotificationRead.notification_id == notification.id,
+        )
+        read_result = await db.execute(read_query)
+        read_record = read_result.scalars().first()
+
+        if not read_record:
+            read_record = NotificationRead(
+                user_id=current_user.id,
+                notification_id=notification.id,
+                read_at=datetime.utcnow(),
+            )
+            db.add(read_record)
+            await db.commit()
+            await db.refresh(read_record)
+        else:
+            await db.commit()
+
+        # 标记成功后重新计算管理员端未读数量（基于 NotificationRead 表 + EXISTS）
+        read_exists = exists(
+            select(NotificationRead.id).where(
+                NotificationRead.user_id == current_user.id,
+                NotificationRead.notification_id == Notification.id,
+            )
+        )
+
+        conditions = [
+            or_(
+                Notification.target_type == "all",
+                Notification.target_type == "admin",
+                and_(
+                    Notification.target_type == "specific",
+                    Notification.target_id == current_user.id,
+                ),
+            ),
+            or_(
+                Notification.expires_at.is_(None),
+                Notification.expires_at > datetime.utcnow(),
+            ),
+            ~read_exists,
+        ]
+
+        count_query = select(func.count(Notification.id)).where(and_(*conditions))
+        count_result = await db.execute(count_query)
+        unread_count = count_result.scalar_one()
+
+        return {
+            "message": "通知已标记为已读",
+            "notification": {
+                "id": notification.id,
+                "is_read": True,
+                "read_at": read_record.read_at.isoformat() if read_record.read_at else None,
+            },
+            "unread_count": unread_count,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -1119,17 +1260,17 @@ async def get_unread_count(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取未读通知数量（用户端）"""
-    # 构建目标类型条件
+    """获取未读通知数量（用户端，按用户维度）"""
+    # 构建目标类型条件（可见通知）
     user_role = getattr(current_user.role, "value", str(current_user.role))
     target_conditions = [
         Notification.target_type == "all",
         and_(
             Notification.target_type == "specific",
-            Notification.target_id == current_user.id
-        )
+            Notification.target_id == current_user.id,
+        ),
     ]
-    
+
     # 如果是管理员，也可以看到 admin 类型的通知
     if user_role == "admin":
         target_conditions.append(Notification.target_type == "admin")
@@ -1138,24 +1279,29 @@ async def get_unread_count(
         target_conditions.append(Notification.target_type == "guest")
     elif user_role == "expert":
         target_conditions.append(Notification.target_type == "expert")
-    
-    conditions = [
-        Notification.is_read == False,
-        or_(*target_conditions)
-    ]
-    
-    # 过滤过期通知
-    conditions.append(
-        or_(
-            Notification.expires_at.is_(None),
-            Notification.expires_at > datetime.utcnow()
+
+    # 当前用户是否已读的判定（EXISTS 表达式）
+    read_exists = exists(
+        select(NotificationRead.id).where(
+            NotificationRead.user_id == current_user.id,
+            NotificationRead.notification_id == Notification.id,
         )
     )
-    
+
+    conditions = [
+        or_(*target_conditions),
+        or_(
+            Notification.expires_at.is_(None),
+            Notification.expires_at > datetime.utcnow(),
+        ),
+        # 未读：当前用户不存在已读记录
+        ~read_exists,
+    ]
+
     query = select(func.count(Notification.id)).where(and_(*conditions))
     result = await db.execute(query)
     count = result.scalar_one()
-    
+
     return {"count": count}
 
 
@@ -1164,31 +1310,36 @@ async def get_unread_count_admin(
     current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取未读通知数量（管理员端）"""
+    """获取未读通知数量（管理员端，按管理员维度）"""
+    # 当前管理员是否已读的判定（EXISTS 表达式）
+    read_exists = exists(
+        select(NotificationRead.id).where(
+            NotificationRead.user_id == current_user.id,
+            NotificationRead.notification_id == Notification.id,
+        )
+    )
+
     conditions = [
-        Notification.is_read == False,
         or_(
             Notification.target_type == "all",
             Notification.target_type == "admin",
             and_(
                 Notification.target_type == "specific",
-                Notification.target_id == current_user.id
-            )
-        )
-    ]
-    
-    # 过滤过期通知
-    conditions.append(
+                Notification.target_id == current_user.id,
+            ),
+        ),
         or_(
             Notification.expires_at.is_(None),
-            Notification.expires_at > datetime.utcnow()
-        )
-    )
-    
+            Notification.expires_at > datetime.utcnow(),
+        ),
+        # 未读：当前管理员不存在已读记录
+        ~read_exists,
+    ]
+
     query = select(func.count(Notification.id)).where(and_(*conditions))
     result = await db.execute(query)
     count = result.scalar_one()
-    
+
     return {"count": count}
 
 
@@ -1410,62 +1561,89 @@ async def get_user_notifications(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取用户通知列表（用户端）"""
-    # 构建目标类型条件
+    """获取用户通知列表（用户端，按用户维度的已读状态）"""
+    # 构建目标类型条件（可见通知）
     target_conditions = [
         Notification.target_type == "all",
         and_(
             Notification.target_type == "specific",
-            Notification.target_id == current_user.id
-        )
+            Notification.target_id == current_user.id,
+        ),
     ]
-    
+
     # 根据用户角色添加对应的通知类型
-    if current_user.role.value == "guest":
+    user_role = getattr(current_user.role, "value", str(current_user.role))
+    if user_role == "guest":
         target_conditions.append(Notification.target_type == "guest")
-    elif current_user.role.value == "expert":
+    elif user_role == "expert":
         target_conditions.append(Notification.target_type == "expert")
-    
+    elif user_role == "admin":
+        target_conditions.append(Notification.target_type == "admin")
+
     conditions = [
-        or_(*target_conditions)
-    ]
-    
-    # 过滤过期通知
-    conditions.append(
+        or_(*target_conditions),
         or_(
             Notification.expires_at.is_(None),
-            Notification.expires_at > datetime.utcnow()
-        )
-    )
-    
-    if is_read is not None:
-        conditions.append(Notification.is_read == is_read)
+            Notification.expires_at > datetime.utcnow(),
+        ),
+    ]
+
     if type:
         conditions.append(Notification.type == type)
-    
-    query = select(Notification).where(and_(*conditions))
-    
+
+    # 当前用户是否已读的判定（EXISTS 表达式）
+    read_exists = exists(
+        select(NotificationRead.id).where(
+            NotificationRead.user_id == current_user.id,
+            NotificationRead.notification_id == Notification.id,
+        )
+    )
+
+    # 根据 is_read 参数过滤
+    if is_read is True:
+        conditions.append(read_exists)
+    elif is_read is False:
+        # 未读：当前用户不存在已读记录
+        conditions.append(~read_exists)
+
+    base_query = select(Notification).where(and_(*conditions))
+
     # 总数
-    count_query = select(func.count()).select_from(Notification).where(and_(*conditions))
+    count_query = select(func.count()).select_from(base_query.subquery())
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
-    
+
     # 分页
     offset = (page - 1) * page_size
-    query = query.order_by(desc(Notification.created_at)).offset(offset).limit(page_size)
-    
+    query = base_query.order_by(desc(Notification.created_at)).offset(offset).limit(page_size)
+
     result = await db.execute(query)
     notifications = result.scalars().all()
-    
+
+    # 预加载当前用户对这些通知的已读记录
+    notif_ids = [n.id for n in notifications]
+    read_map: dict[int, NotificationRead] = {}
+    if notif_ids:
+        read_result = await db.execute(
+            select(NotificationRead).where(
+                NotificationRead.user_id == current_user.id,
+                NotificationRead.notification_id.in_(notif_ids),
+            )
+        )
+        for r in read_result.scalars().all():
+            read_map[r.notification_id] = r
+
     return {
         "items": [
             {
-                "id": notif.id,
+                "id": str(notif.id),
                 "title": notif.title,
                 "content": notif.content,
                 "type": notif.type,
-                "is_read": notif.is_read,
-                "read_at": notif.read_at.isoformat() if notif.read_at else None,
+                "is_read": notif.id in read_map,
+                "read_at": read_map[notif.id].read_at.isoformat()
+                if notif.id in read_map and read_map[notif.id].read_at
+                else None,
                 "created_at": notif.created_at.isoformat() if notif.created_at else None,
                 "expires_at": notif.expires_at.isoformat() if notif.expires_at else None,
             }
@@ -1474,7 +1652,7 @@ async def get_user_notifications(
         "total": total,
         "page": page,
         "page_size": page_size,
-        "total_pages": (total + page_size - 1) // page_size if total > 0 else 0
+        "total_pages": (total + page_size - 1) // page_size if total > 0 else 0,
     }
 
 

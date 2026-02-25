@@ -76,7 +76,23 @@ export default function NotificationCenter({ token, onClose }) {
         }
       );
       if (!resp.ok) throw new Error("标记失败");
-      fetchNotifications();
+      const data = await resp.json().catch(() => ({}));
+
+      // 本地更新这条通知的已读状态，避免依赖多次刷新
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === id ? { ...n, is_read: true, read_at: data.notification?.read_at || n.read_at } : n
+        )
+      );
+
+      // 使用后端返回的未读数量（如果有），否则从本地重新统计
+      if (typeof data.unread_count === "number") {
+        setUnreadCount(data.unread_count);
+      } else {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+
+      // 为保证与后端完全同步，再轻量刷新一次未读数（不必立即刷新列表）
       fetchUnreadCount();
     } catch (err) {
       console.error("标记失败:", err);

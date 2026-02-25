@@ -232,6 +232,26 @@ class Notification(Base):
     expires_at = Column(DateTime(timezone=True), nullable=True)  # 过期时间
 
 
+class NotificationRead(Base):
+    """
+    通知已读记录（按用户维度存储）
+
+    设计目标：
+    - 每个用户有自己的已读状态；
+    - 同一条通知可以被多个用户分别标记为已读；
+    - 通过 (user_id, notification_id) 唯一约束避免重复记录。
+    """
+    __tablename__ = "notification_reads"
+    __table_args__ = (
+        UniqueConstraint("user_id", "notification_id", name="uq_user_notification_read"),
+    )
+
+    id = Column(BigInteger, primary_key=True, index=True, default=generate_id)
+    user_id = Column(BigInteger, index=True, nullable=False)
+    notification_id = Column(BigInteger, index=True, nullable=False)
+    read_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 # 为所有使用雪花算法的模型添加事件监听器，确保在插入前自动生成ID
 def ensure_id(mapper, connection, target):
     """在插入前确保ID已生成"""
@@ -243,7 +263,7 @@ def ensure_id(mapper, connection, target):
 models_with_snowflake_id = [
     User, PendingUser, EmailVerification, OutboxEmail,
     SeparationTask, StemFile, Score, AudioResource,
-    SystemLog, SystemConfig, Notification
+    SystemLog, SystemConfig, Notification, NotificationRead
 ]
 
 for model in models_with_snowflake_id:

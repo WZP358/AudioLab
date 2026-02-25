@@ -1260,7 +1260,23 @@ function Notifications({ token }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!resp.ok) throw new Error("标记失败");
-      fetchNotifications();
+      const data = await resp.json().catch(() => ({}));
+
+      // 本地更新这条通知的已读状态
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === id ? { ...n, is_read: true, read_at: data.notification?.read_at || n.read_at } : n
+        )
+      );
+
+      // 更新未读数量
+      if (typeof data.unread_count === "number") {
+        setUnreadCount(data.unread_count);
+      } else {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+
+      // 再调一次未读统计，确保和后端一致
       fetchUnreadCount();
     } catch (err) {
       showError(err.message);
