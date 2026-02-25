@@ -1013,20 +1013,30 @@ async def mark_notification_read(
         notification = result.scalars().first()
         
         if not notification:
-            raise HTTPException(
-                status_code=404,
-                detail=f"通知ID {notification_id} 不存在，请检查通知ID是否正确"
-            )
+            # 兼容前端：如果通知不存在（可能已被清理），不再返回404，
+            # 而是视为“已读/已处理”，避免用户看到报错
+            return {"message": f"通知ID {notification_id} 不存在，视为已处理"}
         
-        # 检查用户是否有权限查看此通知
-        # 普通用户可以标记"all"类型和针对自己的"specific"类型通知
-        # 管理员可以标记所有类型的通知
+        # 检查用户是否有权限操作此通知
+        # 规则：
+        # - 所有用户都可以标记 target_type == "all" 的通知
+        # - 管理员可以标记 target_type == "admin" 的通知
+        # - 普通用户可以标记与自己角色匹配的通知（guest / expert）
+        # - 所有用户可以标记针对自己的 specific 通知
         can_read = False
-        if notification.target_type == "all":
+
+        target_type = notification.target_type
+        user_role = getattr(current_user.role, "value", str(current_user.role))
+
+        if target_type == "all":
             can_read = True
-        elif notification.target_type == "admin" and current_user.role.value == "admin":
+        elif target_type == "admin" and user_role == "admin":
             can_read = True
-        elif notification.target_type == "specific" and notification.target_id == current_user.id:
+        elif target_type == "guest" and user_role == "guest":
+            can_read = True
+        elif target_type == "expert" and user_role == "expert":
+            can_read = True
+        elif target_type == "specific" and notification.target_id == current_user.id:
             can_read = True
         
         if not can_read:
@@ -1111,6 +1121,7 @@ async def get_unread_count(
 ):
     """获取未读通知数量（用户端）"""
     # 构建目标类型条件
+    user_role = getattr(current_user.role, "value", str(current_user.role))
     target_conditions = [
         Notification.target_type == "all",
         and_(
@@ -1119,9 +1130,14 @@ async def get_unread_count(
         )
     ]
     
-    # 如果是管理员，也可以看到admin类型的通知
-    if current_user.role.value == "admin":
+    # 如果是管理员，也可以看到 admin 类型的通知
+    if user_role == "admin":
         target_conditions.append(Notification.target_type == "admin")
+    # guest / expert 角色可以看到各自角色的通知
+    elif user_role == "guest":
+        target_conditions.append(Notification.target_type == "guest")
+    elif user_role == "expert":
+        target_conditions.append(Notification.target_type == "expert")
     
     conditions = [
         Notification.is_read == False,

@@ -16,7 +16,10 @@ logging.getLogger("uvicorn").setLevel(logging.WARNING)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # startup：当前项目没有必须的启动逻辑
+    # startup 阶段：输出一次清晰的启动成功提示
+    logging.getLogger("uvicorn.error").info(
+        "AudioLab 后端已启动，API 地址：http://127.0.0.1:8000 ，文档：http://127.0.0.1:8000/docs"
+    )
     yield
     # shutdown：显式释放 SQLAlchemy AsyncEngine 的连接池，避免热重载/退出时 aiomysql 在 __del__
     # 里尝试回收连接却发现 event loop 已关闭，从而刷屏 "RuntimeError: Event loop is closed"
