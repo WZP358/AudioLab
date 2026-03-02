@@ -176,6 +176,10 @@ export default function AuthPage({ onLoginSuccess }) {
         } else {
           showError("验证码错误，请重试");
         }
+      } else if (errorMsg.includes("用户名已被使用")) {
+        showError("该用户名已被使用，请更换一个新的用户名");
+      } else if (errorMsg.includes("邮箱已注册") || errorMsg.includes("邮箱已有")) {
+        showError(errorMsg);
       } else {
         showError(errorMsg);
       }

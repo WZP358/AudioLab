@@ -6,8 +6,8 @@ import asyncio
 from app.database import engine, Base
 # 必须导入所有模型类，这样 SQLAlchemy 才能知道要创建哪些表
 from app.models import (
-    SeparationTask, 
-    StemFile, 
+    SeparationTask,
+    StemFile,
     Score,
     User,
     PendingUser,
@@ -16,7 +16,8 @@ from app.models import (
     AudioResource,
     SystemLog,
     SystemConfig,
-    Notification
+    Notification,
+    ExpertMessage,
 )
 
 

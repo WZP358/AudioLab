@@ -7,6 +7,7 @@ import AudioResources from "./AudioResources";
 import AudioResourceSelector from "./AudioResourceSelector";
 import AdminDashboard from "./AdminDashboard";
 import NotificationCenter from "./NotificationCenter";
+import ExpertMessageDialog from "./ExpertMessageDialog";
 import { useToast } from "./Toast";
 //   orderBy,
 //   serverTimestamp,
@@ -31,6 +32,10 @@ import {
   Headphones,
   MessageCircle,
   Bell,
+  Mail,
+  Lock,
+  Upload as UploadIcon,
+  X as CloseIcon,
 } from "lucide-react";
 import {
   LineChart,
@@ -77,7 +82,7 @@ const PATH_TO_VIEW = Object.fromEntries(
 // --- Components ---
 
 // 1. 用户面板组件（仅用于普通用户界面，管理员不会看到）
-const AuthPanel = ({ user, onLogout }) => {
+const AuthPanel = ({ user, onLogout, onClickUser }) => {
   if (!user) return null;
 
   const getRoleBadge = (role) => {
@@ -92,7 +97,12 @@ const AuthPanel = ({ user, onLogout }) => {
 
   return (
     <div className="flex items-center gap-3">
-      <div className="flex items-center gap-3 bg-slate-800 p-2 rounded-lg border border-slate-700">
+      <button
+        type="button"
+        onClick={onClickUser}
+        className="flex items-center gap-3 bg-slate-800 p-2 rounded-lg border border-slate-700 hover:border-cyan-500/70 hover:bg-slate-800/80 transition cursor-pointer"
+        title="点击查看和编辑个人信息"
+      >
         {user.avatar_url ? (
           <img
             src={user.avatar_url}
@@ -116,13 +126,308 @@ const AuthPanel = ({ user, onLogout }) => {
             在线
           </p>
         </div>
-        <button
-          onClick={onLogout}
-          className="ml-2 p-2 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition"
-          title="登出"
-        >
-          <LogOut size={16} />
-        </button>
+      </button>
+      <button
+        onClick={onLogout}
+        className="ml-1 p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition"
+        title="登出"
+      >
+        <LogOut size={16} />
+      </button>
+    </div>
+  );
+};
+
+// 1.1 用户信息编辑弹窗（点击用户框时出现）
+const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
+  const { showError, showSuccess } = useToast();
+  const [username, setUsername] = React.useState(user?.username || "");
+  const [avatarPreview, setAvatarPreview] = React.useState(user?.avatar_url || null);
+  const [avatarFile, setAvatarFile] = React.useState(null);
+  const [oldPassword, setOldPassword] = React.useState("");
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+  const fileInputRef = React.useRef(null);
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAvatarPreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadAvatar = async () => {
+    if (!avatarFile) return user?.avatar_url || null;
+    const formData = new FormData();
+    formData.append("file", avatarFile);
+    const resp = await fetch(`${API_BASE}/api/auth/upload_avatar`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(text || "头像上传失败");
+    }
+    const data = await resp.json();
+    return data.avatar_url;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!username.trim()) {
+      showError("用户名不能为空");
+      return;
+    }
+    if (newPassword || oldPassword || confirmPassword) {
+      if (!oldPassword || !newPassword || !confirmPassword) {
+        showError("修改密码时请填写旧密码、新密码和确认密码");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        showError("两次输入的新密码不一致");
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      let avatarUrl = user?.avatar_url || null;
+      if (avatarFile) {
+        avatarUrl = await uploadAvatar();
+      }
+
+      const body = {
+        username: username.trim() !== user.username ? username.trim() : undefined,
+        avatar_url: avatarUrl !== user.avatar_url ? avatarUrl : undefined,
+      };
+
+      if (newPassword || oldPassword || confirmPassword) {
+        body.old_password = oldPassword;
+        body.new_password = newPassword;
+      }
+
+      // 去除未修改字段
+      const payload = Object.fromEntries(
+        Object.entries(body).filter(([, v]) => v !== undefined && v !== null),
+      );
+
+      const resp = await fetch(`${API_BASE}/api/auth/me`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        let msg = "更新失败";
+        try {
+          const errData = await resp.json();
+          msg = errData.detail || errData.message || JSON.stringify(errData);
+        } catch {
+          const text = await resp.text();
+          msg = text || msg;
+        }
+        throw new Error(msg);
+      }
+
+      const updatedUser = await resp.json();
+      showSuccess("个人信息已更新");
+      if (onUserUpdated) onUserUpdated(updatedUser);
+    } catch (err) {
+      const msg = err.message || "更新失败";
+      if (msg.includes("用户名已被使用")) {
+        showError("该用户名已被其他用户占用，请更换一个新的用户名");
+      } else {
+        showError(msg);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-auto">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-slate-900 rounded-2xl shadow-2xl border border-slate-700/80 max-w-lg w-full mx-4 p-6 animate-in zoom-in-95 duration-200">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-cyan-500/10 border border-cyan-500/40 flex items-center justify-center">
+              <User size={22} className="text-cyan-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">个人信息</h2>
+              <p className="text-xs text-slate-400">查看并更新用户名、头像和登录密码</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-white hover:bg-slate-800 rounded-full p-1.5 transition"
+          >
+            <CloseIcon size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* 基本信息 */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                用户名
+              </label>
+              <div className="relative">
+                <User size={16} className="absolute left-3 top-2.5 text-slate-500" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  placeholder="请输入用户名"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  邮箱
+                </label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3 top-2.5 text-slate-500" />
+                  <input
+                    type="email"
+                    value={user.email}
+                    disabled
+                    className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-400 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  角色
+                </label>
+                <div className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-300">
+                  {user.role === "admin" ? "管理员" : "专家"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 头像 */}
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              头像
+            </label>
+            <div className="flex items-center gap-4">
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="avatar"
+                  className="w-14 h-14 rounded-full object-cover border-2 border-cyan-500/70"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white text-sm">
+                  {username.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800 border border-slate-600 rounded-lg text-xs text-slate-200 hover:bg-slate-700 hover:border-cyan-500 transition"
+                >
+                  <UploadIcon size={14} />
+                  更换头像
+                </button>
+                <p className="text-[11px] text-slate-500">
+                  支持常见图片格式，建议使用正方形图片以获得更好显示效果。
+                </p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
+            </div>
+          </div>
+
+          {/* 修改密码 */}
+          <div className="space-y-3 border-t border-slate-700 pt-4">
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <Lock size={14} className="text-slate-500" />
+              <span>如需修改密码，请同时填写以下三项</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  旧密码
+                </label>
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  placeholder="当前登录密码"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  新密码
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  placeholder="至少 6 位"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  确认新密码
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  placeholder="再次输入新密码"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-[11px] text-slate-500">
+              提示：密码仅用于本系统登录，请勿与其他网站使用相同密码。
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-4 py-2 text-xs rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 text-white font-medium shadow-lg shadow-cyan-600/30 transition"
+              >
+                {submitting ? "保存中..." : "保存修改"}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -1842,6 +2147,8 @@ export default function AudioLabApp() {
   // 通知相关状态
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [showExpertMessageDialog, setShowExpertMessageDialog] = useState(false);
+  const [showUserProfileDialog, setShowUserProfileDialog] = useState(false);
 
   // 波形/频谱：等待后端分析结果（空数组表示暂无数据，避免 mock 误导）
   // 波形支持 DAW 式包络(envelope)：min/max 两条曲线，避免“每桶一个点”导致瞬态被压扁
@@ -3569,13 +3876,38 @@ export default function AudioLabApp() {
               )}
             </button>
 
-            <AuthPanel 
-              user={user} 
+            {/* 给管理员建议按钮（仅专家可见） */}
+            {user?.role === "expert" && (
+              <button
+                onClick={() => setShowExpertMessageDialog(true)}
+                className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-700/60 bg-slate-800/60 text-xs text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800 transition"
+                title="向管理员发送建议"
+              >
+                <MessageCircle size={14} className="text-cyan-400" />
+                {/*给管理员建议*/}
+              </button>
+            )}
+
+            <AuthPanel
+              user={user}
               onLogout={handleLogout}
+              onClickUser={() => setShowUserProfileDialog(true)}
             />
           </div>
         </div>
       </header>
+
+      {showUserProfileDialog && user && authToken && (
+        <UserProfileDialog
+          user={user}
+          token={authToken}
+          onClose={() => setShowUserProfileDialog(false)}
+          onUserUpdated={(updated) => {
+            setUser(updated);
+            setShowUserProfileDialog(false);
+          }}
+        />
+      )}
 
       <main className="pt-24 pb-12 px-4 max-w-7xl mx-auto">
         {currentView === "dashboard" && (
@@ -5493,6 +5825,14 @@ export default function AudioLabApp() {
             setShowNotificationCenter(false);
             fetchUnreadNotificationCount();
           }}
+        />
+      )}
+
+      {/* 专家给管理员的建议对话框 */}
+      {showExpertMessageDialog && (
+        <ExpertMessageDialog
+          token={authToken}
+          onClose={() => setShowExpertMessageDialog(false)}
         />
       )}
 

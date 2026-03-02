@@ -22,6 +22,7 @@ import {
   Award,
   Bell,
   BarChart3,
+  MessageCircle,
 } from "lucide-react";
 import SystemManagement from "./SystemManagement";
 import { useToast } from "./Toast";
@@ -98,6 +99,15 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     stem_name: "",
   });
   const [editingScore, setEditingScore] = useState(null);
+
+  // 专家建议列表（管理员侧查看与回复）
+  const [expertMessages, setExpertMessages] = useState([]);
+  const [expertMessagesTotal, setExpertMessagesTotal] = useState(0);
+  const [expertMessagesPage, setExpertMessagesPage] = useState(1);
+  const [expertMessagesPageSize] = useState(10);
+  const [loadingExpertMessages, setLoadingExpertMessages] = useState(false);
+  const [replyingMessage, setReplyingMessage] = useState(null);
+  const [replyContent, setReplyContent] = useState("");
 
   // Keep state in sync if parent changes defaultTab (e.g. via URL).
   useEffect(() => {
@@ -482,6 +492,61 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     }
   };
 
+  const fetchExpertMessages = async (pageOverride) => {
+    setLoadingExpertMessages(true);
+    try {
+      const page = pageOverride || expertMessagesPage || 1;
+      const params = new URLSearchParams();
+      params.append("page", String(page));
+      params.append("page_size", String(expertMessagesPageSize));
+
+      const resp = await fetch(`${API_BASE}/api/messages/admin?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) {
+        const body = await resp.text();
+        throw new Error(body || "获取专家建议失败");
+      }
+      const data = await resp.json();
+      setExpertMessages(data.items || []);
+      setExpertMessagesTotal(data.total || 0);
+      setExpertMessagesPage(data.page || page);
+    } catch (err) {
+      console.error("获取专家建议失败:", err);
+      showError(formatErrorMessage(err));
+    } finally {
+      setLoadingExpertMessages(false);
+    }
+  };
+
+  const handleReplyExpertMessage = async () => {
+    if (!replyingMessage || !replyContent.trim()) {
+      showError("请填写回复内容");
+      return;
+    }
+    try {
+      const resp = await fetch(`${API_BASE}/api/messages/admin/${replyingMessage.id}/reply`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reply_content: replyContent.trim() }),
+      });
+      if (!resp.ok) {
+        const body = await resp.text();
+        throw new Error(body || "回复失败");
+      }
+      showSuccess("回复已发送给专家");
+      setReplyingMessage(null);
+      setReplyContent("");
+      fetchExpertMessages();
+    } catch (err) {
+      console.error("回复专家建议失败:", err);
+      showError(formatErrorMessage(err));
+    }
+  };
+
   const handleUpdateUser = async (userId, updates) => {
     try {
       const resp = await fetch(`${API_BASE}/api/admin/users/${userId}`, {
@@ -791,9 +856,19 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       fetchAudioFormats();
     } else if (activeTab === "scores") {
       fetchScores();
+    } else if (activeTab === "system") {
+      // 系统管理页内部已经自己根据 URL 决定展示内容
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, userFilters, audioFilters]);
+
+  // 单独拉取一次专家建议数据（放在 users 页下方的“专家建议”模块）
+  useEffect(() => {
+    if (activeTab === "users") {
+      fetchExpertMessages(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const formatFileSize = (bytes) => {
     if (!bytes) return "未知";
@@ -1182,6 +1257,118 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         }
                         disabled={userFilters.page >= Math.ceil(userTotal / userFilters.page_size)}
                         className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white disabled:opacity-50"
+                      >
+                        下一页
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 专家建议 / 站内信（简单一问一答） */}
+              <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle size={18} className="text-cyan-400" />
+                    <div>
+                      <h3 className="text-sm font-bold text-white">专家建议箱</h3>
+                      <p className="text-xs text-slate-400">
+                        专家在前台提交的建议 / 反馈，便于管理员收集使用体验和需求。
+                      </p>
+                    </div>
+                  </div>
+                  {expertMessagesTotal > 0 && (
+                    <span className="text-xs text-slate-400">
+                      共 {expertMessagesTotal} 条
+                    </span>
+                  )}
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {loadingExpertMessages ? (
+                    <div className="py-6 text-center text-slate-400 text-sm">
+                      加载中...
+                    </div>
+                  ) : expertMessages.length === 0 ? (
+                    <div className="py-6 text-center text-slate-500 text-sm">
+                      暂无专家建议。
+                    </div>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-900">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">ID</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">专家ID</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">主题</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">状态</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">创建时间</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-slate-400">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-700">
+                        {expertMessages.map((m) => (
+                          <tr key={m.id} className="hover:bg-slate-700/40">
+                            <td className="px-4 py-2 text-slate-300 text-xs">{m.id}</td>
+                            <td className="px-4 py-2 text-slate-300 text-xs">{m.expert_id}</td>
+                            <td className="px-4 py-2 text-slate-100 text-xs max-w-xs truncate" title={m.subject}>
+                              {m.subject}
+                            </td>
+                            <td className="px-4 py-2 text-xs">
+                              {m.status === "answered" ? (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                  已回复
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">
+                                  待处理
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-slate-400 text-xs">
+                              {m.created_at ? new Date(m.created_at).toLocaleString() : "-"}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              <button
+                                onClick={() => {
+                                  setReplyingMessage(m);
+                                  setReplyContent(m.reply_content || "");
+                                }}
+                                className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-100"
+                              >
+                                查看 / 回复
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                {expertMessagesTotal > expertMessagesPageSize && (
+                  <div className="px-4 py-2 border-t border-slate-700 flex items-center justify-between">
+                    <div className="text-xs text-slate-400">
+                      第 {expertMessagesPage} / {Math.max(1, Math.ceil(expertMessagesTotal / expertMessagesPageSize))} 页
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          const newPage = Math.max(1, expertMessagesPage - 1);
+                          setExpertMessagesPage(newPage);
+                          fetchExpertMessages(newPage);
+                        }}
+                        disabled={expertMessagesPage === 1}
+                        className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white"
+                      >
+                        上一页
+                      </button>
+                      <button
+                        onClick={() => {
+                          const maxPage = Math.max(1, Math.ceil(expertMessagesTotal / expertMessagesPageSize));
+                          const newPage = Math.min(maxPage, expertMessagesPage + 1);
+                          setExpertMessagesPage(newPage);
+                          fetchExpertMessages(newPage);
+                        }}
+                        disabled={expertMessagesPage >= Math.ceil(expertMessagesTotal / expertMessagesPageSize)}
+                        className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white"
                       >
                         下一页
                       </button>
@@ -2028,6 +2215,73 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                 >
                   <Save size={16} />
                   保存
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 管理员回复专家建议模态框 */}
+      {replyingMessage && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-lg">
+            <div className="flex items-center justify-between p-6 border-b border-slate-700">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <MessageCircle size={18} className="text-cyan-400" />
+                回复专家建议
+              </h3>
+              <button
+                onClick={() => {
+                  setReplyingMessage(null);
+                  setReplyContent("");
+                }}
+                className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <div className="text-xs text-slate-400 mb-1">主题</div>
+                <div className="text-sm text-slate-100">
+                  {replyingMessage.subject}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-400 mb-1">专家内容</div>
+                <div className="text-sm text-slate-200 bg-slate-800 rounded-lg p-3 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                  {replyingMessage.content}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">
+                  管理员回复
+                </label>
+                <textarea
+                  value={replyContent}
+                  onChange={(e) => setReplyContent(e.target.value)}
+                  rows={4}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm resize-none"
+                  placeholder="请输入要回复给专家的内容"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setReplyingMessage(null);
+                    setReplyContent("");
+                  }}
+                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleReplyExpertMessage}
+                  className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <Save size={16} />
+                  发送回复
                 </button>
               </div>
             </div>

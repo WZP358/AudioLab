@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, field_serializer
 from typing import Optional, List
 from datetime import datetime
-from app.models import TaskStatus, Algorithm, Role
+from app.models import TaskStatus, Algorithm, Role, ExpertMessageStatus
 
 
 class TaskCreate(BaseModel):
@@ -250,6 +250,15 @@ class UserResponse(BaseModel):
         return str(value)
 
 
+class SelfUserUpdateRequest(BaseModel):
+    """当前登录用户自助更新资料时使用的请求体"""
+    username: Optional[str] = None
+    # 修改密码时必须同时提供 old_password 和 new_password
+    old_password: Optional[str] = None
+    new_password: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
 class RegisterResponse(BaseModel):
     """Registration response - registration always goes through application / approval flow"""
     id: int  # 保持为 int，在序列化时转为字符串
@@ -413,3 +422,50 @@ class AudioResourceListQuery(BaseModel):
     page: int = 1
     page_size: int = 20
     search: Optional[str] = None  # 搜索标题或描述
+
+
+# ========== 专家建议 / 站内信 Schemas ==========
+
+class ExpertMessageCreate(BaseModel):
+    """专家发送给管理员的建议/消息创建请求"""
+    subject: str
+    content: str
+
+
+class ExpertMessageResponse(BaseModel):
+    """专家建议/消息响应体"""
+    id: int
+    expert_id: int
+    subject: str
+    content: str
+    reply_content: Optional[str] = None
+    status: ExpertMessageStatus
+    is_read_by_admin: bool
+    is_read_by_expert: bool
+    created_at: datetime
+    replied_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+    @field_serializer("id")
+    def serialize_id(self, value: int, _info) -> str:
+        return str(value)
+
+    @field_serializer("expert_id")
+    def serialize_expert_id(self, value: int, _info) -> str:
+        return str(value)
+
+
+class PaginatedExpertMessageResponse(BaseModel):
+    """分页的专家消息列表（管理员视图）"""
+    items: List[ExpertMessageResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class AdminReplyRequest(BaseModel):
+    """管理员回复专家建议"""
+    reply_content: str

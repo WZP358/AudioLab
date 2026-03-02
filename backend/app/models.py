@@ -252,6 +252,32 @@ class NotificationRead(Base):
     read_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class ExpertMessageStatus(str, enum.Enum):
+    """专家建议消息状态"""
+    PENDING = "pending"
+    ANSWERED = "answered"
+
+
+class ExpertMessage(Base):
+    """
+    专家给管理员的站内信 / 建议
+    - 由专家创建，管理员在后台查看并回复
+    - 不做复杂会话线程，仅一问一答（后续可扩展为多次往返）
+    """
+    __tablename__ = "expert_messages"
+
+    id = Column(BigInteger, primary_key=True, index=True, default=generate_id)
+    expert_id = Column(BigInteger, index=True, nullable=False)  # 专家用户ID
+    subject = Column(String(255), nullable=False)  # 主题
+    content = Column(Text, nullable=False)  # 建议正文
+    reply_content = Column(Text, nullable=True)  # 管理员回复内容
+    status = Column(SQLEnum(ExpertMessageStatus), default=ExpertMessageStatus.PENDING, nullable=False)
+    is_read_by_admin = Column(Boolean, default=False, nullable=False)
+    is_read_by_expert = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    replied_at = Column(DateTime(timezone=True), nullable=True)
+
+
 # 为所有使用雪花算法的模型添加事件监听器，确保在插入前自动生成ID
 def ensure_id(mapper, connection, target):
     """在插入前确保ID已生成"""
@@ -263,7 +289,8 @@ def ensure_id(mapper, connection, target):
 models_with_snowflake_id = [
     User, PendingUser, EmailVerification, OutboxEmail,
     SeparationTask, StemFile, Score, AudioResource,
-    SystemLog, SystemConfig, Notification, NotificationRead
+    SystemLog, SystemConfig, Notification, NotificationRead,
+    ExpertMessage,
 ]
 
 for model in models_with_snowflake_id:

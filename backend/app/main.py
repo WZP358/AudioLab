@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
-from .routers import tasks, scores, auth, admin, audio_resources, system
+from .routers import tasks, scores, auth, admin, audio_resources, system, messages
 import os
 import logging
 from pathlib import Path
@@ -67,6 +67,7 @@ app.include_router(admin.router)
 app.include_router(audio_resources.router)
 app.include_router(system.router)
 app.include_router(system.public_router)  # 公共系统配置端点
+app.include_router(messages.router)
 
 # 挂载静态文件目录（用于头像和下载文件）
 download_dir = Path(__file__).parent.parent / "download"

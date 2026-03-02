@@ -16,7 +16,18 @@ import pathlib, time, re
 from app.models import User, EmailVerification, Role, OutboxEmail, OperationLog
 from sqlalchemy import text
 from sqlalchemy import create_engine
-from app.schemas import RegisterRequest, SendVerificationResponse, VerifyCodeRequest, AuthTokenResponse, LoginRequest, UserResponse, PendingUserResponse, OutboxEmailResponse, RegisterResponse
+from app.schemas import (
+    RegisterRequest,
+    SendVerificationResponse,
+    VerifyCodeRequest,
+    AuthTokenResponse,
+    LoginRequest,
+    UserResponse,
+    PendingUserResponse,
+    OutboxEmailResponse,
+    RegisterResponse,
+    SelfUserUpdateRequest,
+)
 from app.utils.log_helper import create_system_log, get_client_ip, get_user_agent
 
 import jwt
@@ -783,6 +794,94 @@ async def login(req: Request, payload: LoginRequest, db: AsyncSession = Depends(
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current logged-in user information"""
+    return current_user
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_current_user_info(
+    req: Request,
+    payload: SelfUserUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    当前登录用户自助更新资料：
+    - 可修改 username、avatar_url
+    - 可通过 old_password + new_password 修改密码
+    """
+    update_dict = {}
+
+    # 更新用户名（如提供）
+    if payload.username is not None and payload.username != current_user.username:
+        new_username = payload.username.strip()
+        if not new_username:
+            raise HTTPException(status_code=400, detail="用户名不能为空")
+        if len(new_username) < 3:
+            raise HTTPException(status_code=400, detail="用户名长度至少为3个字符")
+        if len(new_username) > 100:
+            raise HTTPException(status_code=400, detail="用户名长度不能超过100个字符")
+
+        # 检查用户名是否已被其他用户使用（大小写敏感）
+        from sqlalchemy import bindparam
+
+        q_username_check = select(User).where(
+            text("BINARY users.username = :username").bindparams(
+                bindparam("username", new_username)
+            )
+        ).where(User.id != current_user.id)
+        res_check = await db.execute(q_username_check)
+        existing = res_check.scalars().first()
+        if existing:
+            raise HTTPException(status_code=400, detail="用户名已被使用，请选择其他用户名")
+
+        update_dict["username"] = new_username
+
+    # 更新头像（如提供）
+    if payload.avatar_url is not None:
+        update_dict["avatar_url"] = payload.avatar_url
+
+    # 修改密码：要求同时提供 old_password 与 new_password
+    if payload.new_password is not None or payload.old_password is not None:
+        if not payload.old_password or not payload.new_password:
+            raise HTTPException(status_code=400, detail="修改密码时必须同时提供旧密码和新密码")
+        if not verify_password(payload.old_password, current_user.password_hash):
+            raise HTTPException(status_code=400, detail="旧密码不正确")
+        if len(payload.new_password) < 6:
+            raise HTTPException(status_code=400, detail="新密码长度至少为6个字符")
+        if len(payload.new_password) > 128:
+            raise HTTPException(status_code=400, detail="新密码长度不能超过128个字符")
+
+        update_dict["password_hash"] = hash_password(payload.new_password)
+
+    if not update_dict:
+        # 没有任何字段需要更新，直接返回当前用户
+        return current_user
+
+    for key, value in update_dict.items():
+        setattr(current_user, key, value)
+
+    await db.commit()
+    await db.refresh(current_user)
+
+    # 记录系统日志
+    try:
+        changed_fields = ", ".join(f"{k}={v}" for k, v in update_dict.items() if k != "password_hash")
+        await create_system_log(
+            db=db,
+            operation_type=OperationLog.USER_UPDATE.value,
+            user_id=current_user.id,
+            username=current_user.username,
+            resource_type="user",
+            resource_id=current_user.id,
+            description=f"用户自助更新个人信息：{changed_fields or '无可见字段变化'}",
+            status="success",
+            ip_address=get_client_ip(req),
+            user_agent=get_user_agent(req),
+        )
+    except Exception:
+        # 日志失败不影响主流程
+        pass
+
     return current_user
 
 
