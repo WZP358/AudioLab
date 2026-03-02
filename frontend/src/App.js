@@ -5178,24 +5178,60 @@ export default function AudioLabApp() {
                                 {currentScore[m.key]}
                               </span>
                             </div>
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={currentScore[m.key]}
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value, 10);
-                                setStemScores((prev) => ({
-                                  ...prev,
-                                  [stemName]: {
-                                    ...(prev[stemName] || currentScore),
-                                    [m.key]: v,
-                                  },
-                                }));
-                              }}
-                              disabled={!results || !currentStem}
-                              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                            />
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = Math.max(0, (currentScore[m.key] ?? 0) - 1);
+                                  setStemScores((prev) => ({
+                                    ...prev,
+                                    [stemName]: {
+                                      ...(prev[stemName] || currentScore),
+                                      [m.key]: next,
+                                    },
+                                  }));
+                                }}
+                                disabled={!results || !currentStem}
+                                className="w-7 h-7 flex items-center justify-center rounded bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                -
+                              </button>
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={currentScore[m.key]}
+                                onChange={(e) => {
+                                  const v = parseInt(e.target.value, 10);
+                                  setStemScores((prev) => ({
+                                    ...prev,
+                                    [stemName]: {
+                                      ...(prev[stemName] || currentScore),
+                                      [m.key]: v,
+                                    },
+                                  }));
+                                }}
+                                disabled={!results || !currentStem}
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = Math.min(100, (currentScore[m.key] ?? 0) + 1);
+                                  setStemScores((prev) => ({
+                                    ...prev,
+                                    [stemName]: {
+                                      ...(prev[stemName] || currentScore),
+                                      [m.key]: next,
+                                    },
+                                  }));
+                                }}
+                                disabled={!results || !currentStem}
+                                className="w-7 h-7 flex items-center justify-center rounded bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
                         ));
                       })()}

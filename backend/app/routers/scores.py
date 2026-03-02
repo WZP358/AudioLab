@@ -32,6 +32,15 @@ async def create_score(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="仅专家用户可提交主观评分"
         )
+
+    # 简单数值校验：评分应在 0~100 之间，防止前端异常数据写入
+    for field in ("quality", "interference", "artifacts"):
+        value = getattr(score_data, field, None)
+        if value is None or not (0 <= value <= 100):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{field} 评分应在 0~100 之间",
+            )
     
     score = Score(
         user_id=str(current_user.id),
