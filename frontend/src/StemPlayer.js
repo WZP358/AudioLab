@@ -40,7 +40,18 @@ function createSilenceWav() {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
-export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateChange, onUserSeek, syncedTime, theme = "cyan" }) {
+export default function StemPlayer({
+  name,
+  file,
+  src,
+  onSelect,
+  onPlaybackStateChange,
+  onUserSeek,
+  syncedTime,
+  theme = "cyan",
+  playbackRate = 1.0,
+  onPlaybackRateChange,
+}) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -267,6 +278,13 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
     setCurrentTime(clampedTime);
   }, [syncedTime, playing, duration]);
 
+  // 当倍速或 URL 变化时，同步到 audio 元素
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.playbackRate = playbackRate || 1.0;
+  }, [playbackRate, url]);
+
   // 使用 ref 保存回调，避免依赖变化导致无限循环
   const onPlaybackStateChangeRef = useRef(onPlaybackStateChange);
   useEffect(() => {
@@ -312,6 +330,14 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
     setCurrentTime(newTime);
     if (typeof onUserSeek === "function") {
       onUserSeek(newTime);
+    }
+  };
+
+  const handleRateChange = (e) => {
+    const value = parseFloat(e.target.value);
+    if (Number.isNaN(value)) return;
+    if (onPlaybackRateChange) {
+      onPlaybackRateChange(value);
     }
   };
 
@@ -386,9 +412,27 @@ export default function StemPlayer({ name, file, src, onSelect, onPlaybackStateC
         onClick={(e) => e.stopPropagation()}
         className={`flex-1 min-w-0 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer ${colors.accent}`}
       />
-      <span className="text-xs text-slate-400 flex-shrink-0">
-        {formatTime(currentTime)} / {formatTime(duration)}
-      </span>
+      <div className="flex items-center gap-3 text-xs text-slate-400 flex-shrink-0">
+        <span>
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </span>
+        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900/70 border border-slate-700">
+          <span className="text-[11px] text-slate-500">倍速</span>
+          <select
+            value={String(playbackRate)}
+            onChange={handleRateChange}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+          >
+            <option value="0.5">0.5x</option>
+            <option value="0.75">0.75x</option>
+            <option value="1">1.0x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+            <option value="2">2.0x</option>
+          </select>
+        </div>
+      </div>
       <button
         onClick={(e) => {
           e.stopPropagation();

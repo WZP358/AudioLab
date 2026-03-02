@@ -63,7 +63,12 @@ async def list_public_audio_resources(
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取公开的音频资源列表（访客和专家可用），支持高级搜索和筛选"""
+    """
+    获取公开的音频资源列表（访客和专家可用），支持高级搜索和筛选。
+
+    前端播放器现在支持在客户端侧调整音频播放倍速（例如 0.5x / 1.5x 等），
+    这不会改变后端存储的原始音频文件，也不会影响本接口的查询逻辑。
+    """
     query = select(AudioResource).where(AudioResource.is_public == True)
     
     # 构建筛选条件

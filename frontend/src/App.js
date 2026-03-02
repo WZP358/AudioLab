@@ -2072,6 +2072,7 @@ export default function AudioLabApp() {
   const activePlayerKeyRef = useRef(null); // 'input' | 'gold' | 'stem' | null
 
   const [syncedCurrentTime, setSyncedCurrentTime] = useState(0);
+  const [globalPlaybackRate, setGlobalPlaybackRate] = useState(1.0);
   const [syncedDuration, setSyncedDuration] = useState(0);
   const [syncedPlaying, setSyncedPlaying] = useState(false);
   
@@ -3913,7 +3914,7 @@ export default function AudioLabApp() {
         {currentView === "dashboard" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Left Panel: Controls */}
-            <div className="lg:col-span-3 space-y-6">
+            <div className="lg:col-span-4 space-y-6">
               {/* Upload Section */}
               <div
                 className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50"
@@ -4033,6 +4034,8 @@ export default function AudioLabApp() {
                   <CustomPlayer
                     src={audioUrl}
                     syncedTime={syncedCurrentTime}
+                    playbackRate={globalPlaybackRate}
+                    onPlaybackRateChange={setGlobalPlaybackRate}
                     onUserSeek={(t) => seekAll(t, { skip: "input" })}
                     onPlaybackStateChange={(state) => {
                       // 如果开始播放，暂停其他播放器
@@ -4170,6 +4173,8 @@ export default function AudioLabApp() {
                           onSelect={() => {}}
                           theme="purple"
                           syncedTime={syncedCurrentTime}
+                          playbackRate={globalPlaybackRate}
+                          onPlaybackRateChange={setGlobalPlaybackRate}
                           onUserSeek={(t) => seekAll(t, { skip: "gold" })}
                           onPlaybackStateChange={(state) => {
                             // 如果开始播放，暂停其他播放器
@@ -4397,6 +4402,8 @@ export default function AudioLabApp() {
                           src={currentStem.src}
                           onSelect={() => {}}
                           syncedTime={syncedCurrentTime}
+                          playbackRate={globalPlaybackRate}
+                          onPlaybackRateChange={setGlobalPlaybackRate}
                           onUserSeek={(t) => seekAll(t, { skip: "stem" })}
                           onPlaybackStateChange={(state) => {
                             // 如果开始播放，暂停其他播放器
@@ -4445,6 +4452,8 @@ export default function AudioLabApp() {
                               }
                               onSelect={() => {}}
                               syncedTime={syncedCurrentTime}
+                              playbackRate={globalPlaybackRate}
+                              onPlaybackRateChange={setGlobalPlaybackRate}
                               onUserSeek={(t) => seekAll(t)}
                               onPlaybackStateChange={(state) => {
                                 const wasPlaying = previousPlayingState.current.residual;
@@ -4581,6 +4590,8 @@ export default function AudioLabApp() {
                                   file={mixAudioFile}
                                   onSelect={() => {}}
                                   syncedTime={syncedCurrentTime}
+                                  playbackRate={globalPlaybackRate}
+                                  onPlaybackRateChange={setGlobalPlaybackRate}
                                   onUserSeek={(t) => seekAll(t)}
                                   onPlaybackStateChange={() => {
                                     // 混合播放器只同步进度，不驱动主时间轴互斥逻辑
@@ -4861,7 +4872,7 @@ export default function AudioLabApp() {
             </div>
 
             {/* Center & Right Panel: Visualization & Evaluation */}
-            <div className="lg:col-span-9 space-y-6">
+            <div className="lg:col-span-8 space-y-6">
               {/* 3. Visualization Panel */}
               <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-2xl overflow-hidden relative">
                 {/* Toolbar */}

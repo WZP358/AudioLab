@@ -1,7 +1,14 @@
 import { useRef, useState, useEffect } from "react";
 import { Play, Pause } from "lucide-react";
 
-export default function CustomPlayer({ src, onPlaybackStateChange, onUserSeek, syncedTime }) {
+export default function CustomPlayer({
+  src,
+  onPlaybackStateChange,
+  onUserSeek,
+  syncedTime,
+  playbackRate = 1.0,
+  onPlaybackRateChange,
+}) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -68,6 +75,13 @@ export default function CustomPlayer({ src, onPlaybackStateChange, onUserSeek, s
     };
   }, [src]);
 
+  // 当倍速或音频源变化时，同步到 audio 元素
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.playbackRate = playbackRate || 1.0;
+  }, [playbackRate, src]);
+
   // 外部“统一时间轴”同步：当自己不在播放时，让进度条跟随全局时间（并将音频指针同步到该位置，便于随时对齐播放）
   useEffect(() => {
     const audio = audioRef.current;
@@ -122,6 +136,14 @@ export default function CustomPlayer({ src, onPlaybackStateChange, onUserSeek, s
     }
   };
 
+  const handleRateChange = (e) => {
+    const value = parseFloat(e.target.value);
+    if (Number.isNaN(value)) return;
+    if (onPlaybackRateChange) {
+      onPlaybackRateChange(value);
+    }
+  };
+
   return (
     <div className="flex items-center gap-3 rounded-lg bg-slate-800 border border-slate-700 p-3 shadow-md">
       {/* 隐藏原生标签，只负责解码 */}
@@ -154,10 +176,27 @@ export default function CustomPlayer({ src, onPlaybackStateChange, onUserSeek, s
         className="flex-1 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
       />
 
-      {/* 当前时间 / 总时间 */}
-      <span className="text-xs text-slate-400">
-        {formatTime(currentTime)} / {formatTime(duration)}
-      </span>
+      {/* 当前时间 / 总时间 + 倍速 */}
+      <div className="flex items-center gap-3 text-xs text-slate-400">
+        <span>
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </span>
+        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900/70 border border-slate-700">
+          <span className="text-[11px] text-slate-500">倍速</span>
+          <select
+            value={String(playbackRate ?? 1)}
+            onChange={handleRateChange}
+            className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+          >
+            <option value="0.5">0.5x</option>
+            <option value="0.75">0.75x</option>
+            <option value="1">1.0x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+            <option value="2">2.0x</option>
+          </select>
+        </div>
+      </div>
     </div>
   );
 }
