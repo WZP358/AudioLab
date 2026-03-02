@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import html2canvas from "html2canvas";
 import {
   FileText,
@@ -43,85 +43,59 @@ const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 export default function SystemManagement({ token }) {
   const location = useLocation();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("logs");
-  const isUpdatingFromUrlRef = useRef(false);
+  const pathname = (location?.pathname || "").replace(/\/+$/, "") || "/";
 
-  const TAB_TO_PATH = {
-    logs: "/admin/system/logs",
-    settings: "/admin/system/settings",
-    notifications: "/admin/system/notifications",
-    analytics: "/admin/system/analytics",
-  };
-  const PATH_TO_TAB = Object.fromEntries(
-    Object.entries(TAB_TO_PATH).map(([tab, path]) => [path, tab]),
-  );
-
-  // URL -> activeTab (and canonicalize /admin/system -> /admin/system/logs)
-  // 只监听 URL 变化，更新 activeTab
-  useEffect(() => {
-    const pathname = (location?.pathname || "").replace(/\/+$/, "") || "/";
-    if (pathname === "/admin/system") {
-      navigate(TAB_TO_PATH.logs, { replace: true });
-      return;
-    }
-    if (!pathname.startsWith("/admin/system")) return;
-    const tab = PATH_TO_TAB[pathname];
-    if (tab && tab !== activeTab) {
-      isUpdatingFromUrlRef.current = true;
-      setActiveTab(tab);
-    }
-  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // activeTab -> URL (只在 activeTab 变化且与当前 URL 不匹配时导航，避免循环)
-  // 只监听 activeTab 变化，更新 URL
-  useEffect(() => {
-    // 如果是从 URL 更新导致的 activeTab 变化，跳过导航
-    if (isUpdatingFromUrlRef.current) {
-      isUpdatingFromUrlRef.current = false;
-      return;
-    }
-    const pathname = (location?.pathname || "").replace(/\/+$/, "") || "/";
-    if (!pathname.startsWith("/admin/system")) return;
-    const target = TAB_TO_PATH[activeTab] || TAB_TO_PATH.logs;
-    // 只有当目标路径与当前路径不同时才导航，避免循环
-    if (pathname !== target) {
-      navigate(target, { replace: true });
-    }
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 根据 URL 判断当前是哪个独立子页面
+  let currentSection = "all";
+  if (pathname === "/admin/system" || pathname === "/admin/system/logs") {
+    currentSection = "logs";
+  } else if (pathname === "/admin/system/settings") {
+    currentSection = "settings";
+  } else if (pathname === "/admin/system/notifications") {
+    currentSection = "notifications";
+  } else if (pathname === "/admin/system/analytics") {
+    currentSection = "analytics";
+  }
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-900">
-      {/* Tabs */}
-      <div className="flex border-b border-slate-700 bg-slate-800">
-        {[
-          { id: "logs", label: "系统日志", icon: FileText },
-          { id: "settings", label: "系统设置", icon: Settings },
-          { id: "notifications", label: "通知中心", icon: Bell },
-          { id: "analytics", label: "数据统计", icon: BarChart3 },
-        ].map((item) => (
-          <button
-            key={item.id}
-            onClick={() => navigate(TAB_TO_PATH[item.id] || TAB_TO_PATH.logs)}
-            className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
-              activeTab === item.id
-                ? "text-cyan-400 border-b-2 border-cyan-400"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <item.icon size={18} />
-            {item.label}
-          </button>
-        ))}
+      {/* Page Header */}
+      <div className="border-b border-slate-700 bg-slate-800 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+            <Settings size={18} className="text-cyan-400" />
+          </div>
+          <div>
+            <div className="text-white font-semibold text-lg">系统管理</div>
+            <div className="text-xs text-slate-400">
+              系统日志 / 系统设置 / 通知中心 / 数据统计
+            </div>
+          </div>
+        </div>
       </div>
 
-
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
-        {activeTab === "logs" && <SystemLogs token={token} />}
-        {activeTab === "settings" && <SystemSettings token={token} />}
-        {activeTab === "notifications" && <Notifications token={token} />}
-        {activeTab === "analytics" && <Analytics token={token} />}
+      {/* Content：当访问特定 URL 时只展示对应模块；访问 /admin/system 时仍可按需扩展为展示全部 */}
+      <div className="flex-1 overflow-auto p-6 space-y-8">
+        {(currentSection === "logs" || currentSection === "all") && (
+          <div id="system-logs">
+            <SystemLogs token={token} />
+          </div>
+        )}
+        {(currentSection === "settings" || currentSection === "all") && (
+          <div id="system-settings">
+            <SystemSettings token={token} />
+          </div>
+        )}
+        {(currentSection === "notifications" || currentSection === "all") && (
+          <div id="system-notifications">
+            <Notifications token={token} />
+          </div>
+        )}
+        {(currentSection === "analytics" || currentSection === "all") && (
+          <div id="system-analytics">
+            <Analytics token={token} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1372,7 +1346,6 @@ function Notifications({ token }) {
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
                 >
                   <option value="all">所有人</option>
-                  <option value="guest">访客</option>
                   <option value="expert">专家</option>
                 </select>
               </div>

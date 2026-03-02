@@ -93,6 +93,13 @@ class ScoreCreate(BaseModel):
     artifacts: int
 
 
+class ScoreUpdate(BaseModel):
+    """管理员或专家更新评分时使用的请求体（字段可选）"""
+    quality: Optional[int] = None
+    interference: Optional[int] = None
+    artifacts: Optional[int] = None
+
+
 class ScoreResponse(BaseModel):
     id: int  # 保持为 int，在序列化时转为字符串
     user_id: str
@@ -199,7 +206,8 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     code: str
-    role: str = "guest"
+    # 系统仅支持 expert / admin 两种角色，默认注册为 expert
+    role: str = "expert"
     avatar_url: Optional[str] = None
 
 
@@ -243,7 +251,7 @@ class UserResponse(BaseModel):
 
 
 class RegisterResponse(BaseModel):
-    """Registration response - either a user (for guest) or application submission message"""
+    """Registration response - registration always goes through application / approval flow"""
     id: int  # 保持为 int，在序列化时转为字符串
     username: str
     email: str

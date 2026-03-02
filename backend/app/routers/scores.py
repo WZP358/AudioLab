@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models import Score, Algorithm, Role, User, SeparationTask
 from app.schemas import (
     ScoreCreate,
+    ScoreUpdate,
     ScoreResponse,
     StatsResponse,
     DetailedStatsResponse,
@@ -51,15 +52,36 @@ async def create_score(
 async def get_scores(
     skip: int = 0,
     limit: int = 100,
+    user_id: Optional[str] = None,
+    task_id: Optional[int] = None,
+    algorithm: Optional[Algorithm] = None,
+    stem_name: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取评分列表"""
+    """获取评分列表（仅管理员，可按专家/任务等筛选）"""
+    if current_user.role != Role.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅管理员可查看所有评分记录",
+        )
+
     from sqlalchemy import select
+
+    q = select(Score)
+    if user_id is not None:
+        q = q.where(Score.user_id == str(user_id))
+    if task_id is not None:
+        q = q.where(Score.task_id == task_id)
+    if algorithm is not None:
+        q = q.where(Score.algorithm == algorithm)
+    if stem_name:
+        q = q.where(Score.stem_name == stem_name)
+
     result = await db.execute(
-        select(Score).offset(skip).limit(limit).order_by(Score.created_at.desc())
+        q.offset(skip).limit(limit).order_by(Score.created_at.desc())
     )
-    scores = result.scalars().all()
-    return scores
+    return result.scalars().all()
 
 
 @router.get("/me", response_model=List[ScoreResponse])
@@ -112,6 +134,39 @@ async def delete_score(
     await db.delete(score)
     await db.commit()
     return {"message": "评分记录已删除", "score_id": str(score_id)}
+
+
+@router.put("/{score_id}", response_model=ScoreResponse)
+async def update_score(
+    score_id: int,
+    score_data: ScoreUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新评分记录（专家仅可修改自己的记录；管理员可修改任意记录）"""
+    from sqlalchemy import select
+
+    result = await db.execute(select(Score).where(Score.id == score_id))
+    score = result.scalars().first()
+    if not score:
+        raise HTTPException(status_code=404, detail="评分记录不存在")
+
+    # 权限控制
+    if current_user.role == Role.ADMIN:
+        pass
+    elif current_user.role == Role.EXPERT:
+        if str(current_user.id) != str(score.user_id):
+            raise HTTPException(status_code=403, detail="仅可修改自己的评分记录")
+    else:
+        raise HTTPException(status_code=403, detail="无权限修改评分记录")
+
+    data = score_data.dict(exclude_unset=True)
+    for field, value in data.items():
+        setattr(score, field, value)
+
+    await db.commit()
+    await db.refresh(score)
+    return score
 
 
 @router.get("/stats", response_model=List[StatsResponse])

@@ -3,8 +3,8 @@
 运行方式: python -m app.create_admin
 
 说明：
-- 本脚本会“创建或更新”三类账号：guest / expert / admin
-- 设计目标：一键把系统跑通（普通用户端、专家评分、管理员后台）
+- 本脚本会“创建或更新”两类账号：expert / admin
+- 设计目标：一键把系统跑通（专家评分、管理员后台）
 """
 import asyncio
 from passlib.context import CryptContext
@@ -35,21 +35,12 @@ DEFAULT_USERS = [
         "is_active": 1,
         "is_approved": 1,
     },
-    # guest：普通用户端体验
-    {
-        "username": "WZP",
-        "email": "zpw5650@gmail.com",
-        "password": "guest123",
-        "role": Role.GUEST,
-        "is_active": 1,
-        "is_approved": 1,
-    },
 ]
 
 
 async def create_admin():
     """
-    创建/更新三类默认账号（admin / expert / guest）
+    创建/更新默认账号（admin / expert）
     并在结束前显式关闭连接池，避免 aiomysql 在事件循环关闭后再清理连接
     导致的 "Event loop is closed" 警告。
     """

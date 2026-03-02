@@ -568,8 +568,8 @@ async def register(req: Request, request: RegisterRequest, db: AsyncSession = De
         if existing_username_user or existing_username_pending:
             raise HTTPException(status_code=400, detail="用户名已被使用，请选择其他用户名")
 
-        # 检查该邮箱是否已经注册了相同角色的账户
-        role_val = request.role if request.role in [r.value for r in Role] else "guest"
+        # 检查该邮箱是否已经注册了相同角色的账户（仅支持 expert / admin）
+        role_val = request.role if request.role in [r.value for r in Role] else Role.EXPERT.value
         target_role = Role(role_val)
         
         # 检查User表中是否有相同邮箱和角色的账户
@@ -590,138 +590,76 @@ async def register(req: Request, request: RegisterRequest, db: AsyncSession = De
         
         if existing_email_role_user:
             role_name_map = {
-                Role.GUEST: "访客",
                 Role.EXPERT: "专家",
-                Role.ADMIN: "管理员"
+                Role.ADMIN: "管理员",
             }
             role_name = role_name_map.get(target_role, target_role.value)
             raise HTTPException(
-                status_code=400, 
-                detail=f"该邮箱已注册{role_name}账户，每个邮箱只能注册访客、专家、管理员各一个账户。如需使用该角色，请直接登录；如需注册其他角色，请使用不同的邮箱或选择其他角色。"
+                status_code=400,
+                detail=f"该邮箱已注册{role_name}账户，每个邮箱在系统中只能拥有一种角色。如需使用该角色，请直接登录；如需注册其他角色，请使用不同的邮箱。"
             )
         
         if existing_email_role_pending:
             role_name_map = {
-                Role.GUEST: "访客",
                 Role.EXPERT: "专家",
-                Role.ADMIN: "管理员"
+                Role.ADMIN: "管理员",
             }
             role_name = role_name_map.get(target_role, target_role.value)
             raise HTTPException(
-                status_code=400, 
-                detail=f"该邮箱已有{role_name}角色的待审核申请，请等待审核完成后再试。如需注册其他角色，请选择其他角色类型。"
+                status_code=400,
+                detail=f"该邮箱已有{role_name}角色的待审核申请，请等待审核完成后再试。"
             )
 
-        # If role is guest, create user immediately; otherwise create a pending application
-        if role_val == Role.GUEST.value:
-            user = User(
-                username=request.username,
-                email=request.email,
-                password_hash=hash_password(request.password),
-                role=Role.GUEST,
-                avatar_url=request.avatar_url,
-                is_approved=True,
-            )
-            db.add(user)
-            try:
-                await db.commit()
-                await db.refresh(user)
-            except IntegrityError as e:
-                await db.rollback()
-                error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
-                if 'username' in error_str.lower() or 'users.username' in error_str:
-                    raise HTTPException(status_code=400, detail="用户名已被使用，请选择其他用户名")
-                elif 'uq_user_email_role' in error_str or ('email' in error_str.lower() and 'role' in error_str.lower()):
-                    role_name_map = {
-                        Role.GUEST: "访客",
-                        Role.EXPERT: "专家",
-                        Role.ADMIN: "管理员"
-                    }
-                    role_name = role_name_map.get(target_role, target_role.value)
-                    raise HTTPException(
-                        status_code=400, 
-                        detail=f"该邮箱已注册{role_name}账户，每个邮箱只能注册访客、专家、管理员各一个账户。如需使用该角色，请直接登录；如需注册其他角色，请选择其他角色类型。"
-                    )
-                else:
-                    raise HTTPException(status_code=400, detail=f"注册失败: 数据冲突")
-            # 记录系统日志
+        # 所有注册均走“申请 + 管理员审批”流程
+        pending = PendingUser(
+            username=request.username,
+            email=request.email,
+            password_hash=hash_password(request.password),
+            role=Role(role_val),
+            avatar_url=request.avatar_url,
+        )
+        db.add(pending)
+        try:
+            await db.commit()
+            await db.refresh(pending)
+            # 记录系统日志（待审核申请）
             await create_system_log(
                 db=db,
                 operation_type=OperationLog.USER_CREATE.value,
-                user_id=user.id,
-                username=user.username,
+                user_id=None,
+                username=request.username,
                 resource_type="user",
-                resource_id=user.id,
-                description=f"用户注册成功：{user.username} ({user.email})，角色：{user.role.value}",
+                description=f"用户提交注册申请：{request.username} ({request.email})，角色：{role_val}，待管理员审核",
                 status="success",
                 ip_address=get_client_ip(req),
                 user_agent=get_user_agent(req),
             )
-            return RegisterResponse(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                role=user.role.value if hasattr(user.role, 'value') else str(user.role),
-                avatar_url=user.avatar_url,
-                is_active=user.is_active,
-                is_approved=user.is_approved,
-                created_at=user.created_at,
-            )
-        else:
-            # create a pending application instead of a user
-            # 注意：已在上方检查过相同邮箱和角色的待审核申请，这里不再需要检查
-            # PendingUser已在上面导入
-            
-            pending = PendingUser(
-                username=request.username,
-                email=request.email,
-                password_hash=hash_password(request.password),
-                role=Role(role_val),
-                avatar_url=request.avatar_url,
-            )
-            db.add(pending)
-            try:
-                await db.commit()
-                await db.refresh(pending)
-                # 记录系统日志（待审核申请）
-                await create_system_log(
-                    db=db,
-                    operation_type=OperationLog.USER_CREATE.value,
-                    user_id=None,
-                    username=request.username,
-                    resource_type="user",
-                    description=f"用户提交注册申请：{request.username} ({request.email})，角色：{role_val}，待管理员审核",
-                    status="success",
-                    ip_address=get_client_ip(req),
-                    user_agent=get_user_agent(req),
+        except IntegrityError as e:
+            await db.rollback()
+            error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+            if 'username' in error_str.lower() or 'pending_users.username' in error_str:
+                raise HTTPException(status_code=400, detail="用户名已被使用，请选择其他用户名")
+            elif 'uq_pending_user_email_role' in error_str or ('email' in error_str.lower() and 'role' in error_str.lower()):
+                role_name_map = {
+                    Role.EXPERT: "专家",
+                    Role.ADMIN: "管理员",
+                }
+                role_name = role_name_map.get(target_role, target_role.value)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"该邮箱已有{role_name}角色的待审核申请，请等待审核完成后再试。"
                 )
-            except IntegrityError as e:
-                await db.rollback()
-                error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
-                if 'username' in error_str.lower() or 'pending_users.username' in error_str:
-                    raise HTTPException(status_code=400, detail="用户名已被使用，请选择其他用户名")
-                elif 'uq_pending_user_email_role' in error_str or ('email' in error_str.lower() and 'role' in error_str.lower()):
-                    role_name_map = {
-                        Role.GUEST: "访客",
-                        Role.EXPERT: "专家",
-                        Role.ADMIN: "管理员"
-                    }
-                    role_name = role_name_map.get(target_role, target_role.value)
-                    raise HTTPException(
-                        status_code=400, 
-                        detail=f"该邮箱已有{role_name}角色的待审核申请，请等待审核完成后再试。如需注册其他角色，请选择其他角色类型。"
-                    )
-                else:
-                    raise HTTPException(status_code=400, detail=f"申请提交失败: 数据冲突")
-            return RegisterResponse(
-                id=pending.id,
-                username=pending.username,
-                email=pending.email,
-                role=pending.role.value if hasattr(pending.role, 'value') else str(pending.role),
-                avatar_url=pending.avatar_url,
-                message="application_submitted",
-                created_at=pending.created_at,
-            )
+            else:
+                raise HTTPException(status_code=400, detail=f"申请提交失败: 数据冲突")
+        return RegisterResponse(
+            id=pending.id,
+            username=pending.username,
+            email=pending.email,
+            role=pending.role.value if hasattr(pending.role, 'value') else str(pending.role),
+            avatar_url=pending.avatar_url,
+            message="application_submitted",
+            created_at=pending.created_at,
+        )
     except HTTPException:
         # Re-raise HTTP exceptions as-is
         raise

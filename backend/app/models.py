@@ -32,7 +32,6 @@ class Algorithm(str, enum.Enum):
 
 
 class Role(str, enum.Enum):
-    GUEST = "guest"
     EXPERT = "expert"
     ADMIN = "admin"
 
@@ -47,7 +46,8 @@ class User(Base):
     username = Column(String(100, collation='utf8mb4_bin'), unique=True, index=True, nullable=False)
     email = Column(String(255), index=True, nullable=False)  # 移除unique=True，改为联合唯一约束
     password_hash = Column(String(255), nullable=False)
-    role = Column(SQLEnum(Role), default=Role.GUEST, nullable=False)
+    # 默认角色调整为 EXPERT，系统仅保留“管理员 / 专家”两种身份
+    role = Column(SQLEnum(Role), default=Role.EXPERT, nullable=False)
     avatar_url = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     is_approved = Column(Boolean, default=False, nullable=False)

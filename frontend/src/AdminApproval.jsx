@@ -19,6 +19,9 @@ import {
   TrendingUp,
   FileAudio,
   Filter,
+  Award,
+  Bell,
+  BarChart3,
 } from "lucide-react";
 import SystemManagement from "./SystemManagement";
 import { useToast } from "./Toast";
@@ -29,7 +32,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   const location = useLocation();
   const navigate = useNavigate();
   const { showSuccess, showError, showConfirm } = useToast();
-  const [activeTab, setActiveTab] = useState(defaultTab); // 'users', 'audio', or 'system'
+  const [activeTab, setActiveTab] = useState(defaultTab); // 'users', 'audio', 'scores', or 'system'
   const [users, setUsers] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [audioResources, setAudioResources] = useState([]);
@@ -85,6 +88,17 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [selectedAudio, setSelectedAudio] = useState([]);
 
+  // 评分管理相关状态
+  const [scores, setScores] = useState([]);
+  const [loadingScores, setLoadingScores] = useState(false);
+  const [scoreFilters, setScoreFilters] = useState({
+    user_id: "",
+    task_id: "",
+    algorithm: "",
+    stem_name: "",
+  });
+  const [editingScore, setEditingScore] = useState(null);
+
   // Keep state in sync if parent changes defaultTab (e.g. via URL).
   useEffect(() => {
     if (defaultTab && activeTab !== defaultTab) setActiveTab(defaultTab);
@@ -99,9 +113,11 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     const tabFromPath =
       pathname.startsWith("/admin/audio")
         ? "audio"
-        : pathname.startsWith("/admin/system")
-          ? "system"
-          : "users";
+        : pathname.startsWith("/admin/scores")
+          ? "scores"
+          : pathname.startsWith("/admin/system")
+            ? "system"
+            : "users";
 
     if (activeTab !== tabFromPath) setActiveTab(tabFromPath);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,9 +131,11 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     const target =
       activeTab === "audio"
         ? "/admin/audio"
-        : activeTab === "system"
-          ? "/admin/system"
-          : "/admin/users";
+        : activeTab === "scores"
+          ? "/admin/scores"
+          : activeTab === "system"
+            ? "/admin/system"
+            : "/admin/users";
 
     if (activeTab === "system" && pathname.startsWith("/admin/system/")) return;
     if (pathname !== target) navigate(target, { replace: false });
@@ -417,6 +435,53 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     }
   };
 
+  const fetchScores = async () => {
+    setLoadingScores(true);
+    try {
+      const params = new URLSearchParams();
+      // 简单筛选：专家ID / 任务ID / 算法 / 声部名称
+      if (scoreFilters.user_id) params.append("user_id", scoreFilters.user_id.trim());
+      if (scoreFilters.task_id) params.append("task_id", scoreFilters.task_id.trim());
+      if (scoreFilters.algorithm) params.append("algorithm", scoreFilters.algorithm.trim());
+      if (scoreFilters.stem_name) params.append("stem_name", scoreFilters.stem_name.trim());
+      // 默认一次拉取最多 200 条，避免数据过多
+      params.append("skip", "0");
+      params.append("limit", "200");
+
+      const resp = await fetch(`${API_BASE}/api/scores?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) {
+        let errBody;
+        try {
+          errBody = await resp.json();
+        } catch (e) {
+          errBody = await resp.text();
+        }
+        console.error("获取评分列表失败，返回体:", errBody);
+        let message;
+        if (errBody && errBody.detail) {
+          if (Array.isArray(errBody.detail)) {
+            message = errBody.detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+          } else if (typeof errBody.detail === "string") {
+            message = errBody.detail;
+          } else {
+            message = JSON.stringify(errBody.detail);
+          }
+        } else {
+          message = JSON.stringify(errBody) || "获取评分列表失败";
+        }
+        throw new Error(message);
+      }
+      const data = await resp.json();
+      setScores(data || []);
+    } catch (err) {
+      showError(formatErrorMessage(err));
+    } finally {
+      setLoadingScores(false);
+    }
+  };
+
   const handleUpdateUser = async (userId, updates) => {
     try {
       const resp = await fetch(`${API_BASE}/api/admin/users/${userId}`, {
@@ -595,6 +660,47 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     });
   };
 
+  const handleUpdateScore = async (scoreId, updates) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/scores/${scoreId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      });
+      if (!resp.ok) {
+        const error = await resp.json().catch(() => ({}));
+        throw new Error(error.detail || "更新评分失败");
+      }
+      showSuccess("评分记录已更新");
+      setEditingScore(null);
+      fetchScores();
+    } catch (err) {
+      showError(err.message || "更新评分失败");
+    }
+  };
+
+  const handleDeleteScore = async (scoreId) => {
+    showConfirm("确定要删除此评分记录吗？此操作不可恢复。", async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/scores/${scoreId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!resp.ok) {
+          const error = await resp.json().catch(() => ({}));
+          throw new Error(error.detail || "删除评分失败");
+        }
+        showSuccess("评分记录已删除");
+        fetchScores();
+      } catch (err) {
+        showError(err.message || "删除评分失败");
+      }
+    });
+  };
+
   const handleBatchDeleteAudio = async () => {
     if (selectedAudio.length === 0) {
       showError("请至少选择一个音频资源");
@@ -683,6 +789,8 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       fetchAudioStats();
       fetchAudioTags();
       fetchAudioFormats();
+    } else if (activeTab === "scores") {
+      fetchScores();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, userFilters, audioFilters]);
@@ -700,6 +808,12 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const handleSystemNavClick = (targetPath) => {
+    // 为系统相关页面分配独立 URL，例如 /admin/system/logs 等
+    const path = targetPath || "/admin/system/logs";
+    navigate(path);
+  };
+
   const content = (
     <div className={`${embedded ? '' : 'bg-slate-900 rounded-xl border border-slate-700'} w-full ${embedded ? '' : 'max-w-7xl max-h-[90vh]'} overflow-hidden flex flex-col`}>
       {/* Header */}
@@ -707,7 +821,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
         <div className="flex items-center justify-between p-6 border-b border-slate-700">
           <div>
             <h2 className="text-2xl font-bold text-white">管理员后台</h2>
-            <p className="text-sm text-slate-400 mt-1">用户管理与音频资源管理</p>
+            <p className="text-sm text-slate-400 mt-1">用户管理 / 音频资源管理 / 评分管理 / 系统管理</p>
           </div>
           <button
             onClick={onClose}
@@ -718,7 +832,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
         </div>
       )}
 
-      {/* Tabs */}
+      {/* 顶部主导航 Tabs（为保持风格统一，这里展示所有一级入口） */}
       <div className="flex border-b border-slate-700">
         <button
           onClick={() => navigate("/admin/users")}
@@ -743,15 +857,48 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           音频资源管理
         </button>
         <button
-          onClick={() => navigate("/admin/system")}
+          onClick={() => navigate("/admin/scores")}
           className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
-            activeTab === "system"
+            activeTab === "scores"
+              ? "text-cyan-400 border-b-2 border-cyan-400"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Award size={18} />
+          评分管理
+        </button>
+        <button
+          onClick={() => handleSystemNavClick("/admin/system/settings")}
+          className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
+            (location.pathname || "").startsWith("/admin/system/settings")
               ? "text-cyan-400 border-b-2 border-cyan-400"
               : "text-slate-400 hover:text-white"
           }`}
         >
           <Settings size={18} />
-          系统管理
+          系统设置
+        </button>
+        <button
+          onClick={() => handleSystemNavClick("/admin/system/notifications")}
+          className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
+            (location.pathname || "").startsWith("/admin/system/notifications")
+              ? "text-cyan-400 border-b-2 border-cyan-400"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Bell size={18} />
+          通知中心
+        </button>
+        <button
+          onClick={() => handleSystemNavClick("/admin/system/analytics")}
+          className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
+            (location.pathname || "").startsWith("/admin/system/analytics")
+              ? "text-cyan-400 border-b-2 border-cyan-400"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <BarChart3 size={18} />
+          数据统计
         </button>
       </div>
 
@@ -867,7 +1014,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
                     >
                       <option value="">全部</option>
-                      <option value="guest">访客</option>
                       <option value="expert">专家</option>
                       <option value="admin">管理员</option>
                     </select>
@@ -965,12 +1111,10 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                                 className={`px-2 py-1 text-xs rounded ${
                                   user.role === "admin"
                                     ? "bg-red-500/20 text-red-300"
-                                    : user.role === "expert"
-                                    ? "bg-purple-500/20 text-purple-300"
-                                    : "bg-gray-500/20 text-gray-300"
+                                    : "bg-purple-500/20 text-purple-300"
                                 }`}
                               >
-                                {user.role === "admin" ? "管理员" : user.role === "expert" ? "专家" : "访客"}
+                                {user.role === "admin" ? "管理员" : "专家"}
                               </span>
                             </td>
                             <td className="px-4 py-3">
@@ -1530,6 +1674,182 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                 </div>
               )}
             </div>
+          ) : activeTab === "scores" ? (
+            <div className="space-y-6">
+              {/* 评分筛选器 */}
+              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Award size={20} className="text-cyan-400" />
+                  评分管理
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">专家用户ID</label>
+                    <input
+                      type="text"
+                      value={scoreFilters.user_id}
+                      onChange={(e) =>
+                        setScoreFilters((prev) => ({
+                          ...prev,
+                          user_id: e.target.value,
+                        }))
+                      }
+                      placeholder="精确匹配 user_id"
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">任务ID</label>
+                    <input
+                      type="text"
+                      value={scoreFilters.task_id}
+                      onChange={(e) =>
+                        setScoreFilters((prev) => ({
+                          ...prev,
+                          task_id: e.target.value,
+                        }))
+                      }
+                      placeholder="task_id"
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">算法</label>
+                    <input
+                      type="text"
+                      value={scoreFilters.algorithm}
+                      onChange={(e) =>
+                        setScoreFilters((prev) => ({
+                          ...prev,
+                          algorithm: e.target.value,
+                        }))
+                      }
+                      placeholder="例如：MDX23C"
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">声部名称 (stem)</label>
+                    <input
+                      type="text"
+                      value={scoreFilters.stem_name}
+                      onChange={(e) =>
+                        setScoreFilters((prev) => ({
+                          ...prev,
+                          stem_name: e.target.value,
+                        }))
+                      }
+                      placeholder="例如：Vocals / Drums"
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => {
+                      setScoreFilters({
+                        user_id: "",
+                        task_id: "",
+                        algorithm: "",
+                        stem_name: "",
+                      });
+                    }}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm"
+                  >
+                    重置筛选
+                  </button>
+                  <button
+                    onClick={fetchScores}
+                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm flex items-center gap-2"
+                  >
+                    <Search size={16} />
+                    查询
+                  </button>
+                </div>
+              </div>
+
+              {/* 评分列表 */}
+              <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-900">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">专家ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">任务ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">算法</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">声部</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">质量</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">干扰</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">伪影</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">创建时间</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-slate-400">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                      {loadingScores ? (
+                        <tr>
+                          <td colSpan="10" className="px-4 py-8 text-center text-slate-400">
+                            加载中...
+                          </td>
+                        </tr>
+                      ) : scores.length === 0 ? (
+                        <tr>
+                          <td colSpan="10" className="px-4 py-8 text-center text-slate-400">
+                            暂无评分记录
+                          </td>
+                        </tr>
+                      ) : (
+                        scores.map((score, index) => (
+                          <tr
+                            key={`score-${String(score.id)}-${index}`}
+                            className="hover:bg-slate-700/50"
+                          >
+                            <td className="px-4 py-3 text-sm text-slate-300">{score.id}</td>
+                            <td className="px-4 py-3 text-sm text-slate-300">{score.user_id}</td>
+                            <td className="px-4 py-3 text-sm text-slate-300">{score.task_id}</td>
+                            <td className="px-4 py-3 text-sm text-slate-300">{score.algorithm}</td>
+                            <td className="px-4 py-3 text-sm text-slate-300">
+                              {score.stem_name || "-"}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-300">{score.quality}</td>
+                            <td className="px-4 py-3 text-sm text-slate-300">
+                              {score.interference}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-300">
+                              {score.artifacts}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-400">
+                              {score.created_at
+                                ? new Date(score.created_at).toLocaleString()
+                                : "-"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => setEditingScore(score)}
+                                  className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400 transition"
+                                  title="编辑评分"
+                                >
+                                  <Edit size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteScore(score.id)}
+                                  className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition"
+                                  title="删除评分"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           ) : activeTab === "system" ? (
             <SystemManagement token={token} />
           ) : null}
@@ -1583,7 +1903,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
                 >
-                  <option value="guest">访客</option>
                   <option value="expert">专家</option>
                   <option value="admin">管理员</option>
                 </select>

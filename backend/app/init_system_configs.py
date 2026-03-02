@@ -292,8 +292,9 @@ DEFAULT_CONFIGS = [
     },
     {
         "key": "user.default_role",
-        "value": "guest",
-        "description": "新用户默认角色：guest, expert, admin",
+        # 系统仅保留 expert / admin 两种身份，默认专家
+        "value": "expert",
+        "description": "新用户默认角色：expert, admin",
         "category": "user"
     },
     {

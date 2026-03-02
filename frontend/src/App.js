@@ -83,9 +83,9 @@ const AuthPanel = ({ user, onLogout }) => {
   const getRoleBadge = (role) => {
     const badges = {
       expert: { color: "bg-purple-500/20 text-purple-300", label: "专家" },
-      guest: { color: "bg-gray-500/20 text-gray-300", label: "访客" },
+      admin: { color: "bg-red-500/20 text-red-300", label: "管理员" },
     };
-    return badges[role] || badges.guest;
+    return badges[role] || badges.expert;
   };
 
   const badge = getRoleBadge(user.role);

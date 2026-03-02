@@ -13,7 +13,8 @@ export default function AuthPage({ onLoginSuccess }) {
     password: "",
     username: "",
     code: "",
-    role: "guest",
+    // 仅支持专家 / 管理员两种身份，默认专家
+    role: "expert",
     avatar_url: "",
   });
   const [avatar, setAvatar] = useState(null);
@@ -155,7 +156,7 @@ export default function AuthPage({ onLoginSuccess }) {
         showSuccess("申请已提交，请等待管理员审批！");
         setTimeout(() => {
           setMode("login");
-          setFormData({ email: "", password: "", username: "", code: "", role: "guest", avatar_url: "" });
+          setFormData({ email: "", password: "", username: "", code: "", role: "expert", avatar_url: "" });
           setCodeSent(false);
         }, 2000);
       } else {
@@ -329,15 +330,12 @@ export default function AuthPage({ onLoginSuccess }) {
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 text-white"
                 >
-                  <option value="guest">访客（无需审批）</option>
                   <option value="expert">专家（需管理员审批）</option>
                   <option value="admin">管理员（需管理员审批）</option>
                 </select>
-                {formData.role !== "guest" && (
-                  <p className="text-xs text-yellow-400 mt-1">
-                    注意：专家和管理员账号需要等待管理员审批后才能登录
-                  </p>
-                )}
+                <p className="text-xs text-yellow-400 mt-1">
+                  注意：所有账号需要等待管理员审批通过后才能登录
+                </p>
               </div>
 
               {/* Avatar Upload */}

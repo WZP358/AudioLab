@@ -49,7 +49,8 @@ CONFIG_OPTIONS = {
     "api.enable_cors": ["true", "false"],
     "user.require_email_verification": ["true", "false"],
     "user.require_admin_approval": ["true", "false"],
-    "user.default_role": ["guest", "expert", "admin"],
+    # 系统仅保留 expert / admin 两种身份
+    "user.default_role": ["expert", "admin"],
     "log.level": ["DEBUG", "INFO", "WARNING", "ERROR"],
     # 分离任务运行模式：CPU / GPU
     "separation_compute_mode": ["cpu", "gpu"],
@@ -232,7 +233,8 @@ def validate_target_type(target_type: str, target_id: Optional[int] = None) -> N
     Raises:
         HTTPException: 目标类型无效时抛出
     """
-    valid_types = ["all", "guest", "expert", "specific"]
+    # 仅支持按全部 / 专家 / 指定用户推送
+    valid_types = ["all", "expert", "specific"]
     if target_type not in valid_types:
         raise HTTPException(
             status_code=400,
@@ -839,12 +841,11 @@ async def get_notifications(
     db: AsyncSession = Depends(get_db),
 ):
     """获取通知列表（管理员端，可以看到所有通知）"""
-    # 管理员可见的通知范围：all / admin / 针对自己的 specific / 角色对应通知
+    # 管理员可见的通知范围：all / admin / expert / 针对自己的 specific
     visibility_conditions = [
         or_(
             Notification.target_type == "all",
             Notification.target_type == "admin",
-            Notification.target_type == "guest",
             Notification.target_type == "expert",
             and_(
                 Notification.target_type == "specific",
@@ -938,7 +939,7 @@ async def create_notification(
     title: str = Body(..., description="通知标题"),
     content: str = Body(..., description="通知内容"),
     type: str = Body("info", description="通知类型：info, warning, error, success"),
-    target_type: str = Body("all", description="目标类型：all, guest, expert, specific"),
+    target_type: str = Body("all", description="目标类型：all, expert, specific"),
     target_id: Optional[int] = Body(None, description="目标用户ID（当target_type为specific时必填）"),
     expires_at: Optional[str] = Body(None, description="过期时间"),
     current_user: User = Depends(get_current_admin),
@@ -1056,7 +1057,7 @@ async def mark_notification_read(
         # 规则：
         # - 所有用户都可以标记 target_type == "all" 的通知
         # - 管理员可以标记 target_type == "admin" 的通知
-        # - 普通用户可以标记与自己角色匹配的通知（guest / expert）
+        # - 普通用户可以标记与自己角色匹配的通知（expert）
         # - 所有用户可以标记针对自己的 specific 通知
         can_read = False
 
@@ -1066,8 +1067,6 @@ async def mark_notification_read(
         if target_type == "all":
             can_read = True
         elif target_type == "admin" and user_role == "admin":
-            can_read = True
-        elif target_type == "guest" and user_role == "guest":
             can_read = True
         elif target_type == "expert" and user_role == "expert":
             can_read = True
@@ -1118,9 +1117,7 @@ async def mark_notification_read(
                 Notification.target_id == current_user.id,
             ),
         ]
-        if user_role == "guest":
-            target_conditions.append(Notification.target_type == "guest")
-        elif user_role == "expert":
+        if user_role == "expert":
             target_conditions.append(Notification.target_type == "expert")
         elif user_role == "admin":
             target_conditions.append(Notification.target_type == "admin")
@@ -1274,9 +1271,7 @@ async def get_unread_count(
     # 如果是管理员，也可以看到 admin 类型的通知
     if user_role == "admin":
         target_conditions.append(Notification.target_type == "admin")
-    # guest / expert 角色可以看到各自角色的通知
-    elif user_role == "guest":
-        target_conditions.append(Notification.target_type == "guest")
+    # expert 角色可以看到专家通知
     elif user_role == "expert":
         target_conditions.append(Notification.target_type == "expert")
 
@@ -1573,9 +1568,7 @@ async def get_user_notifications(
 
     # 根据用户角色添加对应的通知类型
     user_role = getattr(current_user.role, "value", str(current_user.role))
-    if user_role == "guest":
-        target_conditions.append(Notification.target_type == "guest")
-    elif user_role == "expert":
+    if user_role == "expert":
         target_conditions.append(Notification.target_type == "expert")
     elif user_role == "admin":
         target_conditions.append(Notification.target_type == "admin")
