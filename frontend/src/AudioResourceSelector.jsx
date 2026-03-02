@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Music, Search, Filter, X, Check } from "lucide-react";
+import { Music, Search, Filter, X, Check, Grid, List } from "lucide-react";
 import { useToast } from "./Toast";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
@@ -16,6 +16,7 @@ export default function AudioResourceSelector({
   const [resources, setResources] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState("grid"); // "grid" or "list"
   const [filters, setFilters] = useState({
     category: "",
     search: "",
@@ -275,12 +276,21 @@ export default function AudioResourceSelector({
             <Music size={24} className="text-cyan-400" />
             <h3 className="text-xl font-bold text-white">{title}</h3>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 transition"
+              title={viewMode === "grid" ? "列表视图" : "卡片视图"}
+            >
+              {viewMode === "grid" ? <List size={18} /> : <Grid size={18} />}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
 
@@ -368,85 +378,144 @@ export default function AudioResourceSelector({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {bundleResources.map((resource) => {
-                          const isSelected = selectedResource === resource.id;
-                          let roleLabel = "";
-                          if (resource._role === "mixture") roleLabel = "Mixture";
-                          else if (resource._role === "gold_vocals") roleLabel = "Gold Vocals";
-                          else if (resource._role === "gold_drums") roleLabel = "Gold Drums";
-                          else if (resource._role === "gold_bass") roleLabel = "Gold Bass";
-                          else if (resource._role === "gold_other") roleLabel = "Gold Other";
+                      {viewMode === "grid" ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {bundleResources.map((resource) => {
+                            const isSelected = selectedResource === resource.id;
+                            let roleLabel = "";
+                            if (resource._role === "mixture") roleLabel = "Mixture";
+                            else if (resource._role === "gold_vocals") roleLabel = "Gold Vocals";
+                            else if (resource._role === "gold_drums") roleLabel = "Gold Drums";
+                            else if (resource._role === "gold_bass") roleLabel = "Gold Bass";
+                            else if (resource._role === "gold_other") roleLabel = "Gold Other";
 
-                          return (
-                            <div
-                              key={resource.id}
-                              onClick={() => setSelectedResource(resource.id)}
-                              className={`rounded-lg p-4 border transition cursor-pointer group ${
-                                isSelected
-                                  ? "border-cyan-500 bg-slate-800/80"
-                                  : "border-slate-700 hover:border-cyan-500/50 bg-slate-900/40"
-                              }`}
-                            >
-                              <div className="flex items-start justify-between mb-3">
+                            return (
+                              <div
+                                key={resource.id}
+                                onClick={() => setSelectedResource(resource.id)}
+                                className={`rounded-lg p-4 border transition cursor-pointer group ${
+                                  isSelected
+                                    ? "border-cyan-500 bg-slate-800/80"
+                                    : "border-slate-700 hover:border-cyan-500/50 bg-slate-900/40"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h4
+                                        className={`text-sm font-semibold truncate transition ${
+                                          isSelected
+                                            ? "text-cyan-400"
+                                            : "text-white group-hover:text-cyan-400"
+                                        }`}
+                                      >
+                                        {resource.title}
+                                      </h4>
+                                      {isSelected && <Check size={16} className="text-cyan-400" />}
+                                    </div>
+                                    {resource.description && (
+                                      <p className="text-xs text-slate-400 line-clamp-2">
+                                        {resource.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {roleLabel && (
+                                    <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] bg-slate-700 text-slate-200">
+                                      {roleLabel}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="space-y-1.5 mb-2">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-slate-500">格式</span>
+                                    <span className="text-slate-200 font-medium">
+                                      {resource.file_format || "未知"}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-slate-500">大小</span>
+                                    <span className="text-slate-200 font-medium">
+                                      {formatFileSize(resource.file_size)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-slate-500">时长</span>
+                                    <span className="text-slate-200 font-medium">
+                                      {formatDuration(resource.duration)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {resource.category && (
+                                  <div className="mt-1">
+                                    <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded text-[10px]">
+                                      {resource.category}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {bundleResources.map((resource) => {
+                            const isSelected = selectedResource === resource.id;
+                            let roleLabel = "";
+                            if (resource._role === "mixture") roleLabel = "Mixture";
+                            else if (resource._role === "gold_vocals") roleLabel = "Gold Vocals";
+                            else if (resource._role === "gold_drums") roleLabel = "Gold Drums";
+                            else if (resource._role === "gold_bass") roleLabel = "Gold Bass";
+                            else if (resource._role === "gold_other") roleLabel = "Gold Other";
+
+                            return (
+                              <div
+                                key={resource.id}
+                                onClick={() => setSelectedResource(resource.id)}
+                                className={`rounded-lg p-4 border transition cursor-pointer flex items-center gap-4 ${
+                                  isSelected
+                                    ? "border-cyan-500 bg-slate-800/80"
+                                    : "border-slate-700 hover:border-cyan-500/50 bg-slate-900/40"
+                                }`}
+                              >
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1">
                                     <h4
                                       className={`text-sm font-semibold truncate transition ${
-                                        isSelected
-                                          ? "text-cyan-400"
-                                          : "text-white group-hover:text-cyan-400"
+                                        isSelected ? "text-cyan-400" : "text-white"
                                       }`}
                                     >
                                       {resource.title}
                                     </h4>
                                     {isSelected && <Check size={16} className="text-cyan-400" />}
+                                    {roleLabel && (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-700 text-slate-200">
+                                        {roleLabel}
+                                      </span>
+                                    )}
                                   </div>
                                   {resource.description && (
-                                    <p className="text-xs text-slate-400 line-clamp-2">
+                                    <p className="text-xs text-slate-400 line-clamp-1">
                                       {resource.description}
                                     </p>
                                   )}
-                                </div>
-                                {roleLabel && (
-                                  <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] bg-slate-700 text-slate-200">
-                                    {roleLabel}
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="space-y-1.5 mb-2">
-                                <div className="flex items-center justify-between text-[11px]">
-                                  <span className="text-slate-500">格式</span>
-                                  <span className="text-slate-200 font-medium">
-                                    {resource.file_format || "未知"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between text-[11px]">
-                                  <span className="text-slate-500">大小</span>
-                                  <span className="text-slate-200 font-medium">
-                                    {formatFileSize(resource.file_size)}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between text-[11px]">
-                                  <span className="text-slate-500">时长</span>
-                                  <span className="text-slate-200 font-medium">
-                                    {formatDuration(resource.duration)}
-                                  </span>
+                                  <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-slate-400">
+                                    <span>{resource.file_format || "未知"}</span>
+                                    <span>{formatFileSize(resource.file_size)}</span>
+                                    <span>{formatDuration(resource.duration)}</span>
+                                    {resource.category && (
+                                      <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded text-[10px]">
+                                        {resource.category}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-
-                              {resource.category && (
-                                <div className="mt-1">
-                                  <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded text-[10px]">
-                                    {resource.category}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

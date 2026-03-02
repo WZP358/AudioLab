@@ -23,6 +23,8 @@ import {
   Bell,
   BarChart3,
   MessageCircle,
+  Grid,
+  List,
 } from "lucide-react";
 import SystemManagement from "./SystemManagement";
 import { useToast } from "./Toast";
@@ -74,6 +76,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [audioTotal, setAudioTotal] = useState(0);
+  const [audioViewMode, setAudioViewMode] = useState("grid"); // "grid" or "list"
   const [audioTags, setAudioTags] = useState([]);
   const [audioFormats, setAudioFormats] = useState([]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -1610,46 +1613,55 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                 </button>
               </div>
 
-              {/* 快捷筛选标签 */}
+              {/* 快捷筛选标签 + 视图切换 */}
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-slate-400 font-medium">快捷筛选：</span>
-                  <button
-                    onClick={() => applyQuickFilter("hot")}
-                    className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
-                  >
-                    <TrendingUp size={12} />
-                    热门
-                  </button>
-                  <button
-                    onClick={() => applyQuickFilter("latest")}
-                    className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
-                  >
-                    <Clock size={12} />
-                    最新
-                  </button>
-                  <button
-                    onClick={() => applyQuickFilter("long")}
-                    className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
-                  >
-                    <FileAudio size={12} />
-                    长音频
-                  </button>
-                  <button
-                    onClick={() => applyQuickFilter("short")}
-                    className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
-                  >
-                    <FileAudio size={12} />
-                    短音频
-                  </button>
-                  {(audioFilters.min_duration || audioFilters.max_duration) && (
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-slate-400 font-medium">快捷筛选：</span>
                     <button
-                      onClick={clearQuickFilter}
-                      className="px-2.5 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded-md transition text-xs font-medium"
+                      onClick={() => applyQuickFilter("hot")}
+                      className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
                     >
-                      清除筛选
+                      <TrendingUp size={12} />
+                      热门
                     </button>
-                  )}
+                    <button
+                      onClick={() => applyQuickFilter("latest")}
+                      className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
+                    >
+                      <Clock size={12} />
+                      最新
+                    </button>
+                    <button
+                      onClick={() => applyQuickFilter("long")}
+                      className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
+                    >
+                      <FileAudio size={12} />
+                      长音频
+                    </button>
+                    <button
+                      onClick={() => applyQuickFilter("short")}
+                      className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
+                    >
+                      <FileAudio size={12} />
+                      短音频
+                    </button>
+                    {(audioFilters.min_duration || audioFilters.max_duration) && (
+                      <button
+                        onClick={clearQuickFilter}
+                        className="px-2.5 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded-md transition text-xs font-medium"
+                      >
+                        清除筛选
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setAudioViewMode(audioViewMode === "grid" ? "list" : "grid")}
+                    className="ml-auto p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition"
+                    title={audioViewMode === "grid" ? "列表视图" : "卡片视图"}
+                  >
+                    {audioViewMode === "grid" ? <List size={18} /> : <Grid size={18} />}
+                  </button>
                 </div>
               </div>
 
@@ -1847,14 +1859,17 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               )}
 
               {/* 音频资源列表 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {loading ? (
-                  <div className="col-span-full text-center text-slate-400 py-8">加载中...</div>
-                ) : audioResources.length === 0 ? (
-                  <div className="col-span-full text-center text-slate-400 py-8">暂无音频资源</div>
-                ) : (
-                  audioResources.map((resource, index) => (
-                    <div key={`audio-${resource.id}-${index}`} className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+              {loading ? (
+                <div className="text-center text-slate-400 py-8">加载中...</div>
+              ) : audioResources.length === 0 ? (
+                <div className="text-center text-slate-400 py-8">暂无音频资源</div>
+              ) : audioViewMode === "grid" ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {audioResources.map((resource, index) => (
+                    <div
+                      key={`audio-${resource.id}-${index}`}
+                      className="bg-slate-800 rounded-lg p-4 border border-slate-700"
+                    >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-start gap-2 flex-1">
                           <input
@@ -1889,13 +1904,17 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         </div>
                       </div>
                       {resource.description && (
-                        <p className="text-sm text-slate-400 mb-3 line-clamp-2">{resource.description}</p>
+                        <p className="text-sm text-slate-400 mb-3 line-clamp-2">
+                          {resource.description}
+                        </p>
                       )}
                       {resource.created_by && (
                         <p className="text-xs text-slate-500 mb-2">
                           上传者：
                           <button
-                            onClick={() => setAudioFilters({ ...audioFilters, uploader: resource.created_by, page: 1 })}
+                            onClick={() =>
+                              setAudioFilters({ ...audioFilters, uploader: resource.created_by, page: 1 })
+                            }
                             className="text-cyan-400 hover:text-cyan-300 hover:underline transition ml-1"
                           >
                             {resource.created_by}
@@ -1905,7 +1924,9 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       <div className="space-y-2 text-xs text-slate-400">
                         <div className="flex items-center justify-between">
                           <span>格式:</span>
-                          <span className="text-slate-300">{(resource.file_format || "未知").toUpperCase()}</span>
+                          <span className="text-slate-300">
+                            {(resource.file_format || "未知").toUpperCase()}
+                          </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>大小:</span>
@@ -1925,22 +1946,134 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                               {resource.category}
                             </span>
                           )}
-                          {resource.tags && resource.tags.split(",").slice(0, 3).map((tag, idx) => (
-                            <span key={idx} className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs">
-                              {tag.trim()}
-                            </span>
-                          ))}
+                          {resource.tags &&
+                            resource.tags
+                              .split(",")
+                              .slice(0, 3)
+                              .map((tag, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs"
+                                >
+                                  {tag.trim()}
+                                </span>
+                              ))}
                           {resource.is_public ? (
-                            <span className="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-xs">公开</span>
+                            <span className="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-xs">
+                              公开
+                            </span>
                           ) : (
-                            <span className="px-2 py-1 bg-slate-500/20 text-slate-300 rounded text-xs">私有</span>
+                            <span className="px-2 py-1 bg-slate-500/20 text-slate-300 rounded text-xs">
+                              私有
+                            </span>
                           )}
                         </div>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {audioResources.map((resource, index) => (
+                    <div
+                      key={`audio-list-${resource.id}-${index}`}
+                      className="bg-slate-800 rounded-lg p-4 border border-slate-700 flex items-start gap-4"
+                    >
+                      <div>
+                        <input
+                          type="checkbox"
+                          checked={selectedAudio.includes(resource.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedAudio([...selectedAudio, resource.id]);
+                            } else {
+                              setSelectedAudio(selectedAudio.filter((id) => id !== resource.id));
+                            }
+                          }}
+                          className="mt-1 rounded"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-3 mb-1">
+                          <h4 className="font-bold text-white truncate">{resource.title}</h4>
+                          <div className="flex gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => setEditingAudio(resource)}
+                              className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400 transition"
+                              title="编辑"
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAudio(resource.id)}
+                              className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition"
+                              title="删除"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        {resource.description && (
+                          <p className="text-sm text-slate-400 mb-2 line-clamp-1">
+                            {resource.description}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
+                          <span>格式：{(resource.file_format || "未知").toUpperCase()}</span>
+                          <span>大小：{formatFileSize(resource.file_size)}</span>
+                          <span>时长：{formatDuration(resource.duration)}</span>
+                          <span>下载：{resource.download_count} 次</span>
+                          {resource.created_by && (
+                            <span>
+                              上传者：
+                              <button
+                                onClick={() =>
+                                  setAudioFilters({
+                                    ...audioFilters,
+                                    uploader: resource.created_by,
+                                    page: 1,
+                                  })
+                                }
+                                className="text-cyan-400 hover:text-cyan-300 hover:underline transition ml-1"
+                              >
+                                {resource.created_by}
+                              </button>
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          {resource.category && (
+                            <span className="px-2 py-1 bg-cyan-500/20 text-cyan-300 rounded text-xs">
+                              {resource.category}
+                            </span>
+                          )}
+                          {resource.tags &&
+                            resource.tags
+                              .split(",")
+                              .slice(0, 3)
+                              .map((tag, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs"
+                                >
+                                  {tag.trim()}
+                                </span>
+                              ))}
+                          {resource.is_public ? (
+                            <span className="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-xs">
+                              公开
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 bg-slate-500/20 text-slate-300 rounded text-xs">
+                              私有
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* 分页 */}
               {audioTotal > audioFilters.page_size && (
