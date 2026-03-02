@@ -2923,17 +2923,6 @@ export default function AudioLabApp() {
   );
 
   const handleResourceSelect = async (file, resource) => {
-    // 解析 bundle_id（如果有）
-    const tags = resource?.tags || "";
-    let bundleId = null;
-    if (typeof tags === "string" && tags) {
-      const parts = tags.split(",").map((t) => t.trim());
-      const bundleTag = parts.find((t) => t.startsWith("bundle:"));
-      if (bundleTag) {
-        bundleId = bundleTag.replace("bundle:", "").trim() || null;
-      }
-    }
-
     if (resourceSelectorType === "input") {
       // 设置为 INPUT SOURCE
       setRawFile(file);
@@ -2943,7 +2932,8 @@ export default function AudioLabApp() {
       });
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
-      setCurrentBundleId(bundleId);
+      // 不再依赖 tags 进行 bundle 关联，直接清空当前 bundleId
+      setCurrentBundleId(null);
     } else if (resourceSelectorType === "gold") {
       // 设置为 GOLD STANDARD STEM，并触发后端分析用于可视化
       gtFileRef.current = file;
@@ -4878,12 +4868,12 @@ export default function AudioLabApp() {
                           <span className="font-mono text-emerald-300">
                             Reference
                           </span>
-                          <span className="text-slate-500">
-                            {gtFileRef.current ? "Gold Standard Stem" : "Mixture（输入混合音）"}
-                          </span>
+                      <span className="text-slate-500">
+                        {gtFileRef.current ? "Gold Standard Stem" : "暂无 Gold Standard（尚未选择）"}
+                      </span>
                         </div>
                         <SingleWaveformView
-                          wave={goldWaveEnv || goldWave || gtWaveEnv || gtWave}
+                      wave={goldWaveEnv || goldWave || []}
                           heightPx={waveExpanded ? 200 : 140}
                           autoGain={waveAutoGain}
                           yZoom={waveYZoom}
@@ -4929,7 +4919,7 @@ export default function AudioLabApp() {
                         频谱对比 · Spectrogram / 语谱图
                       </span>
                       <div className="text-[11px] text-slate-500">
-                        参考频谱：优先 Gold Standard Stem，若无则退回 Mixture
+                        参考频谱仅展示 Gold Standard Stem，若暂无则留空不显示。
                       </div>
                     </div>
 
@@ -4940,12 +4930,12 @@ export default function AudioLabApp() {
                             Reference Spectrogram
                           </span>
                           <span className="text-slate-500">
-                            {goldSpectrum ? "Gold Standard Stem" : "Mixture"}
+                            {goldSpectrum ? "Gold Standard Stem" : "暂无 Gold Standard 频谱"}
                           </span>
                         </div>
                         <div className="space-y-2">
                           <SingleSpectrogramView
-                            spectrum={goldSpectrum || gtSpectrum}
+                            spectrum={goldSpectrum || []}
                             heightPx={220}
                             viewRange={viewRange}
                             onViewRangeChange={setViewRange}
@@ -4997,11 +4987,10 @@ export default function AudioLabApp() {
                     <FrequencyAnalysisPlot
                       isActive={!!(results && (
                         (Array.isArray(goldFrequencyResponse) && goldFrequencyResponse.length > 0) ||
-                        (Array.isArray(gtFrequencyResponse) && gtFrequencyResponse.length > 0) ||
                         (Array.isArray(sepFrequencyResponse) && sepFrequencyResponse.length > 0) ||
                         (currentStem?.frequencyResponse && Array.isArray(currentStem.frequencyResponse) && currentStem.frequencyResponse.length > 0)
                       ))}
-                      originalFrequencyResponse={goldFrequencyResponse || gtFrequencyResponse || []}
+                      originalFrequencyResponse={Array.isArray(goldFrequencyResponse) ? goldFrequencyResponse : []}
                       separatedFrequencyResponse={currentStem?.frequencyResponse || sepFrequencyResponse || []}
                       sampleRate={audioMetadata.sampleRate || 44100}
                       nFreqBins={128}

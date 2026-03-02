@@ -158,7 +158,6 @@ class AudioResource(Base):
     duration = Column(Float, nullable=True)  # 音频时长（秒）
     file_format = Column(String(20), nullable=True)  # 文件格式（mp3, wav等）
     category = Column(String(100), nullable=True)  # 分类标签
-    tags = Column(String(500), nullable=True)  # 标签（逗号分隔）
     uploader_id = Column(BigInteger, index=True, nullable=False)  # 上传者ID
     created_by = Column(String(100), nullable=True)  # 上传者显示名称（"官方"或用户名）
     is_public = Column(Boolean, default=True, nullable=False)  # 是否公开

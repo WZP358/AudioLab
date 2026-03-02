@@ -34,25 +34,6 @@ async def get_current_admin(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-def _extract_bundle_id_from_tags(tags: Optional[str]) -> Optional[str]:
-    """
-    从 AudioResource.tags 中解析 bundle_id。
-    约定：上传 Mixture + 4 个 Gold Standard Stem 时，会打上类似 'bundle:{uuid}' 的标签。
-    """
-    if not tags:
-        return None
-    try:
-        parts = [t.strip() for t in str(tags).split(",") if t.strip()]
-    except Exception:
-        return None
-    for part in parts:
-        if part.startswith("bundle:"):
-            bundle = part[len("bundle:") :].strip()
-            if bundle:
-                return bundle
-    return None
-
-
 # ==================== 用户管理 ====================
 
 @router.get("/users", response_model=PaginatedUserListResponse)
@@ -539,9 +520,8 @@ async def upload_audio_resource(
 async def list_audio_resources(
     category: Optional[str] = Query(None, description="按分类筛选"),
     is_public: Optional[bool] = Query(None, description="按公开状态筛选"),
-    search: Optional[str] = Query(None, description="搜索标题、描述或标签（支持多关键词，空格分隔）"),
+    search: Optional[str] = Query(None, description="搜索标题或描述（支持多关键词，空格分隔）"),
     uploader: Optional[str] = Query(None, description="按上传者搜索（用户名或'官方'）"),
-    tags: Optional[str] = Query(None, description="标签筛选（逗号分隔多个标签）"),
     file_format: Optional[str] = Query(None, description="文件格式筛选（mp3, wav, flac等）"),
     min_duration: Optional[float] = Query(None, description="最小时长（秒）"),
     max_duration: Optional[float] = Query(None, description="最大时长（秒）"),
@@ -581,36 +561,19 @@ async def list_audio_resources(
     if max_size is not None:
         conditions.append(AudioResource.file_size <= max_size)
     
-    # 标签筛选（支持多个标签，逗号分隔）
-    if tags:
-        tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
-        if tag_list:
-            tag_conditions = []
-            for tag in tag_list:
-                tag_pattern = f"%{tag}%"
-                tag_conditions.append(AudioResource.tags.like(tag_pattern))
-            if tag_conditions:
-                conditions.append(or_(*tag_conditions))
-    
     # 按上传者搜索
     if uploader:
         uploader_pattern = f"%{uploader}%"
         conditions.append(AudioResource.created_by.like(uploader_pattern))
     
-    # 搜索功能（支持多关键词，空格分隔）
+    # 搜索功能（支持多关键词，空格分隔，仅按标题匹配）
     if search:
         keywords = [kw.strip() for kw in search.split() if kw.strip()]
         if keywords:
             search_conditions = []
             for keyword in keywords:
                 search_pattern = f"%{keyword}%"
-                search_conditions.append(
-                    or_(
-                        AudioResource.title.like(search_pattern),
-                        AudioResource.description.like(search_pattern),
-                        AudioResource.tags.like(search_pattern)  # 支持标签搜索
-                    )
-                )
+                search_conditions.append(AudioResource.title.like(search_pattern))
             if search_conditions:
                 conditions.append(and_(*search_conditions))  # 所有关键词都要匹配
     
@@ -818,61 +781,29 @@ async def delete_audio_resource(
         )
         raise HTTPException(status_code=404, detail="音频资源不存在")
 
-    # 检查是否属于“成组音频”（Mixture + 4 个 Gold Standard Stem）
-    bundle_id = _extract_bundle_id_from_tags(resource.tags)
-
-    # 默认只删除当前这一条；如果识别出 bundle_id，则扩展为整组
-    resources_to_delete = [resource]
-    if bundle_id:
-        bundle_tag_pattern = f"%bundle:{bundle_id}%"
-        bundle_query = select(AudioResource).where(
-            AudioResource.tags.isnot(None),
-            AudioResource.tags.like(bundle_tag_pattern),
-        )
-        bundle_result = await db.execute(bundle_query)
-        bundle_resources = bundle_result.scalars().all()
-
-        # 确保至少包含当前资源；并去重
-        existing_ids = {r.id for r in resources_to_delete}
-        for r in bundle_resources:
-            if r.id not in existing_ids:
-                resources_to_delete.append(r)
-                existing_ids.add(r.id)
-
-    deleted_count = 0
-    file_deleted_count = 0
+    # 仅删除当前这一条资源及对应文件
     deleted_titles: list[str] = []
 
-    # 删除文件 + 数据库记录
-    for res in resources_to_delete:
-        deleted_titles.append(res.title)
-        # 处理静态文件路径（/audio_resources/...）或绝对路径
-        if res.file_path.startswith("/audio_resources/"):
-            relative_path = res.file_path.replace("/audio_resources/", "")
-            file_path = AUDIO_RESOURCE_DIR / relative_path
-        else:
-            file_path = Path(res.file_path)
+    # 处理静态文件路径（/audio_resources/...）或绝对路径
+    deleted_titles.append(resource.title)
+    if resource.file_path.startswith("/audio_resources/"):
+        relative_path = resource.file_path.replace("/audio_resources/", "")
+        file_path = AUDIO_RESOURCE_DIR / relative_path
+    else:
+        file_path = Path(resource.file_path)
 
-        if file_path.exists():
-            try:
-                file_path.unlink()
-                file_deleted_count += 1
-            except Exception as e:
-                # 记录错误但不阻止删除数据库记录
-                print(f"警告: 删除文件失败 {file_path}: {e}")
+    if file_path.exists():
+        try:
+            file_path.unlink()
+        except Exception as e:
+            # 记录错误但不阻止删除数据库记录
+            print(f"警告: 删除文件失败 {file_path}: {e}")
 
-        await db.delete(res)
-        deleted_count += 1
-
+    await db.delete(resource)
     await db.commit()
 
     # 记录系统日志
-    desc = (
-        f"管理员 {current_user.username} 删除成组音频资源（bundle 级联），共 {deleted_count} 条："
-        f"{', '.join(deleted_titles[:5])}{'...' if len(deleted_titles) > 5 else ''}"
-        if bundle_id and deleted_count > 1
-        else f"管理员 {current_user.username} 删除音频资源：{deleted_titles[0] if deleted_titles else resource_id}"
-    )
+    desc = f"管理员 {current_user.username} 删除音频资源：{deleted_titles[0] if deleted_titles else resource_id}"
 
     await create_system_log(
         db=db,

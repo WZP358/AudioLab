@@ -60,7 +60,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     is_public: "",
     search: "",
     uploader: "",
-    tags: [],
     file_format: "",
     min_duration: "",
     max_duration: "",
@@ -90,7 +89,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     title: "",
     description: "",
     category: "",
-    tags: "",
   });
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [selectedAudio, setSelectedAudio] = useState([]);
@@ -337,7 +335,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       }
       if (audioFilters.search) params.append("search", audioFilters.search);
       if (audioFilters.uploader) params.append("uploader", audioFilters.uploader);
-      if (audioFilters.tags.length > 0) params.append("tags", audioFilters.tags.join(","));
       if (audioFilters.file_format) params.append("file_format", audioFilters.file_format);
       if (audioFilters.min_duration) params.append("min_duration", audioFilters.min_duration);
       if (audioFilters.max_duration) params.append("max_duration", audioFilters.max_duration);
@@ -387,19 +384,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       showError(formatErrorMessage(err));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchAudioTags = async () => {
-    try {
-      const resp = await fetch(`${API_BASE}/api/audio/tags`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!resp.ok) return;
-      const data = await resp.json();
-      setAudioTags(data.tags || []);
-    } catch (err) {
-      console.error("获取标签失败:", err);
     }
   };
 
@@ -649,7 +633,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       formData.append("title", title.trim());
       if (description) formData.append("description", description.trim());
       if (category) formData.append("category", category.trim());
-      if (tags) formData.append("tags", tags.trim());
 
       // 使用 XMLHttpRequest 来显示上传进度
       const xhr = new XMLHttpRequest();
@@ -887,7 +870,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     } else if (activeTab === "audio") {
       fetchAudioResources();
       fetchAudioStats();
-      fetchAudioTags();
       fetchAudioFormats();
     } else if (activeTab === "scores") {
       fetchScores();
@@ -1537,16 +1519,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-2">标签（逗号分隔）</label>
-                    <input
-                      type="text"
-                      value={uploadForm.tags}
-                      onChange={(e) => setUploadForm({ ...uploadForm, tags: e.target.value })}
-                      placeholder="标签1,标签2"
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
-                    />
-                  </div>
+                  {/* 标签字段已废弃 */}
                 </div>
                 {(uploadForm.mixtureFile ||
                   uploadForm.vocalsFile ||
@@ -1716,7 +1689,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                             setAudioFilters(prev => ({ ...prev, search: value, page: 1 }));
                             debouncedSearch(value);
                           }}
-                          placeholder="搜索标题、描述或标签...（支持多关键词，空格分隔）"
+                          placeholder="按标题搜索"
                           className="w-full pl-10 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
                         />
                       </div>
@@ -1813,31 +1786,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                               className="flex-1 px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
                             />
                           </div>
-                        </div>
-                      </div>
-                      {/* 标签筛选 */}
-                      <div className="mt-3">
-                        <label className="block text-xs text-slate-400 mb-2">标签筛选</label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {audioTags.slice(0, 20).map((tag) => (
-                            <button
-                              key={tag.name}
-                              onClick={() => {
-                                const newTags = audioFilters.tags.includes(tag.name)
-                                  ? audioFilters.tags.filter(t => t !== tag.name)
-                                  : [...audioFilters.tags, tag.name];
-                                setAudioFilters({ ...audioFilters, tags: newTags, page: 1 });
-                              }}
-                              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                                audioFilters.tags.includes(tag.name)
-                                  ? "bg-cyan-600 text-white shadow-sm shadow-cyan-600/20"
-                                  : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                              }`}
-                            >
-                              {tag.name}
-                              <span className="ml-1 text-slate-400">({tag.count})</span>
-                            </button>
-                          ))}
                         </div>
                       </div>
                     </div>

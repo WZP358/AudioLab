@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Music, Search, Filter, X, Check, Grid, List } from "lucide-react";
+import { Music, Search, Filter, X, Check, Grid, List, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "./Toast";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
@@ -15,11 +15,22 @@ export default function AudioResourceSelector({
   const { showError } = useToast();
   const [resources, setResources] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [tags, setTags] = useState([]);
+  const [formats, setFormats] = useState([]);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState("grid"); // "grid" or "list"
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filters, setFilters] = useState({
     category: "",
     search: "",
+    uploader: "",
+    file_format: "",
+    min_duration: "",
+    max_duration: "",
+    min_size: "",
+    max_size: "",
+    sort_by: "created_at",
+    sort_order: "desc",
     page: 1,
     page_size: 20,
   });
@@ -44,6 +55,14 @@ export default function AudioResourceSelector({
       const params = new URLSearchParams();
       if (filters.category) params.append("category", filters.category);
       if (filters.search) params.append("search", filters.search);
+      if (filters.uploader) params.append("uploader", filters.uploader);
+      if (filters.file_format) params.append("file_format", filters.file_format);
+      if (filters.min_duration) params.append("min_duration", filters.min_duration);
+      if (filters.max_duration) params.append("max_duration", filters.max_duration);
+      if (filters.min_size) params.append("min_size", filters.min_size);
+      if (filters.max_size) params.append("max_size", filters.max_size);
+      params.append("sort_by", filters.sort_by);
+      params.append("sort_order", filters.sort_order);
       params.append("page", filters.page);
       params.append("page_size", filters.page_size);
 
@@ -106,6 +125,24 @@ export default function AudioResourceSelector({
       showError(formatErrorMessage(err));
     }
   }, [token, showError]);
+
+  const fetchTags = useCallback(async () => {
+    // 后端已移除标签字段，这里保留空实现以兼容现有调用
+    setTags([]);
+  }, []);
+
+  const fetchFormats = useCallback(async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/audio/formats`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      setFormats(data.formats || []);
+    } catch (err) {
+      console.error("获取格式失败:", err);
+    }
+  }, [token]);
 
   const handleSelect = async (resource) => {
     if (downloading) return;
@@ -207,7 +244,9 @@ export default function AudioResourceSelector({
 
   useEffect(() => {
     fetchCategories();
-  }, [fetchCategories]);
+    fetchTags();
+    fetchFormats();
+  }, [fetchCategories, fetchTags, fetchFormats]);
 
   const formatFileSize = (bytes) => {
     if (!bytes) return "未知";
@@ -222,50 +261,15 @@ export default function AudioResourceSelector({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // 解析每条资源的 bundleId 和 role（通过 tags）
-  const deriveBundleInfo = (resource) => {
-    const tags = resource?.tags || "";
-    let bundle = null;
-    let role = null;
-    if (typeof tags === "string" && tags) {
-      const parts = tags.split(",").map((t) => t.trim());
-      const bundleTag = parts.find((t) => t.startsWith("bundle:"));
-      if (bundleTag) {
-        bundle = bundleTag.replace("bundle:", "").trim() || null;
-      }
-      const roleTag = parts.find((t) => t.startsWith("role:"));
-      if (roleTag) {
-        role = roleTag.replace("role:", "").trim() || null;
-      }
-    }
-    return { bundleId: bundle, role };
-  };
-
-  const enhancedResources = resources.map((r) => {
-    const info = deriveBundleInfo(r);
-    return { ...r, _bundleId: info.bundleId, _role: info.role };
-  });
-
-  // 根据 type / bundleId 做联动过滤和分组展示
-  let visibleResources = enhancedResources;
-  if (type === "gold" && bundleId) {
-    // 选择 Gold 时，如果已选中某个 Mixture，对应的 Gold 只显示同一 bundle 下的条目
-    visibleResources = enhancedResources.filter(
-      (r) => r._bundleId === bundleId && r._role && r._role !== "mixture"
-    );
-  }
-
-  // 按 bundleId 分组，便于成组展示
-  const grouped = visibleResources.reduce((map, r) => {
-    const key = r._bundleId || `single:${r.id}`;
-    if (!map[key]) {
-      map[key] = { bundleId: r._bundleId, items: [] };
-    }
-    map[key].items.push(r);
-    return map;
-  }, {});
-
-  const groupedList = Object.values(grouped);
+  // 取消基于 tags 的 bundle 分组逻辑，直接按资源平铺展示
+  const groupedList = resources.length
+    ? [
+        {
+          bundleId: null,
+          items: resources,
+        },
+      ]
+    : [];
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -295,7 +299,7 @@ export default function AudioResourceSelector({
 
 
         {/* 筛选器 */}
-        <div className="p-6 border-b border-slate-700">
+        <div className="p-6 border-b border-slate-700 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs text-slate-400 mb-2 flex items-center gap-2">
@@ -315,20 +319,176 @@ export default function AudioResourceSelector({
                 ))}
               </select>
             </div>
-            <div className="md:col-span-2">
+            <div>
               <label className="block text-xs text-slate-400 mb-2 flex items-center gap-2">
                 <Search size={14} />
-                搜索
+                标题 / 描述
               </label>
               <input
                 type="text"
                 value={filters.search}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
-                placeholder="搜索标题或描述..."
+                placeholder="按标题、描述关键词搜索..."
+                className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-2 flex items-center gap-2">
+                <Search size={14} />
+                上传者
+              </label>
+              <input
+                type="text"
+                value={filters.uploader}
+                onChange={(e) => setFilters({ ...filters, uploader: e.target.value, page: 1 })}
+                placeholder="按上传者用户名搜索..."
                 className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
               />
             </div>
           </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 text-[11px] text-slate-500">
+              <span>可以同时按分类、标题和上传者组合筛选。</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className="flex items-center gap-1.5 text-[11px] text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded hover:bg-slate-800 transition"
+            >
+              {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              高级筛选
+            </button>
+          </div>
+
+          {showAdvancedFilters && (
+            <div className="pt-3 border-t border-slate-700/60 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">文件格式</label>
+                  <select
+                    value={filters.file_format}
+                    onChange={(e) => setFilters({ ...filters, file_format: e.target.value, page: 1 })}
+                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  >
+                    <option value="">全部格式</option>
+                    {formats.map((fmt) => (
+                      <option key={fmt.name} value={fmt.name}>
+                        {fmt.name.toUpperCase()} ({fmt.count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1.5">最小时长（秒）</label>
+                    <input
+                      type="number"
+                      value={filters.min_duration}
+                      onChange={(e) => setFilters({ ...filters, min_duration: e.target.value, page: 1 })}
+                      placeholder="例如 60"
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1.5">最大时长（秒）</label>
+                    <input
+                      type="number"
+                      value={filters.max_duration}
+                      onChange={(e) => setFilters({ ...filters, max_duration: e.target.value, page: 1 })}
+                      placeholder="例如 300"
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1.5">最小大小（MB）</label>
+                    <input
+                      type="number"
+                      value={filters.min_size ? filters.min_size / (1024 * 1024) : ""}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          min_size: e.target.value ? parseInt(e.target.value, 10) * 1024 * 1024 : "",
+                          page: 1,
+                        })
+                      }
+                      placeholder="例如 1"
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1.5">最大大小（MB）</label>
+                    <input
+                      type="number"
+                      value={filters.max_size ? filters.max_size / (1024 * 1024) : ""}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          max_size: e.target.value ? parseInt(e.target.value, 10) * 1024 * 1024 : "",
+                          page: 1,
+                        })
+                      }
+                      placeholder="例如 20"
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 标签筛选 & 排序 */}
+              <div className="flex flex-col md:flex-row md:items-center gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs text-slate-400 mb-1.5">标签快速筛选</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.slice(0, 16).map((tag) => (
+                      <button
+                        key={tag.name}
+                        type="button"
+                        onClick={() => {
+                          const exists = filters.tags.includes(tag.name);
+                          const nextTags = exists
+                            ? filters.tags.filter((t) => t !== tag.name)
+                            : [...filters.tags, tag.name];
+                          setFilters({ ...filters, tags: nextTags, page: 1 });
+                        }}
+                        className={`px-2.5 py-1 rounded-md text-[11px] transition ${
+                          filters.tags.includes(tag.name)
+                            ? "bg-cyan-600 text-white shadow-sm shadow-cyan-600/30"
+                            : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                        }`}
+                      >
+                        {tag.name}
+                        <span className="ml-1 text-slate-500">({tag.count})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-shrink-0 flex items-center gap-2">
+                  <span className="text-[11px] text-slate-400">排序：</span>
+                  <select
+                    value={filters.sort_by}
+                    onChange={(e) => setFilters({ ...filters, sort_by: e.target.value, page: 1 })}
+                    className="px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-[11px] focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  >
+                    <option value="created_at">上传时间</option>
+                    <option value="duration">时长</option>
+                    <option value="file_size">文件大小</option>
+                    <option value="title">标题</option>
+                  </select>
+                  <select
+                    value={filters.sort_order}
+                    onChange={(e) => setFilters({ ...filters, sort_order: e.target.value, page: 1 })}
+                    className="px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-[11px] focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  >
+                    <option value="desc">降序</option>
+                    <option value="asc">升序</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 资源列表 */}

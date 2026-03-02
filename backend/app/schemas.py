@@ -373,7 +373,6 @@ class AudioResourceCreate(BaseModel):
     title: str
     description: Optional[str] = None
     category: Optional[str] = None
-    tags: Optional[str] = None
     is_public: bool = True
 
 
@@ -381,7 +380,6 @@ class AudioResourceUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = None
-    tags: Optional[str] = None
     is_public: Optional[bool] = None
 
 
@@ -394,7 +392,6 @@ class AudioResourceResponse(BaseModel):
     duration: Optional[float] = None
     file_format: Optional[str] = None
     category: Optional[str] = None
-    tags: Optional[str] = None
     uploader_id: int  # 保持为 int，但在序列化时转换为字符串
     created_by: Optional[str] = None  # 上传者显示名称（"官方"或用户名）
     is_public: bool

@@ -49,9 +49,8 @@ async def get_optional_user(authorization: Optional[str] = Header(None), db: Asy
 @router.get("/resources", response_model=dict)
 async def list_public_audio_resources(
     category: Optional[str] = Query(None, description="按分类筛选"),
-    search: Optional[str] = Query(None, description="搜索标题、描述或标签（支持多关键词，空格分隔）"),
+    search: Optional[str] = Query(None, description="搜索标题或描述（支持多关键词，空格分隔）"),
     uploader: Optional[str] = Query(None, description="按上传者搜索（用户名或'官方'）"),
-    tags: Optional[str] = Query(None, description="标签筛选（逗号分隔多个标签）"),
     file_format: Optional[str] = Query(None, description="文件格式筛选（mp3, wav, flac等）"),
     min_duration: Optional[float] = Query(None, description="最小时长（秒）"),
     max_duration: Optional[float] = Query(None, description="最大时长（秒）"),
@@ -94,36 +93,19 @@ async def list_public_audio_resources(
     if max_size is not None:
         conditions.append(AudioResource.file_size <= max_size)
     
-    # 标签筛选（支持多个标签，逗号分隔）
-    if tags:
-        tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
-        if tag_list:
-            tag_conditions = []
-            for tag in tag_list:
-                tag_pattern = f"%{tag}%"
-                tag_conditions.append(AudioResource.tags.like(tag_pattern))
-            if tag_conditions:
-                conditions.append(or_(*tag_conditions))
-    
     # 按上传者搜索
     if uploader:
         uploader_pattern = f"%{uploader}%"
         conditions.append(AudioResource.created_by.like(uploader_pattern))
     
-    # 搜索功能（支持多关键词，空格分隔）
+    # 搜索功能（支持多关键词，空格分隔，仅按标题匹配）
     if search:
         keywords = [kw.strip() for kw in search.split() if kw.strip()]
         if keywords:
             search_conditions = []
             for keyword in keywords:
                 search_pattern = f"%{keyword}%"
-                search_conditions.append(
-                    or_(
-                        AudioResource.title.like(search_pattern),
-                        AudioResource.description.like(search_pattern),
-                        AudioResource.tags.like(search_pattern)  # 支持标签搜索
-                    )
-                )
+                search_conditions.append(AudioResource.title.like(search_pattern))
             if search_conditions:
                 conditions.append(and_(*search_conditions))  # 所有关键词都要匹配
     
@@ -195,9 +177,7 @@ async def _save_audio_resource(
     title: str,
     description: Optional[str],
     category: Optional[str],
-    tags: Optional[str],
     is_public: bool,
-    extra_tags: Optional[list[str]] = None,
 ):
     """内部工具函数：保存单个音频资源，并写入系统日志。"""
     from app.utils.config_helper import get_config_value
@@ -265,15 +245,6 @@ async def _save_audio_resource(
 
     created_by = "官方" if current_user.role == Role.ADMIN else current_user.username
 
-    final_tags = tags or ""
-    extra_tags = extra_tags or []
-    if extra_tags:
-        extra_str = ",".join(t for t in extra_tags if t)
-        if final_tags:
-            final_tags = f"{final_tags},{extra_str}"
-        else:
-            final_tags = extra_str
-
     # 所有通过本接口上传的音频资源一律设为公开
     audio_resource = AudioResource(
         title=title,
@@ -283,7 +254,6 @@ async def _save_audio_resource(
         duration=duration,
         file_format=file_ext[1:] if file_ext else None,
         category=category,
-        tags=final_tags,
         uploader_id=current_user.id,
         created_by=created_by,
         is_public=True,
@@ -332,7 +302,6 @@ async def upload_audio_resource(
     title: str = Body(...),
     description: Optional[str] = Body(None),
     category: Optional[str] = Body(None),
-    tags: Optional[str] = Body(None),
     is_public: bool = Body(True),
     current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
@@ -349,10 +318,8 @@ async def upload_audio_resource(
         title=title,
         description=description,
         category=category,
-        tags=tags,
         # 统一强制公开，忽略传入的 is_public
         is_public=True,
-        extra_tags=None,
     )
     return AudioResourceResponse.from_orm(resource)
 
@@ -368,7 +335,6 @@ async def upload_audio_resource_bundle(
     title: str = Body(..., description="这组音频的基础标题"),
     description: Optional[str] = Body(None),
     category: Optional[str] = Body(None),
-    tags: Optional[str] = Body(None),
     is_public: bool = Body(True),
     current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
@@ -380,10 +346,6 @@ async def upload_audio_resource_bundle(
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="请先登录")
-
-    # 生成 bundle_id，用于在 tags 中关联一组资源
-    bundle_id = uuid.uuid4().hex
-    bundle_tag = f"bundle:{bundle_id}"
 
     resources = []
 
@@ -397,9 +359,7 @@ async def upload_audio_resource_bundle(
         title=mixture_title,
         description=description,
         category=category,
-        tags=tags,
         is_public=True,
-        extra_tags=[bundle_tag, "role:mixture"],
     )
     resources.append(
         {
@@ -418,9 +378,7 @@ async def upload_audio_resource_bundle(
         title=vocals_title,
         description=description,
         category=category,
-        tags=tags,
         is_public=True,
-        extra_tags=[bundle_tag, "role:gold_vocals"],
     )
     resources.append(
         {
@@ -439,9 +397,7 @@ async def upload_audio_resource_bundle(
         title=drums_title,
         description=description,
         category=category,
-        tags=tags,
         is_public=True,
-        extra_tags=[bundle_tag, "role:gold_drums"],
     )
     resources.append(
         {
@@ -460,9 +416,7 @@ async def upload_audio_resource_bundle(
         title=bass_title,
         description=description,
         category=category,
-        tags=tags,
         is_public=True,
-        extra_tags=[bundle_tag, "role:gold_bass"],
     )
     resources.append(
         {
@@ -481,9 +435,7 @@ async def upload_audio_resource_bundle(
         title=other_title,
         description=description,
         category=category,
-        tags=tags,
         is_public=True,
-        extra_tags=[bundle_tag, "role:gold_other"],
     )
     resources.append(
         {

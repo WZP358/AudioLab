@@ -21,7 +21,6 @@ export default function AudioResources({ token }) {
     category: "",
     search: "",
     uploader: "",
-    tags: [],
     file_format: "",
     min_duration: "",
     max_duration: "",
@@ -47,7 +46,6 @@ export default function AudioResources({ token }) {
     title: "",
     description: "",
     category: "",
-    tags: "",
   });
   const [uploading, setUploading] = useState(false);
 
@@ -123,7 +121,6 @@ export default function AudioResources({ token }) {
       if (filters.category) params.append("category", filters.category);
       if (filters.search) params.append("search", filters.search);
       if (filters.uploader) params.append("uploader", filters.uploader);
-      if (filters.tags.length > 0) params.append("tags", filters.tags.join(","));
       if (filters.file_format) params.append("file_format", filters.file_format);
       if (filters.min_duration) params.append("min_duration", filters.min_duration);
       if (filters.max_duration) params.append("max_duration", filters.max_duration);
@@ -184,17 +181,9 @@ export default function AudioResources({ token }) {
   }, [token]);
 
   const fetchTags = useCallback(async () => {
-    try {
-      const resp = await fetch(`${API_BASE}/api/audio/tags`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!resp.ok) return;
-      const data = await resp.json();
-      setTags(data.tags || []);
-    } catch (err) {
-      console.error("获取标签失败:", err);
-    }
-  }, [token]);
+    // 后端已移除标签字段，这里保留空实现以兼容现有调用
+    setTags([]);
+  }, []);
 
   const fetchFormats = useCallback(async () => {
     try {
@@ -351,7 +340,6 @@ export default function AudioResources({ token }) {
       formData.append("title", title);
       if (description) formData.append("description", description);
       if (category) formData.append("category", category);
-      if (tags) formData.append("tags", tags);
 
       const resp = await fetch(`${API_BASE}/api/audio/resources/upload-bundle`, {
         method: "POST",
@@ -592,7 +580,7 @@ export default function AudioResources({ token }) {
                     setFilters(prev => ({ ...prev, search: value, page: 1 }));
                     debouncedSearch(value);
                   }}
-                  placeholder="搜索标题、描述或标签...（支持多关键词，空格分隔）"
+                  placeholder="按标题搜索"
                   className="w-full pl-10 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
                 />
               </div>
@@ -1033,14 +1021,7 @@ export default function AudioResources({ token }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-2">标签（逗号分隔）</label>
-                  <input
-                    type="text"
-                    value={uploadForm.tags}
-                    onChange={(e) => setUploadForm({ ...uploadForm, tags: e.target.value })}
-                    placeholder="例如：流行, 摇滚, 电子"
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                  />
+                  {/* 标签字段已废弃 */}
                 </div>
               </div>
               <div className="flex gap-3 pt-4">
