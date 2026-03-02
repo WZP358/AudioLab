@@ -244,13 +244,18 @@ def analyze_audio_file(
     - mono waveform：固定点数
     - magnitude spectrogram：固定频/时分辨率，归一化到 [0, 1]
 
+    说明：
+    - 为了保证数据库中记录的时长是真实完整时长，这里在裁剪到 max_seconds
+      之前先计算整段音频的 duration_s，再用于返回值。
+    - max_seconds 仅影响波形 / 频谱分析的时间跨度，不再影响 duration_s。
+    
     只保证对 wav/flac/ogg 等 libsndfile 支持的格式可用；
     mp3 通过 ffmpeg 兜底解码，确保可用（容器内需安装 ffmpeg）。
     """
     y, sr, bit_depth = _read_audio_any(path)
-    if y.size == 0:
+    if y.size == 0 or sr <= 0:
         return AudioAnalysis(
-            sample_rate=0,
+            sample_rate=int(sr) if sr > 0 else 0,
             duration_s=0.0,
             waveform=[],
             spectrogram=[],
@@ -261,6 +266,9 @@ def analyze_audio_file(
     # to mono
     mono = y.mean(axis=1)
 
+    # 在裁剪之前先计算“完整时长”，用于返回给前端 / 数据库
+    full_duration_s = float(mono.size / sr) if sr > 0 else 0.0
+
     # 动态调整 n_fft / hop，避免短音频导致“全黑/全空”
     if mono.size > 0:
         # n_fft 取不超过音频长度的 2 的幂（至少 256）
@@ -269,10 +277,13 @@ def analyze_audio_file(
         hop_length = int(min(hop_length, max(64, n_fft // 4)))
 
     if max_seconds and sr > 0:
+        # max_seconds 仅用于控制分析的“可视化窗口”，不影响 duration_s
         max_samples = int(max_seconds * sr)
-        mono = mono[:max_samples]
+        if mono.size > max_samples:
+            mono = mono[:max_samples]
 
-    duration_s = float(mono.size / sr) if sr > 0 else 0.0
+    # 返回值中的 duration_s 始终为“完整音频时长”
+    duration_s = full_duration_s
 
     waveform, waveform_min, waveform_max = _downsample_waveform_envelope(
         mono, points=waveform_points

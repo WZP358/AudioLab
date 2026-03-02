@@ -65,10 +65,16 @@ async def get_optional_user(authorization: Optional[str] = Header(None), db: Asy
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
-# 确保上传目录存在
-UPLOAD_DIR = Path("/app/uploads")
+# 本地开发：将上传和结果目录放在 backend/uploads、backend/results（可用环境变量覆盖）
+base_dir = Path(__file__).resolve().parents[1]  # backend
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads"))
+if not UPLOAD_DIR.is_absolute():
+    UPLOAD_DIR = base_dir / UPLOAD_DIR
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-RESULTS_DIR = Path("/app/results")
+
+RESULTS_DIR = Path(os.getenv("RESULTS_DIR", "results"))
+if not RESULTS_DIR.is_absolute():
+    RESULTS_DIR = base_dir / RESULTS_DIR
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 

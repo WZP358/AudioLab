@@ -37,14 +37,17 @@ export default function AudioResources({ token }) {
   const [playingId, setPlayingId] = useState(null);
   const [audioElements, setAudioElements] = useState({});
   
-  // 上传表单状态
+  // 上传表单状态：要求同时提供 Mixture + 4 个 Gold Standard Stem
   const [uploadForm, setUploadForm] = useState({
-    file: null,
+    mixtureFile: null,
+    vocalsFile: null,
+    drumsFile: null,
+    bassFile: null,
+    otherFile: null,
     title: "",
     description: "",
     category: "",
     tags: "",
-    is_public: true,
   });
   const [uploading, setUploading] = useState(false);
 
@@ -312,22 +315,45 @@ export default function AudioResources({ token }) {
       showError("请先登录");
       return;
     }
-    if (!uploadForm.file || !uploadForm.title.trim()) {
-      showError("请选择文件并填写标题");
+
+    const {
+      mixtureFile,
+      vocalsFile,
+      drumsFile,
+      bassFile,
+      otherFile,
+      title,
+      description,
+      category,
+      tags,
+    } = uploadForm;
+
+    if (
+      !mixtureFile ||
+      !vocalsFile ||
+      !drumsFile ||
+      !bassFile ||
+      !otherFile ||
+      !title.trim()
+    ) {
+      showError("请同时选择 Mixture 以及 4 个 Gold Standard Stem，并填写标题");
       return;
     }
 
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append("file", uploadForm.file);
-      formData.append("title", uploadForm.title);
-      if (uploadForm.description) formData.append("description", uploadForm.description);
-      if (uploadForm.category) formData.append("category", uploadForm.category);
-      if (uploadForm.tags) formData.append("tags", uploadForm.tags);
-      formData.append("is_public", uploadForm.is_public);
+      formData.append("mixture", mixtureFile);
+      formData.append("vocals", vocalsFile);
+      formData.append("drums", drumsFile);
+      formData.append("bass", bassFile);
+      formData.append("other", otherFile);
+      formData.append("title", title);
+      if (description) formData.append("description", description);
+      if (category) formData.append("category", category);
+      if (tags) formData.append("tags", tags);
 
-      const resp = await fetch(`${API_BASE}/api/audio/resources/upload`, {
+      const resp = await fetch(`${API_BASE}/api/audio/resources/upload-bundle`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -336,14 +362,29 @@ export default function AudioResources({ token }) {
       });
 
       if (!resp.ok) {
-        const errData = await resp.json();
-        throw new Error(errData.detail || "上传失败");
+        let errData;
+        try {
+          errData = await resp.json();
+        } catch (e) {
+          errData = await resp.text();
+        }
+        const detail =
+          errData && errData.detail
+            ? errData.detail
+            : typeof errData === "string"
+            ? errData
+            : "上传失败";
+        throw new Error(detail);
       }
 
-      showSuccess("上传成功！");
+      showSuccess("上传成功！Mixture 及 4 个 Gold Standard Stem 已全部上传。");
       setShowUploadModal(false);
       setUploadForm({
-        file: null,
+        mixtureFile: null,
+        vocalsFile: null,
+        drumsFile: null,
+        bassFile: null,
+        otherFile: null,
         title: "",
         description: "",
         category: "",
@@ -888,14 +929,77 @@ export default function AudioResources({ token }) {
               </button>
             </div>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">音频文件 *</label>
-                <input
-                  type="file"
-                  accept=".mp3,.wav,.flac,.ogg,.m4a,.aac"
-                  onChange={(e) => setUploadForm({ ...uploadForm, file: e.target.files[0] })}
-                  className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                />
+              <div className="space-y-3">
+                <label className="block text-sm text-slate-400">
+                  输入 Mixture 与对应 4 个 Gold Standard Stem（必须一次性全部上传）
+                </label>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-2">Mixture（混合音） *</label>
+                    <input
+                      type="file"
+                      accept=".mp3,.wav,.flac,.ogg,.m4a,.aac"
+                      onChange={(e) =>
+                        setUploadForm({ ...uploadForm, mixtureFile: e.target.files[0] || null })
+                      }
+                      className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm text-slate-400 mb-2">
+                        Gold Standard Vocals *
+                      </label>
+                      <input
+                        type="file"
+                        accept=".mp3,.wav,.flac,.ogg,.m4a,.aac"
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, vocalsFile: e.target.files[0] || null })
+                        }
+                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-slate-400 mb-2">
+                        Gold Standard Drums *
+                      </label>
+                      <input
+                        type="file"
+                        accept=".mp3,.wav,.flac,.ogg,.m4a,.aac"
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, drumsFile: e.target.files[0] || null })
+                        }
+                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-slate-400 mb-2">
+                        Gold Standard Bass *
+                      </label>
+                      <input
+                        type="file"
+                        accept=".mp3,.wav,.flac,.ogg,.m4a,.aac"
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, bassFile: e.target.files[0] || null })
+                        }
+                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-slate-400 mb-2">
+                        Gold Standard Other *
+                      </label>
+                      <input
+                        type="file"
+                        accept=".mp3,.wav,.flac,.ogg,.m4a,.aac"
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, otherFile: e.target.files[0] || null })
+                        }
+                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm text-slate-400 mb-2">标题 *</label>
@@ -939,22 +1043,18 @@ export default function AudioResources({ token }) {
                   />
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_public"
-                  checked={uploadForm.is_public}
-                  onChange={(e) => setUploadForm({ ...uploadForm, is_public: e.target.checked })}
-                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-cyan-500"
-                />
-                <label htmlFor="is_public" className="text-sm text-slate-300">
-                  公开（其他用户可见）
-                </label>
-              </div>
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={handleUpload}
-                  disabled={uploading || !uploadForm.file || !uploadForm.title.trim()}
+                  disabled={
+                    uploading ||
+                    !uploadForm.mixtureFile ||
+                    !uploadForm.vocalsFile ||
+                    !uploadForm.drumsFile ||
+                    !uploadForm.bassFile ||
+                    !uploadForm.otherFile ||
+                    !uploadForm.title.trim()
+                  }
                   className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {uploading ? "上传中..." : "上传"}

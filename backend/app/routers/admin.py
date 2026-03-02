@@ -34,6 +34,25 @@ async def get_current_admin(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+def _extract_bundle_id_from_tags(tags: Optional[str]) -> Optional[str]:
+    """
+    从 AudioResource.tags 中解析 bundle_id。
+    约定：上传 Mixture + 4 个 Gold Standard Stem 时，会打上类似 'bundle:{uuid}' 的标签。
+    """
+    if not tags:
+        return None
+    try:
+        parts = [t.strip() for t in str(tags).split(",") if t.strip()]
+    except Exception:
+        return None
+    for part in parts:
+        if part.startswith("bundle:"):
+            bundle = part[len("bundle:") :].strip()
+            if bundle:
+                return bundle
+    return None
+
+
 # ==================== 用户管理 ====================
 
 @router.get("/users", response_model=PaginatedUserListResponse)
@@ -369,8 +388,8 @@ async def batch_delete_users(
 
 # ==================== 音频资源管理 ====================
 
-# 音频资源存储目录（兼容Docker和本地环境）
-AUDIO_RESOURCE_DIR = Path(os.getenv("AUDIO_RESOURCE_DIR", "/app/audio_resources"))
+# 音频资源存储目录（本地开发：backend/audio_resources，支持通过环境变量覆盖）
+AUDIO_RESOURCE_DIR = Path(os.getenv("AUDIO_RESOURCE_DIR", "audio_resources"))
 if not AUDIO_RESOURCE_DIR.is_absolute():
     # 如果是相对路径，则相对于backend目录
     base_dir = Path(__file__).resolve().parents[1]  # backend/app/routers -> backend
@@ -462,6 +481,7 @@ async def upload_audio_resource(
     # 管理员上传显示为"官方"
     created_by = "官方"
     
+    # 所有管理员上传的音频资源一律设为公开
     audio_resource = AudioResource(
         title=title,
         description=description,
@@ -473,7 +493,7 @@ async def upload_audio_resource(
         tags=tags,
         uploader_id=current_user.id,
         created_by=created_by,
-        is_public=is_public,
+        is_public=True,
     )
     
     db.add(audio_resource)
@@ -781,42 +801,79 @@ async def delete_audio_resource(
         raise HTTPException(status_code=400, detail="无效的资源ID")
     
     resource_id = resource_id_int
-    
+
+    # 先查出当前资源，用于决定是否需要“成组删除”
     query = select(AudioResource).where(AudioResource.id == resource_id)
     result = await db.execute(query)
     resource = result.scalars().first()
-    
+
     if not resource:
         # 添加调试信息：检查是否有其他资源
         all_resources_query = select(AudioResource.id, AudioResource.title).limit(10)
         all_resources_result = await db.execute(all_resources_query)
         all_resources = all_resources_result.all()
-        logging.warning(f"删除音频资源失败: resource_id={resource_id} (类型: {type(resource_id)}), 当前用户: {current_user.username}, 数据库中存在的前10个资源ID: {[r.id for r in all_resources]}")
+        logging.warning(
+            f"删除音频资源失败: resource_id={resource_id} (类型: {type(resource_id)}), "
+            f"当前用户: {current_user.username}, 数据库中存在的前10个资源ID: {[r.id for r in all_resources]}"
+        )
         raise HTTPException(status_code=404, detail="音频资源不存在")
-    
-    # 删除文件
-    # 处理静态文件路径（/audio_resources/...）或绝对路径
-    if resource.file_path.startswith("/audio_resources/"):
-        # 静态文件路径，需要转换为实际文件路径
-        relative_path = resource.file_path.replace("/audio_resources/", "")
-        file_path = AUDIO_RESOURCE_DIR / relative_path
-    else:
-        file_path = Path(resource.file_path)
-    
-    file_deleted = False
-    if file_path.exists():
-        try:
-            file_path.unlink()
-            file_deleted = True
-        except Exception as e:
-            # 记录错误但不阻止删除数据库记录
-            print(f"警告: 删除文件失败 {file_path}: {e}")
-    
-    title_before_delete = resource.title
-    await db.delete(resource)
+
+    # 检查是否属于“成组音频”（Mixture + 4 个 Gold Standard Stem）
+    bundle_id = _extract_bundle_id_from_tags(resource.tags)
+
+    # 默认只删除当前这一条；如果识别出 bundle_id，则扩展为整组
+    resources_to_delete = [resource]
+    if bundle_id:
+        bundle_tag_pattern = f"%bundle:{bundle_id}%"
+        bundle_query = select(AudioResource).where(
+            AudioResource.tags.isnot(None),
+            AudioResource.tags.like(bundle_tag_pattern),
+        )
+        bundle_result = await db.execute(bundle_query)
+        bundle_resources = bundle_result.scalars().all()
+
+        # 确保至少包含当前资源；并去重
+        existing_ids = {r.id for r in resources_to_delete}
+        for r in bundle_resources:
+            if r.id not in existing_ids:
+                resources_to_delete.append(r)
+                existing_ids.add(r.id)
+
+    deleted_count = 0
+    file_deleted_count = 0
+    deleted_titles: list[str] = []
+
+    # 删除文件 + 数据库记录
+    for res in resources_to_delete:
+        deleted_titles.append(res.title)
+        # 处理静态文件路径（/audio_resources/...）或绝对路径
+        if res.file_path.startswith("/audio_resources/"):
+            relative_path = res.file_path.replace("/audio_resources/", "")
+            file_path = AUDIO_RESOURCE_DIR / relative_path
+        else:
+            file_path = Path(res.file_path)
+
+        if file_path.exists():
+            try:
+                file_path.unlink()
+                file_deleted_count += 1
+            except Exception as e:
+                # 记录错误但不阻止删除数据库记录
+                print(f"警告: 删除文件失败 {file_path}: {e}")
+
+        await db.delete(res)
+        deleted_count += 1
+
     await db.commit()
-    
+
     # 记录系统日志
+    desc = (
+        f"管理员 {current_user.username} 删除成组音频资源（bundle 级联），共 {deleted_count} 条："
+        f"{', '.join(deleted_titles[:5])}{'...' if len(deleted_titles) > 5 else ''}"
+        if bundle_id and deleted_count > 1
+        else f"管理员 {current_user.username} 删除音频资源：{deleted_titles[0] if deleted_titles else resource_id}"
+    )
+
     await create_system_log(
         db=db,
         operation_type=OperationLog.AUDIO_DELETE.value,
@@ -824,16 +881,18 @@ async def delete_audio_resource(
         username=current_user.username,
         resource_type="audio",
         resource_id=resource_id,
-        description=f"管理员 {current_user.username} 删除音频资源：{title_before_delete}",
+        description=desc,
         status="success",
         ip_address=get_client_ip(req),
         user_agent=get_user_agent(req),
     )
-    
+
     return {
-        "message": "音频资源已删除",
+        "message": f"音频资源已删除（共 {deleted_count} 条，文件删除 {file_deleted_count} 个）",
         "resource_id": resource_id,
-        "file_deleted": file_deleted
+        "deleted_count": deleted_count,
+        "file_deleted_count": file_deleted_count,
+        "bundle_id": bundle_id,
     }
 
 
@@ -860,42 +919,72 @@ async def batch_delete_audio_resources(
     query = select(AudioResource).where(AudioResource.id.in_(resource_ids_int))
     result = await db.execute(query)
     resources = result.scalars().all()
-    
+
     if len(resources) != len(resource_ids_int):
         raise HTTPException(status_code=404, detail="部分资源不存在")
-    
+
+    # 扩展为“成组删除”：如果选中了某个 bundle 中的一条，则自动把同 bundle 下的 Mixture + 4 个 Gold 一并删除
+    bundle_ids = set()
+    for res in resources:
+        bundle_id = _extract_bundle_id_from_tags(res.tags)
+        if bundle_id:
+            bundle_ids.add(bundle_id)
+
+    all_resources_to_delete = list(resources)
+    if bundle_ids:
+        bundle_conditions = []
+        for bid in bundle_ids:
+            bundle_conditions.append(AudioResource.tags.like(f"%bundle:{bid}%"))
+        bundle_query = (
+            select(AudioResource)
+            .where(
+                AudioResource.tags.isnot(None),
+                or_(*bundle_conditions),
+            )
+        )
+        bundle_result = await db.execute(bundle_query)
+        bundle_resources = bundle_result.scalars().all()
+
+        existing_ids = {r.id for r in all_resources_to_delete}
+        for r in bundle_resources:
+            if r.id not in existing_ids:
+                all_resources_to_delete.append(r)
+                existing_ids.add(r.id)
+
     deleted_count = 0
     file_deleted_count = 0
     deleted_titles = []
     # 保存资源信息用于记录活动（在删除前保存）
     resources_info = []
-    
-    for resource in resources:
+
+    for resource in all_resources_to_delete:
         deleted_titles.append(resource.title)
         # 保存资源信息
-        resources_info.append({
-            "id": resource.id,
-            "title": resource.title
-        })
+        resources_info.append(
+            {
+                "id": resource.id,
+                "title": resource.title,
+            }
+        )
         # 删除文件
         if resource.file_path.startswith("/audio_resources/"):
             relative_path = resource.file_path.replace("/audio_resources/", "")
             file_path = AUDIO_RESOURCE_DIR / relative_path
         else:
             file_path = Path(resource.file_path)
-        
+
         if file_path.exists():
             try:
                 file_path.unlink()
                 file_deleted_count += 1
             except Exception:
                 pass
-        
+
         await db.delete(resource)
         deleted_count += 1
-    
+
     await db.commit()
-    
+
     # 记录系统日志
     await create_system_log(
         db=db,
@@ -903,16 +992,20 @@ async def batch_delete_audio_resources(
         user_id=current_user.id,
         username=current_user.username,
         resource_type="audio",
-        description=f"管理员 {current_user.username} 批量删除 {deleted_count} 个音频资源：{', '.join(deleted_titles[:5])}{'...' if len(deleted_titles) > 5 else ''}",
+        description=(
+            f"管理员 {current_user.username} 批量删除 {deleted_count} 个音频资源"
+            f"（包含按 bundle 级联删除的成组音频）："
+            f"{', '.join(deleted_titles[:5])}{'...' if len(deleted_titles) > 5 else ''}"
+        ),
         status="success",
         ip_address=get_client_ip(req),
         user_agent=get_user_agent(req),
     )
-    
+
     return {
-        "message": f"成功删除 {deleted_count} 个音频资源",
+        "message": f"成功删除 {deleted_count} 个音频资源（文件删除 {file_deleted_count} 个）",
         "deleted_count": deleted_count,
-        "file_deleted_count": file_deleted_count
+        "file_deleted_count": file_deleted_count,
     }
 
 
@@ -981,11 +1074,8 @@ async def reanalyze_audio_duration(
     if not resource:
         raise HTTPException(status_code=404, detail="音频资源不存在")
     
-    # 获取音频资源目录
-    audio_resource_dir = Path(os.getenv("AUDIO_RESOURCE_DIR", "/app/audio_resources"))
-    if not audio_resource_dir.is_absolute():
-        base_dir = Path(__file__).resolve().parents[1]  # backend/app/routers -> backend
-        audio_resource_dir = base_dir / audio_resource_dir
+    # 获取音频资源目录（与上传逻辑保持一致）
+    audio_resource_dir = AUDIO_RESOURCE_DIR
     
     # 解析文件路径
     file_path = None

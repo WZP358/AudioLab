@@ -4,11 +4,13 @@ import { useToast } from "./Toast";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
-export default function AudioResourceSelector({ 
-  token, 
-  onSelect, 
+export default function AudioResourceSelector({
+  token,
+  onSelect,
   onClose,
-  title = "选择音频资源"
+  title = "选择音频资源",
+  type = null, // 'input' | 'gold' | null
+  bundleId = null, // 当前联动的 bundle（例如已选择的 Mixture 所在 bundle）
 }) {
   const { showError } = useToast();
   const [resources, setResources] = useState([]);
@@ -219,6 +221,51 @@ export default function AudioResourceSelector({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // 解析每条资源的 bundleId 和 role（通过 tags）
+  const deriveBundleInfo = (resource) => {
+    const tags = resource?.tags || "";
+    let bundle = null;
+    let role = null;
+    if (typeof tags === "string" && tags) {
+      const parts = tags.split(",").map((t) => t.trim());
+      const bundleTag = parts.find((t) => t.startsWith("bundle:"));
+      if (bundleTag) {
+        bundle = bundleTag.replace("bundle:", "").trim() || null;
+      }
+      const roleTag = parts.find((t) => t.startsWith("role:"));
+      if (roleTag) {
+        role = roleTag.replace("role:", "").trim() || null;
+      }
+    }
+    return { bundleId: bundle, role };
+  };
+
+  const enhancedResources = resources.map((r) => {
+    const info = deriveBundleInfo(r);
+    return { ...r, _bundleId: info.bundleId, _role: info.role };
+  });
+
+  // 根据 type / bundleId 做联动过滤和分组展示
+  let visibleResources = enhancedResources;
+  if (type === "gold" && bundleId) {
+    // 选择 Gold 时，如果已选中某个 Mixture，对应的 Gold 只显示同一 bundle 下的条目
+    visibleResources = enhancedResources.filter(
+      (r) => r._bundleId === bundleId && r._role && r._role !== "mixture"
+    );
+  }
+
+  // 按 bundleId 分组，便于成组展示
+  const grouped = visibleResources.reduce((map, r) => {
+    const key = r._bundleId || `single:${r.id}`;
+    if (!map[key]) {
+      map[key] = { bundleId: r._bundleId, items: [] };
+    }
+    map[key].items.push(r);
+    return map;
+  }, {});
+
+  const groupedList = Object.values(grouped);
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-6xl max-h-[90vh] flex flex-col">
@@ -281,68 +328,128 @@ export default function AudioResourceSelector({
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
               <p className="mt-4">加载中...</p>
             </div>
-          ) : resources.length === 0 ? (
+          ) : groupedList.length === 0 ? (
             <div className="text-center text-slate-400 py-12">
               <Music size={48} className="mx-auto mb-4 opacity-50" />
               <p>暂无音频资源</p>
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {resources.map((resource) => (
-                  <div
-                    key={resource.id}
-                    onClick={() => setSelectedResource(resource.id)}
-                    className={`bg-slate-800 rounded-xl p-6 border transition cursor-pointer group ${
-                      selectedResource === resource.id
-                        ? "border-cyan-500 bg-slate-800/80"
-                        : "border-slate-700 hover:border-cyan-500/50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className={`text-lg font-bold transition ${
-                            selectedResource === resource.id
-                              ? "text-cyan-400"
-                              : "text-white group-hover:text-cyan-400"
-                          }`}>
-                            {resource.title}
-                          </h3>
-                          {selectedResource === resource.id && (
-                            <Check size={18} className="text-cyan-400" />
+              <div className="space-y-4">
+                {groupedList.map((group) => {
+                  const bundleResources = group.items;
+                  const bundleIdLabel = group.bundleId;
+                  // 尝试从标题中提取基础标题（去掉 [Mixture]/[Gold ...] 后的部分）
+                  const firstTitle = bundleResources[0]?.title || "";
+                  const baseTitle = firstTitle.split(" [")[0] || firstTitle;
+
+                  return (
+                    <div
+                      key={bundleIdLabel || `single-${bundleResources[0].id}`}
+                      className="bg-slate-800 rounded-xl border border-slate-700 p-4"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-semibold text-white">
+                              {bundleIdLabel ? `成组音频：${baseTitle}` : baseTitle || "未命名音频"}
+                            </h3>
+                            {bundleIdLabel && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
+                                bundle: {bundleIdLabel.slice(0, 8)}…
+                              </span>
+                            )}
+                          </div>
+                          {type === "gold" && bundleId && (
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              已根据当前选择的 Mixture 自动筛选到同一组的 Gold Standard 音轨。
+                            </p>
                           )}
                         </div>
-                        {resource.description && (
-                          <p className="text-sm text-slate-400 line-clamp-2">{resource.description}</p>
-                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {bundleResources.map((resource) => {
+                          const isSelected = selectedResource === resource.id;
+                          let roleLabel = "";
+                          if (resource._role === "mixture") roleLabel = "Mixture";
+                          else if (resource._role === "gold_vocals") roleLabel = "Gold Vocals";
+                          else if (resource._role === "gold_drums") roleLabel = "Gold Drums";
+                          else if (resource._role === "gold_bass") roleLabel = "Gold Bass";
+                          else if (resource._role === "gold_other") roleLabel = "Gold Other";
+
+                          return (
+                            <div
+                              key={resource.id}
+                              onClick={() => setSelectedResource(resource.id)}
+                              className={`rounded-lg p-4 border transition cursor-pointer group ${
+                                isSelected
+                                  ? "border-cyan-500 bg-slate-800/80"
+                                  : "border-slate-700 hover:border-cyan-500/50 bg-slate-900/40"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h4
+                                      className={`text-sm font-semibold truncate transition ${
+                                        isSelected
+                                          ? "text-cyan-400"
+                                          : "text-white group-hover:text-cyan-400"
+                                      }`}
+                                    >
+                                      {resource.title}
+                                    </h4>
+                                    {isSelected && <Check size={16} className="text-cyan-400" />}
+                                  </div>
+                                  {resource.description && (
+                                    <p className="text-xs text-slate-400 line-clamp-2">
+                                      {resource.description}
+                                    </p>
+                                  )}
+                                </div>
+                                {roleLabel && (
+                                  <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] bg-slate-700 text-slate-200">
+                                    {roleLabel}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="space-y-1.5 mb-2">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-slate-500">格式</span>
+                                  <span className="text-slate-200 font-medium">
+                                    {resource.file_format || "未知"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-slate-500">大小</span>
+                                  <span className="text-slate-200 font-medium">
+                                    {formatFileSize(resource.file_size)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-slate-500">时长</span>
+                                  <span className="text-slate-200 font-medium">
+                                    {formatDuration(resource.duration)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {resource.category && (
+                                <div className="mt-1">
+                                  <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded text-[10px]">
+                                    {resource.category}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">格式</span>
-                        <span className="text-slate-300 font-medium">{resource.file_format || "未知"}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">大小</span>
-                        <span className="text-slate-300 font-medium">{formatFileSize(resource.file_size)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">时长</span>
-                        <span className="text-slate-300 font-medium">{formatDuration(resource.duration)}</span>
-                      </div>
-                    </div>
-
-                    {resource.category && (
-                      <div className="mb-4">
-                        <span className="px-2 py-1 bg-cyan-500/20 text-cyan-300 rounded text-xs">
-                          {resource.category}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* 分页 */}
@@ -353,7 +460,9 @@ export default function AudioResourceSelector({
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setFilters({ ...filters, page: Math.max(1, filters.page - 1) })}
+                      onClick={() =>
+                        setFilters({ ...filters, page: Math.max(1, filters.page - 1) })
+                      }
                       disabled={filters.page === 1}
                       className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -361,7 +470,13 @@ export default function AudioResourceSelector({
                     </button>
                     <button
                       onClick={() =>
-                        setFilters({ ...filters, page: Math.min(Math.ceil(total / filters.page_size), filters.page + 1) })
+                        setFilters({
+                          ...filters,
+                          page: Math.min(
+                            Math.ceil(total / filters.page_size),
+                            filters.page + 1
+                          ),
+                        })
                       }
                       disabled={filters.page >= Math.ceil(total / filters.page_size)}
                       className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"

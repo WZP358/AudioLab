@@ -79,12 +79,15 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const searchDebounceRef = useRef(null);
   const [uploadForm, setUploadForm] = useState({
-    file: null,
+    mixtureFile: null,
+    vocalsFile: null,
+    drumsFile: null,
+    bassFile: null,
+    otherFile: null,
     title: "",
     description: "",
     category: "",
     tags: "",
-    is_public: true,
   });
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [selectedAudio, setSelectedAudio] = useState([]);
@@ -587,24 +590,46 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   };
 
   const handleUploadAudio = async () => {
-    if (!uploadForm.file || !uploadForm.title.trim()) {
-      showError("请选择文件并填写标题");
+    const {
+      mixtureFile,
+      vocalsFile,
+      drumsFile,
+      bassFile,
+      otherFile,
+      title,
+      description,
+      category,
+      tags,
+    } = uploadForm;
+
+    if (
+      !mixtureFile ||
+      !vocalsFile ||
+      !drumsFile ||
+      !bassFile ||
+      !otherFile ||
+      !title.trim()
+    ) {
+      showError("请同时选择 Mixture 以及 4 个 Gold Standard Stem，并填写标题");
       return;
     }
     
-    // 验证文件大小（100MB限制）
+    // 验证文件大小（100MB限制，任意单个文件超限即拒绝）
     const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-    if (uploadForm.file.size > MAX_FILE_SIZE) {
-      showError(`文件大小超过限制（最大 ${MAX_FILE_SIZE / (1024 * 1024)}MB）`);
-      return;
+    const filesToCheck = [mixtureFile, vocalsFile, drumsFile, bassFile, otherFile];
+    for (const f of filesToCheck) {
+      if (f && f.size > MAX_FILE_SIZE) {
+        showError(`文件大小超过限制（最大 ${MAX_FILE_SIZE / (1024 * 1024)}MB）`);
+        return;
+      }
     }
     
     // 验证标题长度
-    if (uploadForm.title.trim().length === 0) {
+    if (title.trim().length === 0) {
       showError("标题不能为空");
       return;
     }
-    if (uploadForm.title.length > 255) {
+    if (title.length > 255) {
       showError("标题长度不能超过255个字符");
       return;
     }
@@ -613,12 +638,15 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     setUploadProgress(0);
     try {
       const formData = new FormData();
-      formData.append("file", uploadForm.file);
-      formData.append("title", uploadForm.title.trim());
-      if (uploadForm.description) formData.append("description", uploadForm.description.trim());
-      if (uploadForm.category) formData.append("category", uploadForm.category.trim());
-      if (uploadForm.tags) formData.append("tags", uploadForm.tags.trim());
-      formData.append("is_public", uploadForm.is_public);
+      formData.append("mixture", mixtureFile);
+      formData.append("vocals", vocalsFile);
+      formData.append("drums", drumsFile);
+      formData.append("bass", bassFile);
+      formData.append("other", otherFile);
+      formData.append("title", title.trim());
+      if (description) formData.append("description", description.trim());
+      if (category) formData.append("category", category.trim());
+      if (tags) formData.append("tags", tags.trim());
 
       // 使用 XMLHttpRequest 来显示上传进度
       const xhr = new XMLHttpRequest();
@@ -647,15 +675,19 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           reject(new Error("上传失败：网络错误"));
         });
         
-        xhr.open("POST", `${API_BASE}/api/admin/audio/upload`);
+        xhr.open("POST", `${API_BASE}/api/audio/resources/upload-bundle`);
         xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         xhr.send(formData);
       });
       
       await promise;
-      showSuccess("音频资源上传成功");
+      showSuccess("音频资源上传成功（Mixture + 4 个 Gold Standard Stem 已全部上传）");
       setUploadForm({
-        file: null,
+        mixtureFile: null,
+        vocalsFile: null,
+        drumsFile: null,
+        bassFile: null,
+        otherFile: null,
         title: "",
         description: "",
         category: "",
@@ -1411,15 +1443,66 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   <Plus size={20} />
                   上传音频资源
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-2">音频文件 *</label>
-                    <input
-                      type="file"
-                      accept="audio/*"
-                      onChange={(e) => setUploadForm({ ...uploadForm, file: e.target.files[0] })}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
-                    />
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-400">
+                    管理员上传音频时，也需要一次性提供 Mixture 以及对应的 4 个 Gold Standard Stem，方便后续在同一音频上进行算法对比。
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-2">Mixture（混合音） *</label>
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, mixtureFile: e.target.files[0] || null })
+                        }
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-2">Gold Standard Vocals *</label>
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, vocalsFile: e.target.files[0] || null })
+                        }
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-2">Gold Standard Drums *</label>
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, drumsFile: e.target.files[0] || null })
+                        }
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-2">Gold Standard Bass *</label>
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, bassFile: e.target.files[0] || null })
+                        }
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-2">Gold Standard Other *</label>
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, otherFile: e.target.files[0] || null })
+                        }
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs text-slate-400 mb-2">标题 *</label>
@@ -1461,21 +1544,38 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-2">公开状态</label>
-                    <select
-                      value={uploadForm.is_public}
-                      onChange={(e) => setUploadForm({ ...uploadForm, is_public: e.target.value === "true" })}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
-                    >
-                      <option value="true">公开</option>
-                      <option value="false">私有</option>
-                    </select>
-                  </div>
                 </div>
-                {uploadForm.file && (
-                  <div className="mt-2 text-xs text-slate-400">
-                    文件大小: {(uploadForm.file.size / (1024 * 1024)).toFixed(2)} MB
+                {(uploadForm.mixtureFile ||
+                  uploadForm.vocalsFile ||
+                  uploadForm.drumsFile ||
+                  uploadForm.bassFile ||
+                  uploadForm.otherFile) && (
+                  <div className="mt-2 text-xs text-slate-400 space-y-1">
+                    {uploadForm.mixtureFile && (
+                      <div>
+                        Mixture: {(uploadForm.mixtureFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </div>
+                    )}
+                    {uploadForm.vocalsFile && (
+                      <div>
+                        Gold Vocals: {(uploadForm.vocalsFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </div>
+                    )}
+                    {uploadForm.drumsFile && (
+                      <div>
+                        Gold Drums: {(uploadForm.drumsFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </div>
+                    )}
+                    {uploadForm.bassFile && (
+                      <div>
+                        Gold Bass: {(uploadForm.bassFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </div>
+                    )}
+                    {uploadForm.otherFile && (
+                      <div>
+                        Gold Other: {(uploadForm.otherFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </div>
+                    )}
                   </div>
                 )}
                 {uploadingAudio && (
@@ -1494,7 +1594,15 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                 )}
                 <button
                   onClick={handleUploadAudio}
-                  disabled={uploadingAudio || !uploadForm.file || !uploadForm.title.trim()}
+                  disabled={
+                    uploadingAudio ||
+                    !uploadForm.mixtureFile ||
+                    !uploadForm.vocalsFile ||
+                    !uploadForm.drumsFile ||
+                    !uploadForm.bassFile ||
+                    !uploadForm.otherFile ||
+                    !uploadForm.title.trim()
+                  }
                   className="mt-4 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Upload size={16} />

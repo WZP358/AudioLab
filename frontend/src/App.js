@@ -2030,8 +2030,7 @@ export default function AudioLabApp() {
   const location = useLocation();
   const navigate = useNavigate();
   const { showError, showSuccess } = useToast();
-  const fileInputRef = useRef(null); // 控制隐藏的 input
-  const [audioUrl, setAudioUrl] = useState(null); // 存放本地播放地址
+  const [audioUrl, setAudioUrl] = useState(null); // 存放本地播放地址（从音频资源库选择后生成的本地 URL）
   const [user, setUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
   const [currentView, setCurrentView] = useState("dashboard"); // dashboard, evaluate, stats, audio_resources
@@ -2178,6 +2177,7 @@ export default function AudioLabApp() {
   // 音频资源选择器状态
   const [showResourceSelector, setShowResourceSelector] = useState(false);
   const [resourceSelectorType, setResourceSelectorType] = useState(null); // 'input' 或 'gold'
+  const [currentBundleId, setCurrentBundleId] = useState(null); // 当前已选输入音频对应的 bundle，用于 Gold 选择联动
   
   // 折叠状态管理
   const [collapsedSections, setCollapsedSections] = useState({
@@ -2883,13 +2883,6 @@ export default function AudioLabApp() {
     fetchMyScores({ skip: 0, limit: 100 });
   }, [user, authToken, currentView, fetchMyScores]);
 
-  // Handlers
-  /*const handleFileUpload = (e) => {
-    // Simulate upload
-    setFile({ name: "jazz_improvisation_01.wav", size: "12.4 MB" });
-  };*/
-  const handlePick = () => fileInputRef.current?.click();
-
   // 处理从资源库选择的音频
   const analyzeGoldForVisualization = useCallback(
     async (file) => {
@@ -2930,7 +2923,18 @@ export default function AudioLabApp() {
   );
 
   const handleResourceSelect = async (file, resource) => {
-    if (resourceSelectorType === 'input') {
+    // 解析 bundle_id（如果有）
+    const tags = resource?.tags || "";
+    let bundleId = null;
+    if (typeof tags === "string" && tags) {
+      const parts = tags.split(",").map((t) => t.trim());
+      const bundleTag = parts.find((t) => t.startsWith("bundle:"));
+      if (bundleTag) {
+        bundleId = bundleTag.replace("bundle:", "").trim() || null;
+      }
+    }
+
+    if (resourceSelectorType === "input") {
       // 设置为 INPUT SOURCE
       setRawFile(file);
       setFile({
@@ -2939,7 +2943,8 @@ export default function AudioLabApp() {
       });
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
-    } else if (resourceSelectorType === 'gold') {
+      setCurrentBundleId(bundleId);
+    } else if (resourceSelectorType === "gold") {
       // 设置为 GOLD STANDARD STEM，并触发后端分析用于可视化
       gtFileRef.current = file;
       setGtFile({
@@ -2951,44 +2956,6 @@ export default function AudioLabApp() {
     }
     setShowResourceSelector(false);
     setResourceSelectorType(null);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  // 真正处理拖放文件
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    // 取出拖进来的第一个文件
-    console.log("【DROP】拖放事件触发"); // ← 新增
-    const dropped = e.dataTransfer.files[0];
-    console.log("【DROP】拿到的文件", dropped); // ← 新增
-    if (!dropped) return;
-    setRawFile(dropped);
-
-    // 1. 显示文件名、大小
-    setFile({
-      name: dropped.name,
-      size: (dropped.size / 1024 / 1024).toFixed(2) + " MB",
-    });
-
-    // 2. 生成本地播放地址
-    const url = URL.createObjectURL(dropped);
-    // 用「真实小 WAV」替换空 Blob
-    //const realFile = new File([createSilenceWav()], file.name, {
-    //type: "audio/wav",
-    //});
-    //const url = URL.createObjectURL(realFile);
-    setAudioUrl(url);
   };
 
   const notifySeparationDone = useCallback(
@@ -3027,7 +2994,7 @@ export default function AudioLabApp() {
 
     try {
       if (!rawFile) {
-        showError("请先拖拽/选择一个音频文件");
+        showError("请先从音频资源库选择一个音频文件");
         setIsProcessing(false);
         return;
       }
@@ -3935,26 +3902,9 @@ export default function AudioLabApp() {
                   <>
                 {!file ? (
                   <div className="space-y-3">
-                    <div
-                      onClick={handlePick} // ← 只改这一行
-                      onDrop={handleDrop} // ← 新增
-                      onDragOver={handleDragOver} // ← 新增
-                      onDragLeave={handleDragLeave} // ← 可选，样式还原
-                      className="border-2 border-dashed border-slate-600 rounded-lg p-8 text-center hover:border-cyan-500 hover:bg-slate-800 transition cursor-pointer group"
-                    >
-                      <Music className="mx-auto text-slate-500 group-hover:text-cyan-400 mb-2 transition" />
-                      <p className="text-sm text-slate-400">
-                        拖拽音频文件或点击上传
-                      </p>
-                      <p className="text-xs text-slate-600 mt-2">
-                        支持 WAV, MP3, FLAC
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-px bg-slate-700"></div>
-                      <span className="text-xs text-slate-500">或</span>
-                      <div className="flex-1 h-px bg-slate-700"></div>
-                    </div>
+                    <p className="text-xs text-slate-400">
+                      为了便于在不同算法之间进行公平对比，目前仅支持从音频资源库中选择输入音频。
+                    </p>
                     <button
                       onClick={() => {
                         setResourceSelectorType('input');
@@ -3965,44 +3915,6 @@ export default function AudioLabApp() {
                       <Music size={16} />
                       从音频资源库选择
                     </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="audio/*"
-                      onChange={(e) => {
-                        console.log("【PICK】选中文件事件触发");
-                        const picked = e.target.files[0];
-                        console.log("【PICK】拿到的文件", picked);
-                        if (!picked) return;
-
-                        // 0. 保存真实 File，用于上传到后端（runSeparation 依赖这个）
-                        setRawFile(picked);
-
-                        // 1. 显示文件名、大小
-                        setFile({
-                          name: picked.name,
-                          size:
-                            (picked.size / 1024 / 1024).toFixed(2) + " MB",
-                        });
-
-                        // 2. 生成本地播放地址并打印
-                        const url = URL.createObjectURL(picked);
-                        console.log("【PICK】生成的播放地址", url); // ← 就是这句
-                        setAudioUrl(url);
-                      }} /*
-                      onChange={(e) => {
-                        console.log("【PICK】选中文件事件触发"); // ← 新增
-                        const file = e.target.files[0];
-                        console.log("【PICK】拿到的文件", file); // ← 新增
-                        if (!file) return;
-                        // 先只留文件名、大小，后面再播放
-                        setFile({
-                          name: file.name,
-                          size: (file.size / 1024 / 1024).toFixed(2) + " MB",
-                        });
-                      }}*/
-                      style={{ display: "none" }}
-                    />
                   </div>
                 ) : (
                   <div className="bg-slate-800 border border-cyan-900/30 rounded-lg p-3 flex items-center gap-3">
@@ -4092,44 +4004,9 @@ export default function AudioLabApp() {
                   <>
                 {!gtFile ? (
                   <div className="space-y-3">
-                    <label className="block border-2 border-dashed border-slate-600 rounded-lg p-4 text-xs text-slate-400 cursor-pointer hover:border-cyan-500 hover:bg-slate-800 transition text-center">
-                      {/* <span className="block truncate mb-1">
-                        选择金标准参考音轨文件（WAV/MP3/FLAC）
-                      </span>
-                      <span className="block text-[11px] text-slate-500">
-                        用于与算法分离出的目标源做波形与频谱对比
-                      </span> */}
-                      <Music className="mx-auto text-slate-500 group-hover:text-cyan-400 mb-2 transition" />
-                        <p className="text-sm text-slate-400">
-                        选择金标准参考音轨文件
-                        </p>
-                        <p className="text-xs text-slate-600 mt-2">
-                          支持 WAV/MP3/FLAC
-                        </p>
-                      <input
-                        type="file"
-                        accept="audio/*"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const f = e.target.files?.[0];
-                          if (!f) return;
-                          // 使用 ref 保存文件对象
-                          gtFileRef.current = f;
-                          // 保存上传文件信息（用于 UI 显示）
-                          setGtFile({
-                            name: f.name,
-                            size: (f.size / 1024 / 1024).toFixed(2) + " MB",
-                            raw: f, // 仍然保存，但主要使用 ref
-                          });
-                          analyzeGoldForVisualization(f);
-                        }}
-                      />
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-px bg-slate-700"></div>
-                      <span className="text-xs text-slate-500">或</span>
-                      <div className="flex-1 h-px bg-slate-700"></div>
-                    </div>
+                    <p className="text-xs text-slate-400">
+                      为了确保能够在同一 Gold Standard 参考音轨上对比不同算法的表现，请从音频资源库中选择 Gold Standard Stem。
+                    </p>
                     <button
                       onClick={() => {
                         setResourceSelectorType('gold');
@@ -5888,6 +5765,8 @@ export default function AudioLabApp() {
         <AudioResourceSelector
           token={authToken}
           title={resourceSelectorType === 'input' ? '选择输入音频源' : '选择金标准参考音轨'}
+          type={resourceSelectorType}
+          bundleId={resourceSelectorType === 'gold' ? currentBundleId : null}
           onSelect={handleResourceSelect}
           onClose={() => {
             setShowResourceSelector(false);

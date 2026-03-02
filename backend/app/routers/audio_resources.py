@@ -17,8 +17,8 @@ from app.utils.log_helper import create_system_log, get_client_ip, get_user_agen
 
 router = APIRouter(prefix="/api/audio", tags=["audio_resources"])
 
-# 音频资源存储目录（兼容Docker和本地环境）
-AUDIO_RESOURCE_DIR = Path(os.getenv("AUDIO_RESOURCE_DIR", "/app/audio_resources"))
+# 音频资源存储目录（本地开发：backend/audio_resources，支持通过环境变量覆盖）
+AUDIO_RESOURCE_DIR = Path(os.getenv("AUDIO_RESOURCE_DIR", "audio_resources"))
 if not AUDIO_RESOURCE_DIR.is_absolute():
     base_dir = Path(__file__).resolve().parents[1]  # backend/app/routers -> backend
     AUDIO_RESOURCE_DIR = base_dir / AUDIO_RESOURCE_DIR
@@ -186,65 +186,58 @@ async def get_public_audio_resource(
     return AudioResourceResponse.from_orm(resource)
 
 
-@router.post("/resources/upload", response_model=AudioResourceResponse)
-async def upload_audio_resource(
+async def _save_audio_resource(
+    *,
     req: Request,
-    file: UploadFile = File(...),
-    title: str = Body(...),
-    description: Optional[str] = Body(None),
-    category: Optional[str] = Body(None),
-    tags: Optional[str] = Body(None),
-    is_public: bool = Body(True),
-    current_user: Optional[User] = Depends(get_optional_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession,
+    current_user: User,
+    file: UploadFile,
+    title: str,
+    description: Optional[str],
+    category: Optional[str],
+    tags: Optional[str],
+    is_public: bool,
+    extra_tags: Optional[list[str]] = None,
 ):
-    """上传音频资源（所有登录用户都可以上传）"""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="请先登录")
-    
-    # 从系统配置读取文件大小限制
+    """内部工具函数：保存单个音频资源，并写入系统日志。"""
     from app.utils.config_helper import get_config_value
+
     max_file_size_mb = await get_config_value(
         db, "max_audio_file_size_mb", 100, "MAX_AUDIO_FILE_SIZE_MB", int
     )
     MAX_FILE_SIZE = max_file_size_mb * 1024 * 1024
-    
-    # 验证文件类型
-    allowed_extensions = {'.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac'}
+
+    allowed_extensions = {".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac"}
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in allowed_extensions:
         raise HTTPException(
             status_code=400,
-            detail=f"不支持的文件格式。支持的格式: {', '.join(allowed_extensions)}"
+            detail=f"不支持的文件格式。支持的格式: {', '.join(allowed_extensions)}",
         )
-    
-    # 验证标题长度
+
     if len(title.strip()) == 0:
         raise HTTPException(status_code=400, detail="标题不能为空")
     if len(title) > 255:
         raise HTTPException(status_code=400, detail="标题长度不能超过255个字符")
-    
-    # 生成唯一文件名
+
     file_id = str(uuid.uuid4())
     safe_filename = re.sub(r"[^A-Za-z0-9._-]", "_", file.filename)
     file_path = AUDIO_RESOURCE_DIR / f"{file_id}_{safe_filename}"
-    
-    # 保存文件（流式写入，避免大文件占用内存）
+
     file_size = 0
     try:
         with open(file_path, "wb") as f:
             while True:
-                chunk = await file.read(8192)  # 8KB chunks
+                chunk = await file.read(8192)
                 if not chunk:
                     break
                 file_size += len(chunk)
                 if file_size > MAX_FILE_SIZE:
-                    # 删除部分写入的文件
                     if file_path.exists():
                         file_path.unlink()
                     raise HTTPException(
                         status_code=400,
-                        detail=f"文件大小超过限制（最大 {MAX_FILE_SIZE // (1024*1024)}MB）"
+                        detail=f"文件大小超过限制（最大 {MAX_FILE_SIZE // (1024*1024)}MB）",
                     )
                 f.write(chunk)
     except HTTPException:
@@ -253,44 +246,53 @@ async def upload_audio_resource(
         if file_path.exists():
             file_path.unlink()
         raise HTTPException(status_code=500, detail=f"文件保存失败: {str(e)}")
-    
-    # 分析音频文件获取时长等信息
+
     duration = None
     try:
         analysis = analyze_audio_file(file_path)
         duration = analysis.duration_s
     except Exception as e:
-        # 如果分析失败，不影响上传，但记录日志
         import logging
+
         logging.warning(f"音频文件分析失败 (文件: {file_path}): {str(e)}")
-        pass
-    
-    # 创建资源记录（存储相对路径，便于静态文件服务）
-    relative_path = file_path.relative_to(AUDIO_RESOURCE_DIR) if file_path.is_relative_to(AUDIO_RESOURCE_DIR) else file_path.name
+
+    relative_path = (
+        file_path.relative_to(AUDIO_RESOURCE_DIR)
+        if file_path.is_relative_to(AUDIO_RESOURCE_DIR)
+        else file_path.name
+    )
     static_path = f"/audio_resources/{relative_path}"
-    
-    # 确定 created_by 字段：管理员显示"官方"，其他用户显示用户名
+
     created_by = "官方" if current_user.role == Role.ADMIN else current_user.username
-    
+
+    final_tags = tags or ""
+    extra_tags = extra_tags or []
+    if extra_tags:
+        extra_str = ",".join(t for t in extra_tags if t)
+        if final_tags:
+            final_tags = f"{final_tags},{extra_str}"
+        else:
+            final_tags = extra_str
+
+    # 所有通过本接口上传的音频资源一律设为公开
     audio_resource = AudioResource(
         title=title,
         description=description,
         file_path=static_path,
         file_size=file_size,
         duration=duration,
-        file_format=file_ext[1:] if file_ext else None,  # 去掉点号
+        file_format=file_ext[1:] if file_ext else None,
         category=category,
-        tags=tags,
+        tags=final_tags,
         uploader_id=current_user.id,
         created_by=created_by,
-        is_public=is_public,
+        is_public=True,
     )
-    
+
     db.add(audio_resource)
     try:
         await db.commit()
         await db.refresh(audio_resource)
-        # 记录系统日志
         await create_system_log(
             db=db,
             operation_type=OperationLog.AUDIO_UPLOAD.value,
@@ -303,13 +305,11 @@ async def upload_audio_resource(
             ip_address=get_client_ip(req),
             user_agent=get_user_agent(req),
         )
-        return AudioResourceResponse.from_orm(audio_resource)
+        return audio_resource
     except Exception as e:
         await db.rollback()
-        # 删除已上传的文件
         if file_path.exists():
             file_path.unlink()
-        # 记录失败日志
         await create_system_log(
             db=db,
             operation_type=OperationLog.AUDIO_UPLOAD.value,
@@ -323,6 +323,179 @@ async def upload_audio_resource(
             user_agent=get_user_agent(req),
         )
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
+
+
+@router.post("/resources/upload", response_model=AudioResourceResponse)
+async def upload_audio_resource(
+    req: Request,
+    file: UploadFile = File(...),
+    title: str = Body(...),
+    description: Optional[str] = Body(None),
+    category: Optional[str] = Body(None),
+    tags: Optional[str] = Body(None),
+    is_public: bool = Body(True),
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """上传单个音频资源（所有登录用户都可以上传）。"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    resource = await _save_audio_resource(
+        req=req,
+        db=db,
+        current_user=current_user,
+        file=file,
+        title=title,
+        description=description,
+        category=category,
+        tags=tags,
+        # 统一强制公开，忽略传入的 is_public
+        is_public=True,
+        extra_tags=None,
+    )
+    return AudioResourceResponse.from_orm(resource)
+
+
+@router.post("/resources/upload-bundle", response_model=dict)
+async def upload_audio_resource_bundle(
+    req: Request,
+    mixture: UploadFile = File(..., description="Mixture（混合音）"),
+    vocals: UploadFile = File(..., description="Gold Standard Vocals"),
+    drums: UploadFile = File(..., description="Gold Standard Drums"),
+    bass: UploadFile = File(..., description="Gold Standard Bass"),
+    other: UploadFile = File(..., description="Gold Standard Other"),
+    title: str = Body(..., description="这组音频的基础标题"),
+    description: Optional[str] = Body(None),
+    category: Optional[str] = Body(None),
+    tags: Optional[str] = Body(None),
+    is_public: bool = Body(True),
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    一次性上传 Mixture + 4 个 Gold Standard Stem。
+
+    这样可以保证同一组音频在资源库中成对出现，方便进行算法对比。
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    # 生成 bundle_id，用于在 tags 中关联一组资源
+    bundle_id = uuid.uuid4().hex
+    bundle_tag = f"bundle:{bundle_id}"
+
+    resources = []
+
+    # Mixture
+    mixture_title = f"{title} [Mixture]"
+    mixture_res = await _save_audio_resource(
+        req=req,
+        db=db,
+        current_user=current_user,
+        file=mixture,
+        title=mixture_title,
+        description=description,
+        category=category,
+        tags=tags,
+        is_public=True,
+        extra_tags=[bundle_tag, "role:mixture"],
+    )
+    resources.append(
+        {
+            "role": "mixture",
+            "resource": AudioResourceResponse.from_orm(mixture_res),
+        }
+    )
+
+    # Vocals
+    vocals_title = f"{title} [Gold Vocals]"
+    vocals_res = await _save_audio_resource(
+        req=req,
+        db=db,
+        current_user=current_user,
+        file=vocals,
+        title=vocals_title,
+        description=description,
+        category=category,
+        tags=tags,
+        is_public=True,
+        extra_tags=[bundle_tag, "role:gold_vocals"],
+    )
+    resources.append(
+        {
+            "role": "gold_vocals",
+            "resource": AudioResourceResponse.from_orm(vocals_res),
+        }
+    )
+
+    # Drums
+    drums_title = f"{title} [Gold Drums]"
+    drums_res = await _save_audio_resource(
+        req=req,
+        db=db,
+        current_user=current_user,
+        file=drums,
+        title=drums_title,
+        description=description,
+        category=category,
+        tags=tags,
+        is_public=True,
+        extra_tags=[bundle_tag, "role:gold_drums"],
+    )
+    resources.append(
+        {
+            "role": "gold_drums",
+            "resource": AudioResourceResponse.from_orm(drums_res),
+        }
+    )
+
+    # Bass
+    bass_title = f"{title} [Gold Bass]"
+    bass_res = await _save_audio_resource(
+        req=req,
+        db=db,
+        current_user=current_user,
+        file=bass,
+        title=bass_title,
+        description=description,
+        category=category,
+        tags=tags,
+        is_public=True,
+        extra_tags=[bundle_tag, "role:gold_bass"],
+    )
+    resources.append(
+        {
+            "role": "gold_bass",
+            "resource": AudioResourceResponse.from_orm(bass_res),
+        }
+    )
+
+    # Other
+    other_title = f"{title} [Gold Other]"
+    other_res = await _save_audio_resource(
+        req=req,
+        db=db,
+        current_user=current_user,
+        file=other,
+        title=other_title,
+        description=description,
+        category=category,
+        tags=tags,
+        is_public=True,
+        extra_tags=[bundle_tag, "role:gold_other"],
+    )
+    resources.append(
+        {
+            "role": "gold_other",
+            "resource": AudioResourceResponse.from_orm(other_res),
+        }
+    )
+
+    return {
+        "bundle_id": bundle_id,
+        "items": resources,
+    }
 
 
 @router.get("/resources/{resource_id}/download")
@@ -348,13 +521,8 @@ async def download_public_audio_resource(
         # 静态文件路径，需要找到实际的文件路径
         relative_path = resource.file_path.replace("/audio_resources/", "", 1)
         
-        # 获取音频资源目录
-        audio_resource_dir = Path(os.getenv("AUDIO_RESOURCE_DIR", "/app/audio_resources"))
-        if not audio_resource_dir.is_absolute():
-            base_dir = Path(__file__).resolve().parents[1]  # backend/app/routers -> backend
-            audio_resource_dir = base_dir / audio_resource_dir
-        
-        # 构建实际文件路径
+        # 获取音频资源目录（与上传逻辑保持一致）
+        audio_resource_dir = AUDIO_RESOURCE_DIR
         file_path = audio_resource_dir / relative_path
         
         if not file_path.exists():
