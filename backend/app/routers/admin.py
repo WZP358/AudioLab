@@ -377,6 +377,35 @@ if not AUDIO_RESOURCE_DIR.is_absolute():
     AUDIO_RESOURCE_DIR = base_dir / AUDIO_RESOURCE_DIR
 AUDIO_RESOURCE_DIR.mkdir(parents=True, exist_ok=True)
 
+def _extract_base_title_from_audio_title(title: Optional[str]) -> Optional[str]:
+    """
+    从 `SongName [Mixture]` / `SongName [Gold Vocals]` 等标题中提取基础标题 `SongName`。
+    如果不符合约定，返回原始标题（去空格）或 None。
+    """
+    if not title:
+        return None
+    raw = str(title).strip()
+    if not raw:
+        return None
+    # 约定：基础标题后紧跟一个空格和 '['，例如：`SongName [Mixture]`
+    if " [" in raw:
+        return raw.split(" [", 1)[0].strip() or raw
+    return raw
+
+
+def _extract_bundle_id_from_tags(tags: Optional[str]) -> Optional[str]:
+    """
+    兼容旧数据：从 tags 中解析形如 `bundle:<id>` 的 bundle 标识。
+    当前新上传的成组音频主要依赖标题后缀约定，此函数用于避免历史接口 NameError。
+    """
+    if not tags:
+        return None
+    try:
+        m = re.search(r"(?:^|[,\s])bundle:([A-Za-z0-9_-]+)", str(tags))
+        return m.group(1) if m else None
+    except Exception:
+        return None
+
 
 @router.post("/audio/upload", response_model=AudioResourceResponse)
 async def upload_audio_resource(
@@ -781,29 +810,74 @@ async def delete_audio_resource(
         )
         raise HTTPException(status_code=404, detail="音频资源不存在")
 
-    # 仅删除当前这一条资源及对应文件
+    # 成组级联删除：
+    # - 优先兼容旧数据：tags 中有 bundle:<id> 则按 tags 级联删除
+    # - 否则按标题基础名 `BaseTitle [` 约定级联删除（Mixture + 4 个 Gold Stem）
     deleted_titles: list[str] = []
+    file_deleted_count = 0
 
-    # 处理静态文件路径（/audio_resources/...）或绝对路径
-    deleted_titles.append(resource.title)
-    if resource.file_path.startswith("/audio_resources/"):
-        relative_path = resource.file_path.replace("/audio_resources/", "")
-        file_path = AUDIO_RESOURCE_DIR / relative_path
-    else:
-        file_path = Path(resource.file_path)
+    bundle_id = _extract_bundle_id_from_tags(getattr(resource, "tags", None))
+    base_title = _extract_base_title_from_audio_title(resource.title)
 
-    if file_path.exists():
-        try:
-            file_path.unlink()
-        except Exception as e:
-            # 记录错误但不阻止删除数据库记录
-            print(f"警告: 删除文件失败 {file_path}: {e}")
+    resources_to_delete: list[AudioResource] = []
 
-    await db.delete(resource)
+    if bundle_id:
+        bundle_query = (
+            select(AudioResource)
+            .where(
+                AudioResource.tags.isnot(None),
+                AudioResource.tags.like(f"%bundle:{bundle_id}%"),
+            )
+        )
+        bundle_result = await db.execute(bundle_query)
+        resources_to_delete = bundle_result.scalars().all()
+    elif base_title and resource.title and " [" in str(resource.title):
+        # 只在看起来像“成组标题”的情况下做级联删除，避免误删普通资源
+        group_query = select(AudioResource).where(AudioResource.title.like(f"{base_title} [%"))
+        group_result = await db.execute(group_query)
+        resources_to_delete = group_result.scalars().all()
+
+    # 兜底：确保至少删除当前这一条
+    if not resources_to_delete:
+        resources_to_delete = [resource]
+
+    # 去重（避免 tags + title 同时命中造成重复）
+    unique_by_id: dict[int, AudioResource] = {}
+    for r in resources_to_delete:
+        if r and getattr(r, "id", None) is not None:
+            unique_by_id[int(r.id)] = r
+    resources_to_delete = list(unique_by_id.values())
+
+    for r in resources_to_delete:
+        deleted_titles.append(r.title)
+        # 删除文件
+        if r.file_path and str(r.file_path).startswith("/audio_resources/"):
+            relative_path = str(r.file_path).replace("/audio_resources/", "", 1)
+            file_path = AUDIO_RESOURCE_DIR / relative_path
+        else:
+            file_path = Path(r.file_path) if r.file_path else None
+
+        if file_path and file_path.exists():
+            try:
+                file_path.unlink()
+                file_deleted_count += 1
+            except Exception as e:
+                print(f"警告: 删除文件失败 {file_path}: {e}")
+
+        await db.delete(r)
+
     await db.commit()
+    deleted_count = len(resources_to_delete)
 
     # 记录系统日志
-    desc = f"管理员 {current_user.username} 删除音频资源：{deleted_titles[0] if deleted_titles else resource_id}"
+    if deleted_count > 1:
+        group_label = bundle_id or base_title or (deleted_titles[0] if deleted_titles else resource_id)
+        desc = (
+            f"管理员 {current_user.username} 成组删除音频资源：{group_label}"
+            f"（共 {deleted_count} 条，文件删除 {file_deleted_count} 个）"
+        )
+    else:
+        desc = f"管理员 {current_user.username} 删除音频资源：{deleted_titles[0] if deleted_titles else resource_id}"
 
     await create_system_log(
         db=db,
@@ -823,7 +897,7 @@ async def delete_audio_resource(
         "resource_id": resource_id,
         "deleted_count": deleted_count,
         "file_deleted_count": file_deleted_count,
-        "bundle_id": bundle_id,
+        "bundle_id": bundle_id or base_title,
     }
 
 
@@ -854,30 +928,38 @@ async def batch_delete_audio_resources(
     if len(resources) != len(resource_ids_int):
         raise HTTPException(status_code=404, detail="部分资源不存在")
 
-    # 扩展为“成组删除”：如果选中了某个 bundle 中的一条，则自动把同 bundle 下的 Mixture + 4 个 Gold 一并删除
-    bundle_ids = set()
-    for res in resources:
-        bundle_id = _extract_bundle_id_from_tags(res.tags)
-        if bundle_id:
-            bundle_ids.add(bundle_id)
-
+    # 扩展为“成组删除”：
+    # - 优先：若资源 tags 带 bundle:<id>，按 bundle 级联
+    # - 否则：按标题基础名 `BaseTitle [` 约定级联（Mixture + 4 Gold）
     all_resources_to_delete = list(resources)
-    if bundle_ids:
-        bundle_conditions = []
-        for bid in bundle_ids:
-            bundle_conditions.append(AudioResource.tags.like(f"%bundle:{bid}%"))
-        bundle_query = (
-            select(AudioResource)
-            .where(
-                AudioResource.tags.isnot(None),
-                or_(*bundle_conditions),
-            )
-        )
-        bundle_result = await db.execute(bundle_query)
-        bundle_resources = bundle_result.scalars().all()
 
-        existing_ids = {r.id for r in all_resources_to_delete}
-        for r in bundle_resources:
+    bundle_ids = set()
+    base_titles = set()
+    for res in resources:
+        bid = _extract_bundle_id_from_tags(getattr(res, "tags", None))
+        if bid:
+            bundle_ids.add(bid)
+        bt = _extract_base_title_from_audio_title(getattr(res, "title", None))
+        # 只对“看起来像成组标题”的条目收集基础名，避免误扩散
+        if bt and getattr(res, "title", None) and " [" in str(res.title):
+            base_titles.add(bt)
+
+    existing_ids = {r.id for r in all_resources_to_delete}
+
+    if bundle_ids:
+        bundle_conditions = [AudioResource.tags.like(f"%bundle:{bid}%") for bid in bundle_ids]
+        bundle_query = select(AudioResource).where(AudioResource.tags.isnot(None), or_(*bundle_conditions))
+        bundle_result = await db.execute(bundle_query)
+        for r in bundle_result.scalars().all():
+            if r.id not in existing_ids:
+                all_resources_to_delete.append(r)
+                existing_ids.add(r.id)
+
+    if base_titles:
+        title_conditions = [AudioResource.title.like(f"{bt} [%") for bt in base_titles]
+        title_query = select(AudioResource).where(or_(*title_conditions))
+        title_result = await db.execute(title_query)
+        for r in title_result.scalars().all():
             if r.id not in existing_ids:
                 all_resources_to_delete.append(r)
                 existing_ids.add(r.id)

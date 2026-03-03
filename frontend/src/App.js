@@ -2032,7 +2032,7 @@ const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 export default function AudioLabApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { showError, showSuccess } = useToast();
+  const { showError, showSuccess, showAlert } = useToast();
   const [audioUrl, setAudioUrl] = useState(null); // 存放本地播放地址（从音频资源库选择后生成的本地 URL）
   const [user, setUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
@@ -2189,7 +2189,8 @@ export default function AudioLabApp() {
   // 音频资源选择器状态
   const [showResourceSelector, setShowResourceSelector] = useState(false);
   const [resourceSelectorType, setResourceSelectorType] = useState(null); // 'input' 或 'gold'
-  const [currentBundleId, setCurrentBundleId] = useState(null); // 当前已选输入音频对应的 bundle，用于 Gold 选择联动
+  // 使用“基础标题”作为成组音频的 bundle 标识，例如：`SongName [Mixture]` / `SongName [Gold Vocals]`
+  const [currentBundleId, setCurrentBundleId] = useState(null);
   
   // 折叠状态管理
   const [collapsedSections, setCollapsedSections] = useState({
@@ -3225,6 +3226,15 @@ export default function AudioLabApp() {
 
   const handleResourceSelect = async (file, resource) => {
     if (resourceSelectorType === "input") {
+      // 强约束：Input Source 只能选择 Mixture
+      const title = resource?.title ? String(resource.title).trim() : "";
+      if (!/^(.*)\s+\[Mixture\]\s*$/.test(title)) {
+        showError("Input Source 仅允许选择 Mixture 音频（标题需形如：xxx [Mixture]）。");
+        setShowResourceSelector(false);
+        setResourceSelectorType(null);
+        return;
+      }
+
       // 设置为 INPUT SOURCE
       setRawFile(file);
       setFile({
@@ -3233,9 +3243,27 @@ export default function AudioLabApp() {
       });
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
-      // 不再依赖 tags 进行 bundle 关联，直接清空当前 bundleId
-      setCurrentBundleId(null);
+
+      // 基于资源标题推断“成组音频”的基础标题，并用于后续 Gold Standard 联动
+      // 规则：上传成组资源时，Mixture 命名为 `${title} [Mixture]`
+      let bundleId = null;
+      if (title) {
+        const mixtureMatch = title.match(/^(.*)\s+\[Mixture\]\s*$/);
+        if (mixtureMatch && mixtureMatch[1].trim()) {
+          bundleId = mixtureMatch[1].trim();
+        }
+      }
+      setCurrentBundleId(bundleId);
     } else if (resourceSelectorType === "gold") {
+      // 兜底保护：必须先选 Mixture（成组上传）才能选择同组 Gold
+      if (!currentBundleId) {
+        showAlert(
+          "请先在 1. Input Source 中选择成组上传的 Mixture（标题形如 “xxx [Mixture]”），然后再选择对应的 Gold Standard Stem。",
+        );
+        setShowResourceSelector(false);
+        setResourceSelectorType(null);
+        return;
+      }
       // 设置为 GOLD STANDARD STEM，并触发后端分析用于可视化
       gtFileRef.current = file;
       setGtFile({
@@ -4408,6 +4436,11 @@ export default function AudioLabApp() {
                     {/*</p>*/}
                     <button
                       onClick={() => {
+                        // 必须先在 1. Input Source 中选择成组上传的 Mixture，才能选择配套的 Gold Standard
+                        if (!currentBundleId) {
+                          showAlert("请先在 1. Input Source 中选择成组上传的 Mixture（标题形如 “xxx [Mixture]”），然后再选择对应的 Gold Standard Stem。");
+                          return;
+                        }
                         setResourceSelectorType('gold');
                         setShowResourceSelector(true);
                       }}
@@ -6368,7 +6401,11 @@ export default function AudioLabApp() {
       {showResourceSelector && (
         <AudioResourceSelector
           token={authToken}
-          title={resourceSelectorType === 'input' ? '选择输入音频源' : '选择金标准参考音轨'}
+          title={
+            resourceSelectorType === "input"
+              ? "选择 Mixture（输入混合音）"
+              : "选择 Gold Standard（同组参考音轨）"
+          }
           type={resourceSelectorType}
           bundleId={resourceSelectorType === 'gold' ? currentBundleId : null}
           onSelect={handleResourceSelect}

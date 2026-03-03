@@ -65,8 +65,20 @@ export const ToastProvider = ({ children }) => {
     });
   }, []);
 
+  const [alertDialog, setAlertDialog] = useState(null);
+
+  const showAlert = useCallback((message, onOk) => {
+    setAlertDialog({
+      message,
+      onOk: () => {
+        setAlertDialog(null);
+        if (onOk) onOk();
+      },
+    });
+  }, []);
+
   return (
-    <ToastContext.Provider value={{ showToast, showSuccess, showError, showInfo, showWarning, removeToast, showConfirm }}>
+    <ToastContext.Provider value={{ showToast, showSuccess, showError, showInfo, showWarning, removeToast, showConfirm, showAlert }}>
       {children}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       {confirmDialog && (
@@ -74,6 +86,12 @@ export const ToastProvider = ({ children }) => {
           message={confirmDialog.message}
           onConfirm={confirmDialog.onConfirm}
           onCancel={confirmDialog.onCancel}
+        />
+      )}
+      {alertDialog && (
+        <AlertDialog
+          message={alertDialog.message}
+          onOk={alertDialog.onOk}
         />
       )}
     </ToastContext.Provider>
@@ -165,6 +183,33 @@ const ConfirmDialog = ({ message, onConfirm, onCancel }) => {
             className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors text-sm font-medium shadow-lg shadow-red-500/20"
           >
             确认
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AlertDialog = ({ message, onOk }) => {
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-auto">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onOk} />
+      <div className="relative bg-slate-800 rounded-xl shadow-2xl border-2 border-slate-700 p-6 max-w-md w-full mx-4 animate-in zoom-in-95 duration-200">
+        <div className="flex items-start gap-4 mb-6">
+          <div className="flex-shrink-0 w-12 h-12 bg-cyan-500/10 rounded-full flex items-center justify-center border border-cyan-500/30">
+            <Info className="text-cyan-300" size={24} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-slate-200 mb-2">提示</h3>
+            <p className="text-sm text-slate-400 leading-relaxed">{message}</p>
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onOk}
+            className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white transition-colors text-sm font-medium shadow-lg shadow-cyan-600/20"
+          >
+            知道了
           </button>
         </div>
       </div>

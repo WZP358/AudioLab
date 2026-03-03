@@ -10,9 +10,12 @@ export default function AudioResourceSelector({
   onClose,
   title = "选择音频资源",
   type = null, // 'input' | 'gold' | null
-  bundleId = null, // 当前联动的 bundle（例如已选择的 Mixture 所在 bundle）
+  // 对于 Gold 模式，这里传入“基础标题”作为成组标识，例如：`SongName`
+  bundleId = null,
 }) {
   const { showError } = useToast();
+  const isInputMode = type === "input";
+  const isGoldMode = type === "gold";
   const [resources, setResources] = useState([]);
   const [categories, setCategories] = useState([]);
   const [tags, setTags] = useState([]);
@@ -65,6 +68,13 @@ export default function AudioResourceSelector({
       params.append("sort_order", filters.sort_order);
       params.append("page", filters.page);
       params.append("page_size", filters.page_size);
+      // Input Source 仅允许选择 Mixture：让后端直接按角色过滤，避免分页后前端过滤导致空列表
+      if (type === "input") params.append("role", "mixture");
+      // Gold 模式：如果给了 bundleId（基础标题），让后端先做一次强过滤，减少前端兜底过滤的复杂度
+      if (type === "gold" && bundleId) {
+        params.append("bundle_title", bundleId);
+        params.append("role_group", "gold");
+      }
 
       const resp = await fetch(`${API_BASE}/api/audio/resources?${params}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -92,7 +102,54 @@ export default function AudioResourceSelector({
         throw new Error(message);
       }
       const data = await resp.json();
-      setResources(data.items || []);
+
+      let items = data.items || [];
+
+      // 为资源打上 _role 方便 UI 展示（基于标题后缀约定）
+      items = items.map((res) => {
+        const rawTitle = (res.title || "").trim();
+        const baseTitle = rawTitle.split(" [")[0] || rawTitle;
+        const suffix = rawTitle.slice(baseTitle.length).trim();
+
+        let role = "";
+        if (/^\[Mixture\]/i.test(suffix)) {
+          role = "mixture";
+        } else if (/^\[Gold\s+Vocals\]/i.test(suffix)) {
+          role = "gold_vocals";
+        } else if (/^\[Gold\s+Drums\]/i.test(suffix)) {
+          role = "gold_drums";
+        } else if (/^\[Gold\s+Bass\]/i.test(suffix)) {
+          role = "gold_bass";
+        } else if (/^\[Gold\s+Other\]/i.test(suffix)) {
+          role = "gold_other";
+        }
+
+        return {
+          ...res,
+          _role: role || res._role,
+          _bundleTitle: baseTitle,
+        };
+      });
+
+      // 在前端对 Gold 模式做严格联动过滤：
+      // 仅保留与当前 Mixture 同一基础标题且为 Gold 角色的音轨，例如：
+      // - `SongName [Gold Vocals]`
+      // - `SongName [Gold Drums]` 等
+      if (isGoldMode && bundleId) {
+        items = items.filter(
+          (res) =>
+            res._bundleTitle === bundleId &&
+            typeof res._role === "string" &&
+            res._role.startsWith("gold_")
+        );
+      }
+
+      // 兜底：Input 模式只展示 Mixture（即便后端未支持 role 参数，也不会误选）
+      if (isInputMode) {
+        items = items.filter((res) => res._role === "mixture");
+      }
+
+      setResources(items);
       setTotal(data.total || 0);
     } catch (err) {
       console.error("获取音频资源失败:", err);
@@ -115,6 +172,10 @@ export default function AudioResourceSelector({
     filters.page_size,
     token,
     showError,
+    isGoldMode,
+    isInputMode,
+    type,
+    bundleId,
   ]);
 
   const fetchCategories = useCallback(async () => {
@@ -161,6 +222,12 @@ export default function AudioResourceSelector({
 
   const handleSelect = async (resource) => {
     if (downloading) return;
+
+    // 强约束：Input Source 只能选择 Mixture
+    if (isInputMode && resource?._role && resource._role !== "mixture") {
+      showError("Input Source 仅允许选择 Mixture 音频。");
+      return;
+    }
     
     setDownloading(true);
     
@@ -315,7 +382,13 @@ export default function AudioResourceSelector({
 
         {/* 筛选器 */}
         <div className="p-6 border-b border-slate-700 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {isInputMode && (
+            <div className="text-[11px] text-slate-400">
+              这里只展示 <span className="text-cyan-300 font-medium">Mixture（输入混合音）</span>，用于后续分离与对比。
+            </div>
+          )}
+
+          <div className={`grid grid-cols-1 ${isInputMode ? "md:grid-cols-2" : "md:grid-cols-3"} gap-4`}>
             <div>
               <label className="block text-xs text-slate-400 mb-2 flex items-center gap-2">
                 <Filter size={14} />
@@ -337,46 +410,50 @@ export default function AudioResourceSelector({
             <div>
               <label className="block text-xs text-slate-400 mb-2 flex items-center gap-2">
                 <Search size={14} />
-                标题 / 描述
+                标题
               </label>
               <input
                 type="text"
                 value={filters.search}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
-                placeholder="按标题、描述关键词搜索..."
+                placeholder={isInputMode ? "搜索 Mixture 标题..." : "按标题、描述关键词搜索..."}
                 className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
               />
             </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-2 flex items-center gap-2">
-                <Search size={14} />
-                上传者
-              </label>
-              <input
-                type="text"
-                value={filters.uploader}
-                onChange={(e) => setFilters({ ...filters, uploader: e.target.value, page: 1 })}
-                placeholder="按上传者用户名搜索..."
-                className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-              />
-            </div>
+            {!isInputMode && (
+              <div>
+                <label className="block text-xs text-slate-400 mb-2 flex items-center gap-2">
+                  <Search size={14} />
+                  上传者
+                </label>
+                <input
+                  type="text"
+                  value={filters.uploader}
+                  onChange={(e) => setFilters({ ...filters, uploader: e.target.value, page: 1 })}
+                  placeholder="按上传者用户名搜索..."
+                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                />
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 text-[11px] text-slate-500">
-              <span>可以同时按分类、标题和上传者组合筛选。</span>
+          {!isInputMode && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                <span>可以同时按分类、标题和上传者组合筛选。</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="flex items-center gap-1.5 text-[11px] text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded hover:bg-slate-800 transition"
+              >
+                {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                高级筛选
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className="flex items-center gap-1.5 text-[11px] text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded hover:bg-slate-800 transition"
-            >
-              {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              高级筛选
-            </button>
-          </div>
+          )}
 
-          {showAdvancedFilters && (
+          {!isInputMode && showAdvancedFilters && (
             <div className="pt-3 border-t border-slate-700/60 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -457,7 +534,7 @@ export default function AudioResourceSelector({
                 <div className="flex-1">
                   <label className="block text-xs text-slate-400 mb-1.5">标签快速筛选</label>
                   <div className="flex flex-wrap gap-1.5">
-                    {tags.slice(0, 16).map((tag) => (
+                  {tags.slice(0, 16).map((tag) => (
                       <button
                         key={tag.name}
                         type="button"
@@ -762,7 +839,7 @@ export default function AudioResourceSelector({
             ) : (
               <>
                 <Check size={16} />
-                确认选择
+                {isInputMode ? "选择 Mixture" : "确认选择"}
               </>
             )}
           </button>

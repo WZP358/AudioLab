@@ -5,7 +5,7 @@ import { useToast } from "./Toast";
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 export default function AudioResources({ token }) {
-  const { showSuccess, showError } = useToast();
+  const { showSuccess, showError, showAlert } = useToast();
   const [resources, setResources] = useState([]);
   const [categories, setCategories] = useState([]);
   const [tags, setTags] = useState([]);
@@ -26,6 +26,7 @@ export default function AudioResources({ token }) {
     max_duration: "",
     min_size: "",
     max_size: "",
+    tags: [],
     sort_by: "created_at",
     sort_order: "desc",
     page: 1,
@@ -344,6 +345,44 @@ export default function AudioResources({ token }) {
       !title.trim()
     ) {
       showError("请补全 Mixture、4 条 Gold Standard 及标题。");
+      return;
+    }
+
+    // 上传前查重：如果标题重名，直接取消上传并弹窗提示
+    try {
+      const baseTitle = title.trim();
+      const resp = await fetch(
+        `${API_BASE}/api/audio/resources/title-exists?title=${encodeURIComponent(baseTitle)}&bundle=true`,
+      );
+      if (!resp.ok) {
+        let errBody;
+        try {
+          errBody = await resp.json();
+        } catch {
+          errBody = await resp.text();
+        }
+        const msg =
+          errBody && errBody.detail
+            ? errBody.detail
+            : typeof errBody === "string"
+            ? errBody
+            : "标题查重失败，请稍后重试";
+        throw new Error(msg);
+      }
+      const data = await resp.json();
+      if (data?.exists) {
+        const conflicts = Array.isArray(data.conflicts) ? data.conflicts : [];
+        const detail = conflicts.length ? `\n\n已存在：\n- ${conflicts.join("\n- ")}` : "";
+        if (showAlert) {
+          showAlert(`标题重复：请更换一个唯一标题后再上传。${detail}`);
+        } else {
+          showError(`标题重复：请更换一个唯一标题后再上传。${detail}`);
+        }
+        return;
+      }
+    } catch (e) {
+      console.error("标题查重失败:", e);
+      showError(formatErrorMessage(e));
       return;
     }
 
