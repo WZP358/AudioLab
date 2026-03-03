@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { Play, Pause } from "lucide-react";
+import { useGlobalPlayback } from "./GlobalPlaybackContext";
 
 export default function CustomPlayer({
   src,
@@ -10,13 +11,16 @@ export default function CustomPlayer({
   onPlaybackRateChange,
 }) {
   const audioRef = useRef(null);
+  const { requestPlay } = useGlobalPlayback();
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
   const toggle = () => {
     const el = audioRef.current;
+    if (!el) return;
     if (el.paused) {
+      requestPlay(el, { kind: "custom_player", src });
       el.play();
       setPlaying(true);
     } else {

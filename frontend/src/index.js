@@ -5,13 +5,16 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { ToastProvider } from './Toast';
+import { GlobalPlaybackProvider } from "./GlobalPlaybackContext";
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <BrowserRouter>
       <ToastProvider>
-        <App />
+        <GlobalPlaybackProvider>
+          <App />
+        </GlobalPlaybackProvider>
       </ToastProvider>
     </BrowserRouter>
   </React.StrictMode>

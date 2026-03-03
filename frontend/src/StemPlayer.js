@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useMemo } from "react";
 import { Play, Pause, Download } from "lucide-react";
+import { useGlobalPlayback } from "./GlobalPlaybackContext";
 
 // 控制是否输出调试日志：需要排查问题时改为 true
 const DEBUG_STEM_PLAYER = false;
@@ -53,6 +54,7 @@ export default function StemPlayer({
   onPlaybackRateChange,
 }) {
   const audioRef = useRef(null);
+  const { requestPlay } = useGlobalPlayback();
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -197,6 +199,7 @@ export default function StemPlayer({
       return;
     }
     if (el.paused) {
+      requestPlay(el, { kind: "stem_player", name, src: url });
       el.play().catch((e) => {
         console.error("播放失败:", e);
         setPlaying(false);
