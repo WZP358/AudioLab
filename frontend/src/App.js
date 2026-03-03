@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import CustomPlayer from "./CustomPlayer";
 import StemPlayer from "./StemPlayer";
 import AuthPage from "./AuthPage";
 import AudioResources from "./AudioResources";
@@ -4346,42 +4345,57 @@ export default function AudioLabApp() {
                   </div>
                 )}
                 {audioUrl && (
-                  <CustomPlayer
-                    src={audioUrl}
-                    syncedTime={syncedCurrentTime}
-                    playbackRate={globalPlaybackRate}
-                    onPlaybackRateChange={setGlobalPlaybackRate}
-                    onUserSeek={(t) => seekAll(t, { skip: "input" })}
-                    onPlaybackStateChange={(state) => {
-                      // 如果开始播放，暂停其他播放器
-                      const wasPlaying = previousPlayingState.current.input;
-                      const isNowPlaying = state.playing;
-                      
-                      // 先更新当前播放器的状态
-                      previousPlayingState.current.input = isNowPlaying;
-                      inputSourceAudioRef.current = state.audioRef;
-                      
-                      if (isNowPlaying && !wasPlaying) {
-                        // 暂停金标准播放器（先检查是否真的在播放）
-                        if (goldStandardAudioRef.current && !goldStandardAudioRef.current.paused) {
-                          goldStandardAudioRef.current.pause();
-                          previousPlayingState.current.gold = false;
+                  <div className="mt-2 overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900/60">
+                    <StemPlayer
+                      name="Input Source"
+                      src={audioUrl}
+                      onSelect={() => {}}
+                      theme="cyan"
+                      showDownload={false}
+                      syncedTime={syncedCurrentTime}
+                      playbackRate={globalPlaybackRate}
+                      onPlaybackRateChange={setGlobalPlaybackRate}
+                      onUserSeek={(t) => seekAll(t, { skip: "input" })}
+                      onPlaybackStateChange={(state) => {
+                        // 如果开始播放，暂停其他播放器
+                        const wasPlaying = previousPlayingState.current.input;
+                        const isNowPlaying = state.playing;
+
+                        // 先更新当前播放器的状态
+                        previousPlayingState.current.input = isNowPlaying;
+                        inputSourceAudioRef.current = state.audioRef;
+
+                        if (isNowPlaying && !wasPlaying) {
+                          // 暂停金标准播放器（先检查是否真的在播放）
+                          if (
+                            goldStandardAudioRef.current &&
+                            !goldStandardAudioRef.current.paused
+                          ) {
+                            goldStandardAudioRef.current.pause();
+                            previousPlayingState.current.gold = false;
+                          }
+                          // 暂停分离结果播放器（先检查是否真的在播放）
+                          if (
+                            separatedStemAudioRef.current &&
+                            !separatedStemAudioRef.current.paused
+                          ) {
+                            separatedStemAudioRef.current.pause();
+                            previousPlayingState.current.separated = false;
+                          }
+                          // 暂停残差播放器
+                          if (
+                            residualStemAudioRef.current &&
+                            !residualStemAudioRef.current.paused
+                          ) {
+                            residualStemAudioRef.current.pause();
+                            previousPlayingState.current.residual = false;
+                          }
                         }
-                        // 暂停分离结果播放器（先检查是否真的在播放）
-                        if (separatedStemAudioRef.current && !separatedStemAudioRef.current.paused) {
-                          separatedStemAudioRef.current.pause();
-                          previousPlayingState.current.separated = false;
-                        }
-            // 暂停残差播放器
-            if (residualStemAudioRef.current && !residualStemAudioRef.current.paused) {
-              residualStemAudioRef.current.pause();
-              previousPlayingState.current.residual = false;
-            }
-                      }
-                      
-                      handlePlayerStateChange("input", state);
-                    }}
-                  />
+
+                        handlePlayerStateChange("input", state);
+                      }}
+                    />
+                  </div>
                 )}
                   </>
                 )}

@@ -52,6 +52,7 @@ export default function StemPlayer({
   theme = "cyan",
   playbackRate = 1.0,
   onPlaybackRateChange,
+  showDownload = true,
 }) {
   const audioRef = useRef(null);
   const { requestPlay } = useGlobalPlayback();
@@ -436,15 +437,17 @@ export default function StemPlayer({
           </select>
         </div>
       </div>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          download();
-        }}
-        className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 transition flex-shrink-0"
-      >
-        <Download size={16} />
-      </button>
+      {showDownload ? (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            download();
+          }}
+          className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 transition flex-shrink-0"
+        >
+          <Download size={16} />
+        </button>
+      ) : null}
     </div>
   );
 }
