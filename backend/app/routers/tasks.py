@@ -1,17 +1,19 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, Request, Header
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_, update
 from typing import List, Optional
 import os
 import uuid
 import logging
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.models import SeparationTask, StemFile, TaskStatus, Algorithm, User
+from app.models import SeparationTask, StemFile, TaskStatus, Algorithm, User, Role, Score
+from app.routers.auth import get_current_user
 from app.services.separation_engine import mark_task_cancelled
 from app.schemas import (
     TaskResponse,
@@ -21,6 +23,7 @@ from app.schemas import (
     ObjectiveAlgorithmStats,
     ObjectiveAlgorithmDistribution,
     AudioAnalysisPayload,
+    PaginatedTaskListResponse,
 )
 from app.services.separation_service import process_separation
 from app.services.analysis_service import analyze_audio_file, analysis_to_payload, _read_audio_any
@@ -210,13 +213,13 @@ async def upload_audio(
     req: Request,
     file: UploadFile = File(...),
     algorithm: Algorithm = Algorithm.DEMUCS_V4,
-    current_user: Optional[User] = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """上传音频文件并创建分离任务"""
-    # 获取用户ID（如果已登录则使用用户ID，否则使用"anonymous"）
-    user_id = str(current_user.id) if current_user else "anonymous"
+    # 当前版本前端强制登录后使用，因此任务必须绑定到登录用户
+    user_id = str(current_user.id)
     
     # 保存上传的文件
     file_ext = Path(file.filename).suffix
@@ -286,6 +289,38 @@ async def upload_audio(
         raise HTTPException(status_code=500, detail=f"任务创建失败: {str(e)}")
 
 
+@router.post("/history/claim-anonymous")
+async def claim_anonymous_task_history(
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    将历史上以 user_id='anonymous' 创建的任务“找回”到当前账号名下（仅限本地/单用户场景）。
+
+    - 这是一个显式操作，避免自动归属带来的潜在数据串号风险；
+    - 默认只处理最近 `days` 天的匿名任务。
+    """
+    days = max(1, min(3650, int(days or 30)))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    stmt = (
+        update(SeparationTask)
+        .where(
+            and_(
+                SeparationTask.user_id == "anonymous",
+                SeparationTask.created_at >= cutoff,
+            )
+        )
+        .values(user_id=str(current_user.id))
+    )
+    result = await db.execute(stmt)
+    await db.commit()
+
+    updated = int(getattr(result, "rowcount", 0) or 0)
+    return {"updated": updated, "days": days}
+
+
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: str, db: AsyncSession = Depends(get_db)):
     """获取任务状态"""
@@ -348,6 +383,231 @@ async def get_task(task_id: str, db: AsyncSession = Depends(get_db)):
     
     logger.info(f"任务查询成功: task_id={task.id}, status={task.status}")
     return task
+
+
+@router.get("/history/me", response_model=PaginatedTaskListResponse)
+async def get_my_task_history(
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    status: Optional[TaskStatus] = None,
+    algorithm: Optional[Algorithm] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    当前登录用户的分离任务历史记录（分页）。
+    
+    - 用于“分离历史”页面展示“我的历史记录”；
+    - 仅返回当前用户自己的任务，避免泄露其他用户信息。
+    """
+
+    page = max(1, int(page or 1))
+    page_size = max(1, min(100, int(page_size or 20)))
+
+    user_id_str = str(current_user.id)
+
+    # 所有已经登录的用户都可以查看自己的历史任务
+    conditions = [SeparationTask.user_id == user_id_str]
+    if status is not None:
+        conditions.append(SeparationTask.status == status)
+    if algorithm is not None:
+        conditions.append(SeparationTask.algorithm == algorithm)
+    if search:
+        s = search.strip()
+        if s:
+            # 尝试按 ID 精确匹配，否则按文件名模糊搜索
+            try:
+                sid = int(s)
+                conditions.append(SeparationTask.id == sid)
+            except ValueError:
+                like_kw = f"%{s}%"
+                conditions.append(SeparationTask.original_filename.like(like_kw))
+
+    q = select(SeparationTask).where(and_(*conditions))
+
+    count_q = select(func.count(SeparationTask.id)).where(and_(*conditions))
+    total_result = await db.execute(count_q)
+    total = int(total_result.scalar() or 0)
+
+    offset = (page - 1) * page_size
+    q = q.order_by(SeparationTask.created_at.desc()).offset(offset).limit(page_size)
+
+    result = await db.execute(q)
+    tasks = result.scalars().all()
+
+    return PaginatedTaskListResponse(
+        items=[TaskResponse.model_validate(t) for t in tasks],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=(total + page_size - 1) // page_size if total > 0 else 0,
+    )
+
+
+@router.get("/history/admin", response_model=PaginatedTaskListResponse)
+async def get_all_task_history(
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    status: Optional[TaskStatus] = None,
+    algorithm: Optional[Algorithm] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    管理员查看所有分离任务历史记录（分页）。
+
+    - 管理员可在后台查看并管理所有用户的历史分离任务；
+    - 前端可通过筛选/分页避免一次性加载过多数据。
+    """
+    if current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="仅管理员可查看所有历史记录")
+
+    page = max(1, int(page or 1))
+    page_size = max(1, min(100, int(page_size or 20)))
+
+    conditions = []
+    if status is not None:
+        conditions.append(SeparationTask.status == status)
+    if algorithm is not None:
+        conditions.append(SeparationTask.algorithm == algorithm)
+    if search:
+        s = search.strip()
+        if s:
+            try:
+                sid = int(s)
+                conditions.append(SeparationTask.id == sid)
+            except ValueError:
+                like_kw = f"%{s}%"
+                conditions.append(SeparationTask.original_filename.like(like_kw))
+
+    q = select(SeparationTask)
+    if conditions:
+        q = q.where(and_(*conditions))
+
+    count_q = select(func.count(SeparationTask.id))
+    if conditions:
+        count_q = count_q.where(and_(*conditions))
+
+    total_result = await db.execute(count_q)
+    total = int(total_result.scalar() or 0)
+
+    offset = (page - 1) * page_size
+    q = q.order_by(SeparationTask.created_at.desc()).offset(offset).limit(page_size)
+
+    result = await db.execute(q)
+    tasks = result.scalars().all()
+
+    return PaginatedTaskListResponse(
+        items=[TaskResponse.model_validate(t) for t in tasks],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=(total + page_size - 1) // page_size if total > 0 else 0,
+    )
+
+
+@router.delete("/history/{task_id}")
+async def delete_task_history(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    删除单条分离任务历史记录，同时清理对应本地文件：
+    - 上传的混合音频文件（SeparationTask.file_path）
+    - 所有 stem 文件（StemFile.file_path）
+    - 任务结果目录（backend/results/{task_id} 以及 /app/results/{task_id}）
+
+    权限规则：
+    - 专家：仅可删除自己的任务；
+    - 管理员：可删除任意任务。
+    """
+    try:
+        task_id_int = int(task_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="无效的任务ID")
+
+    task = await db.get(SeparationTask, task_id_int)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在或已被删除")
+
+    # 权限校验
+    if current_user.role != Role.ADMIN:
+        if str(task.user_id) != str(current_user.id):
+            raise HTTPException(status_code=403, detail="仅可删除自己的历史记录")
+
+    # 收集需要删除的文件路径
+    file_paths: list[Path] = []
+
+    # 上传的原始文件
+    if task.file_path:
+        file_paths.append(Path(task.file_path))
+
+    # 所有 stem 文件
+    stems_result = await db.execute(
+        select(StemFile).where(StemFile.task_id == task_id_int)
+    )
+    stems = stems_result.scalars().all()
+    for s in stems:
+        if s.file_path:
+            file_paths.append(Path(s.file_path))
+
+    # 结果目录（本地 backend/results/{task_id} 和容器内 /app/results/{task_id}）
+    local_results_dir = RESULTS_DIR / str(task_id_int)
+    docker_results_dir = Path("/app/results") / str(task_id_int)
+
+    # 先删除数据库记录（Scores -> Stems -> Task），再尝试删除文件
+    try:
+        # 删除评分记录，避免悬挂引用
+        scores_result = await db.execute(
+            select(Score).where(Score.task_id == task_id_int)
+        )
+        scores = scores_result.scalars().all()
+        for sc in scores:
+            await db.delete(sc)
+
+        # 删除 stems
+        for s in stems:
+            await db.delete(s)
+
+        # 删除任务本身
+        await db.delete(task)
+
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.error("删除任务历史记录失败（数据库层）：task_id=%s err=%s", task_id_int, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除任务历史记录失败：{type(e).__name__}: {str(e)}")
+
+    # 文件删除放在事务提交之后执行，避免文件已删但数据库仍存在的极端情况
+    def _safe_remove(p: Path):
+        try:
+            if p.is_file():
+                p.unlink(missing_ok=True)  # type: ignore[call-arg]
+            elif p.is_dir():
+                # 递归删除目录内容
+                for child in p.rglob("*"):
+                    if child.is_file():
+                        child.unlink(missing_ok=True)  # type: ignore[call-arg]
+                p.rmdir()
+        except Exception as e:
+            # 记录但不抛出，让整体删除流程尽可能完成
+            logger.warning("删除文件/目录失败: path=%s err=%s", p, e)
+
+    # 删除单个文件
+    for fp in file_paths:
+        _safe_remove(fp)
+
+    # 删除结果目录
+    _safe_remove(local_results_dir)
+    _safe_remove(docker_results_dir)
+
+    return {
+        "message": "历史记录及对应文件已删除",
+        "task_id": str(task_id_int),
+    }
 
 
 @router.post("/{task_id}/cancel", response_model=TaskResponse)
@@ -525,6 +785,41 @@ async def download_stem(
         headers={
             "Accept-Ranges": "bytes",  # 明确告知支持 Range 请求
         }
+    )
+
+
+@router.get("/{task_id}/mixture/download")
+async def download_mixture_audio(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    下载原始混合音频文件（用于历史任务导入时还原 Input Source）。
+    """
+    try:
+        task_id_int = int(task_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="无效的任务ID")
+
+    task = await db.get(SeparationTask, task_id_int)
+    if not task or not task.file_path:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    file_path = Path(task.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Mixture file not found")
+    if file_path.stat().st_size == 0:
+        raise HTTPException(status_code=409, detail="Mixture file is empty")
+
+    from fastapi.responses import FileResponse
+
+    return FileResponse(
+        path=file_path,
+        media_type="audio/wav",
+        filename=file_path.name,
+        headers={
+            "Accept-Ranges": "bytes",
+        },
     )
 
 

@@ -1545,6 +1545,59 @@ async def get_analytics_stats(
     }
 
 
+@router.get("/tasks/history")
+async def get_all_task_history_admin(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    管理员查看所有分离任务历史记录（简要信息，用于后台列表展示）。
+
+    - 主要字段：id / user_id / original_filename / algorithm / status / created_at / completed_at；
+    - 为避免一次性返回过多数据，强制分页。
+    """
+    page = max(1, int(page or 1))
+    page_size = max(1, min(100, int(page_size or 20)))
+
+    base_query = select(SeparationTask)
+    count_query = select(func.count(SeparationTask.id))
+
+    total_result = await db.execute(count_query)
+    total = int(total_result.scalar() or 0)
+
+    offset = (page - 1) * page_size
+    base_query = base_query.order_by(
+        SeparationTask.created_at.desc()
+    ).offset(offset).limit(page_size)
+
+    result = await db.execute(base_query)
+    tasks = result.scalars().all()
+
+    items = []
+    for t in tasks:
+        items.append(
+            {
+                "id": str(t.id),
+                "user_id": str(t.user_id) if t.user_id is not None else None,
+                "original_filename": t.original_filename,
+                "algorithm": t.algorithm.value if getattr(t, "algorithm", None) else None,
+                "status": t.status.value if getattr(t, "status", None) else None,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+            }
+        )
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size if total > 0 else 0,
+    }
+
+
 # ==================== 用户端通知API ====================
 
 @public_router.get("/notifications")

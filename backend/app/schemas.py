@@ -31,6 +31,15 @@ class TaskResponse(BaseModel):
         return str(value)
 
 
+class PaginatedTaskListResponse(BaseModel):
+    """分离任务历史记录分页响应"""
+    items: List[TaskResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class StemResponse(BaseModel):
     id: int  # 保持为 int，在序列化时转为字符串
     task_id: int  # 保持为 int，在序列化时转为字符串

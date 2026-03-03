@@ -49,6 +49,10 @@ export default function AudioResources({ token }) {
   });
   const [uploading, setUploading] = useState(false);
 
+  // 浏览器推荐在线播放格式（短期方案）
+  const browserPlayableFormats = [".mp3", ".wav", ".ogg"];
+  const allAllowedFormats = [".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac"];
+
   const formatErrorMessage = (err) => {
     if (!err) return "";
     if (typeof err === "string") return err;
@@ -316,6 +320,23 @@ export default function AudioResources({ token }) {
       category,
       tags,
     } = uploadForm;
+
+    const files = [mixtureFile, vocalsFile, drumsFile, bassFile, otherFile].filter(Boolean);
+    const invalidForBrowserPlay = files.some((f) => {
+      if (!f || !f.name) return false;
+      const lower = f.name.toLowerCase();
+      const ext = allAllowedFormats.find((e) => lower.endsWith(e));
+      // 只要不是浏览器推荐播放格式，就认为在线播放可能失败
+      return ext && !browserPlayableFormats.includes(ext);
+    });
+    if (invalidForBrowserPlay) {
+      showError(
+        "当前上传中包含浏览器不推荐的在线播放格式（如 FLAC / M4A / AAC）。\n" +
+          "短期方案：请优先上传 MP3 / WAV / OGG，以便在音频资源库中直接在线播放。\n" +
+          "如需上传无损格式，请知悉：可能只能通过“下载后本地播放器播放”。",
+      );
+      return;
+    }
 
     if (
       !mixtureFile ||
@@ -921,6 +942,20 @@ export default function AudioResources({ token }) {
                 <label className="block text-sm text-slate-400">
                   输入 Mixture 与对应 4 个 Gold Standard Stem（必须一次性全部上传）
                 </label>
+                <div className="rounded-lg border border-cyan-500/40 bg-cyan-500/5 px-4 py-3 text-xs text-slate-200">
+                  <div className="font-medium text-cyan-300 mb-1">
+                    温馨提示（短期方案）
+                  </div>
+                  <p className="leading-relaxed">
+                    为保证在「音频资源库」页面可以直接在线播放，建议优先上传{" "}
+                    <span className="font-semibold text-cyan-200">MP3 / WAV / OGG</span>{" "}
+                    等浏览器普遍支持的格式。
+                  </p>
+                  <p className="leading-relaxed mt-1 text-slate-300">
+                    上传 FLAC / M4A / AAC 等无损或特殊编码格式时，浏览器可能无法直接解码，
+                    此时只能通过「下载」后使用本地播放器收听。
+                  </p>
+                </div>
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm text-slate-400 mb-2">Mixture（混合音） *</label>

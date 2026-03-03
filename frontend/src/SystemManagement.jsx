@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import html2canvas from "html2canvas";
 import {
   FileText,
@@ -43,6 +43,7 @@ const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 export default function SystemManagement({ token }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const pathname = (location?.pathname || "").replace(/\/+$/, "") || "/";
 
   // 根据 URL 判断当前是哪个独立子页面
@@ -55,24 +56,80 @@ export default function SystemManagement({ token }) {
     currentSection = "notifications";
   } else if (pathname === "/admin/system/analytics") {
     currentSection = "analytics";
+  } else if (pathname === "/admin/system/tasks") {
+    currentSection = "tasks";
   }
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-900">
       {/* Page Header */}
-      <div className="border-b border-slate-700 bg-slate-800 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-            <Settings size={18} className="text-cyan-400" />
-          </div>
-          <div>
-            <div className="text-white font-semibold text-lg">系统管理</div>
-            <div className="text-xs text-slate-400">
-              系统日志 / 系统设置 / 通知中心 / 数据统计
-            </div>
-          </div>
-        </div>
-      </div>
+      {/*<div className="border-b border-slate-700 bg-slate-800 px-6 py-4">*/}
+      {/*  /!*<div className="flex flex-col gap-3">*!/*/}
+      {/*  /!*  /!*<div className="flex items-center gap-3">*!/*!/*/}
+      {/*  /!*  /!*  <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">*!/*!/*/}
+      {/*  /!*  /!*    <Settings size={18} className="text-cyan-400" />*!/*!/*/}
+      {/*  /!*  /!*  </div>*!/*!/*/}
+      {/*  /!*  /!*  /!*<div>*!/*!/*!/*/}
+      {/*  /!*  /!*  /!*  <div className="text-white font-semibold text-lg">系统管理</div>*!/*!/*!/*/}
+      {/*  /!*  /!*  /!*  <div className="text-xs text-slate-400">*!/*!/*!/*/}
+      {/*  /!*  /!*  /!*    系统日志 / 系统设置 / 通知中心 / 数据统计 / 分离任务历史*!/*!/*!/*/}
+      {/*  /!*  /!*  /!*  </div>*!/*!/*!/*/}
+      {/*  /!*  /!*  /!*</div>*!/*!/*!/*/}
+      {/*  /!*  /!*</div>*!/*!/*/}
+      {/*  /!*  /!*<div className="flex flex-wrap gap-2">*!/*!/*/}
+      {/*  /!*  /!*  <button*!/*!/*/}
+      {/*  /!*  /!*    onClick={() => navigate("/admin/system/logs")}*!/*!/*/}
+      {/*  /!*  /!*    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${*!/*!/*/}
+      {/*  /!*  /!*      currentSection === "logs"*!/*!/*/}
+      {/*  /!*  /!*        ? "bg-cyan-600 text-white shadow shadow-cyan-900/30"*!/*!/*/}
+      {/*  /!*  /!*        : "bg-slate-900 text-slate-300 hover:bg-slate-700"*!/*!/*/}
+      {/*  /!*  /!*    }`}*!/*!/*/}
+      {/*  /!*  /!*  >*!/*!/*/}
+      {/*  /!*  /!*    系统日志*!/*!/*/}
+      {/*  /!*  /!*  </button>*!/*!/*/}
+      {/*  /!*  /!*  <button*!/*!/*/}
+      {/*  /!*  /!*    onClick={() => navigate("/admin/system/settings")}*!/*!/*/}
+      {/*  /!*  /!*    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${*!/*!/*/}
+      {/*  /!*  /!*      currentSection === "settings"*!/*!/*/}
+      {/*  /!*  /!*        ? "bg-cyan-600 text-white shadow shadow-cyan-900/30"*!/*!/*/}
+      {/*  /!*  /!*        : "bg-slate-900 text-slate-300 hover:bg-slate-700"*!/*!/*/}
+      {/*  /!*  /!*    }`}*!/*!/*/}
+      {/*  /!*  /!*  >*!/*!/*/}
+      {/*  /!*  /!*    系统设置*!/*!/*/}
+      {/*  /!*  /!*  </button>*!/*!/*/}
+      {/*  /!*  /!*  <button*!/*!/*/}
+      {/*  /!*  /!*    onClick={() => navigate("/admin/system/notifications")}*!/*!/*/}
+      {/*  /!*  /!*    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${*!/*!/*/}
+      {/*  /!*  /!*      currentSection === "notifications"*!/*!/*/}
+      {/*  /!*  /!*        ? "bg-cyan-600 text-white shadow shadow-cyan-900/30"*!/*!/*/}
+      {/*  /!*  /!*        : "bg-slate-900 text-slate-300 hover:bg-slate-700"*!/*!/*/}
+      {/*  /!*  /!*    }`}*!/*!/*/}
+      {/*  /!*  /!*  >*!/*!/*/}
+      {/*  /!*  /!*    通知中心*!/*!/*/}
+      {/*  /!*  /!*  </button>*!/*!/*/}
+      {/*  /!*  /!*  <button*!/*!/*/}
+      {/*  /!*  /!*    onClick={() => navigate("/admin/system/analytics")}*!/*!/*/}
+      {/*  /!*  /!*    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${*!/*!/*/}
+      {/*  /!*  /!*      currentSection === "analytics"*!/*!/*/}
+      {/*  /!*  /!*        ? "bg-cyan-600 text-white shadow shadow-cyan-900/30"*!/*!/*/}
+      {/*  /!*  /!*        : "bg-slate-900 text-slate-300 hover:bg-slate-700"*!/*!/*/}
+      {/*  /!*  /!*    }`}*!/*!/*/}
+      {/*  /!*  /!*  >*!/*!/*/}
+      {/*  /!*  /!*    数据统计*!/*!/*/}
+      {/*  /!*  /!*  </button>*!/*!/*/}
+      {/*  /!*  /!*  <button*!/*!/*/}
+      {/*  /!*  /!*    onClick={() => navigate("/admin/system/tasks")}*!/*!/*/}
+      {/*  /!*  /!*    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${*!/*!/*/}
+      {/*  /!*  /!*      currentSection === "tasks"*!/*!/*/}
+      {/*  /!*  /!*        ? "bg-cyan-600 text-white shadow shadow-cyan-900/30"*!/*!/*/}
+      {/*  /!*  /!*        : "bg-slate-900 text-slate-300 hover:bg-slate-700"*!/*!/*/}
+      {/*  /!*  /!*    }`}*!/*!/*/}
+      {/*  /!*  /!*  >*!/*!/*/}
+      {/*  /!*  /!*    分离任务历史*!/*!/*/}
+      {/*  /!*  /!*  </button>*!/*!/*/}
+      {/*  /!*  /!*</div>*!/*!/*/}
+      {/*  /!*</div>*!/*/}
+      {/*</div>*/}
 
       {/* Content：当访问特定 URL 时只展示对应模块；访问 /admin/system 时仍可按需扩展为展示全部 */}
       <div className="flex-1 overflow-auto p-6 space-y-8">
@@ -95,6 +152,156 @@ export default function SystemManagement({ token }) {
           <div id="system-analytics">
             <Analytics token={token} />
           </div>
+        )}
+        {currentSection === "tasks" && (
+          <div id="system-tasks">
+            <TaskHistoryAdmin token={token} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 分离任务历史（管理员独立页面）
+function TaskHistoryAdmin({ token }) {
+  const { showError } = useToast();
+  const [taskHistory, setTaskHistory] = useState([]);
+  const [taskHistoryPage, setTaskHistoryPage] = useState(1);
+  const [taskHistoryTotalPages, setTaskHistoryTotalPages] = useState(1);
+  const [taskHistoryLoading, setTaskHistoryLoading] = useState(false);
+
+  const fetchTaskHistory = async (page = 1) => {
+    setTaskHistoryLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("page_size", "20");
+      const resp = await fetch(
+        `${API_BASE}/api/admin/system/tasks/history?${params.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (!resp.ok) {
+        throw new Error("获取任务历史失败");
+      }
+      const data = await resp.json();
+      setTaskHistory(Array.isArray(data.items) ? data.items : []);
+      setTaskHistoryPage(data.page || 1);
+      setTaskHistoryTotalPages(data.total_pages || 1);
+    } catch (err) {
+      showError(err.message || "获取任务历史失败");
+    } finally {
+      setTaskHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTaskHistory(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Activity size={18} className="text-cyan-400" />
+          <div>
+            <div className="text-white font-semibold text-sm">分离任务历史</div>
+            <div className="text-xs text-slate-400">
+              查看近期所有音频分离任务的概况，便于排查问题或统计使用情况。
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => fetchTaskHistory(1)}
+          className="px-4 py-2 bg-slate-900 hover:bg-slate-700 text-white rounded-lg text-xs flex items-center gap-2"
+        >
+          <RotateCcw size={14} />
+          刷新
+        </button>
+      </div>
+
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+        {taskHistoryLoading ? (
+          <div className="text-center text-slate-400 py-8 text-sm">加载中...</div>
+        ) : taskHistory.length === 0 ? (
+          <div className="text-center text-slate-400 py-8 text-sm">
+            暂无分离任务历史记录。
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-900">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-slate-400 font-medium">任务ID</th>
+                    <th className="px-3 py-2 text-left text-slate-400 font-medium">用户ID</th>
+                    <th className="px-3 py-2 text-left text-slate-400 font-medium">文件名</th>
+                    <th className="px-3 py-2 text-left text-slate-400 font-medium">算法</th>
+                    <th className="px-3 py-2 text-left text-slate-400 font-medium">状态</th>
+                    <th className="px-3 py-2 text-left text-slate-400 font-medium">创建时间</th>
+                    <th className="px-3 py-2 text-left text-slate-400 font-medium">完成时间</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700">
+                  {taskHistory.map((t) => (
+                    <tr key={t.id} className="hover:bg-slate-700/40">
+                      <td className="px-3 py-2 font-mono text-slate-200">{t.id}</td>
+                      <td className="px-3 py-2 font-mono text-slate-300">{t.user_id || "-"}</td>
+                      <td className="px-3 py-2 text-slate-100 max-w-xs truncate">
+                        {t.original_filename || "(未命名)"}
+                      </td>
+                      <td className="px-3 py-2 text-slate-300">{t.algorithm || "-"}</td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`px-2 py-1 rounded-full text-[11px] ${
+                            t.status === "completed"
+                              ? "bg-emerald-500/20 text-emerald-300"
+                              : t.status === "failed"
+                              ? "bg-red-500/20 text-red-300"
+                              : "bg-slate-600/60 text-slate-200"
+                          }`}
+                        >
+                          {t.status || "-"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-400">
+                        {t.created_at ? new Date(t.created_at).toLocaleString("zh-CN") : "-"}
+                      </td>
+                      <td className="px-3 py-2 text-slate-400">
+                        {t.completed_at ? new Date(t.completed_at).toLocaleString("zh-CN") : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {taskHistoryTotalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 text-xs text-slate-400">
+                <button
+                  onClick={() => fetchTaskHistory(Math.max(1, taskHistoryPage - 1))}
+                  disabled={taskHistoryPage <= 1}
+                  className="px-3 py-1.5 bg-slate-900 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  上一页
+                </button>
+                <span>
+                  第 {taskHistoryPage} / {taskHistoryTotalPages} 页
+                </span>
+                <button
+                  onClick={() =>
+                    fetchTaskHistory(Math.min(taskHistoryTotalPages, taskHistoryPage + 1))
+                  }
+                  disabled={taskHistoryPage >= taskHistoryTotalPages}
+                  className="px-3 py-1.5 bg-slate-900 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  下一页
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -1450,7 +1657,7 @@ function Analytics({ token }) {
         setLoading(false);
       }
     };
-    
+
     fetchStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days, token]);

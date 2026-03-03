@@ -25,6 +25,7 @@ import {
   MessageCircle,
   Grid,
   List,
+  Activity,
 } from "lucide-react";
 import SystemManagement from "./SystemManagement";
 import { useToast } from "./Toast";
@@ -991,6 +992,17 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
         >
           <BarChart3 size={18} />
           数据统计
+        </button>
+        <button
+          onClick={() => handleSystemNavClick("/admin/system/tasks")}
+          className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
+            (location.pathname || "").startsWith("/admin/system/tasks")
+              ? "text-cyan-400 border-b-2 border-cyan-400"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Activity size={18} />
+          分离任务历史
         </button>
       </div>
 

@@ -36,6 +36,8 @@ import {
   Lock,
   Upload as UploadIcon,
   X as CloseIcon,
+  Clock,
+  RotateCcw,
 } from "lucide-react";
 import {
   LineChart,
@@ -63,6 +65,7 @@ const VIEW_TO_PATH = {
   stats: "/stats",
   audio_resources: "/audio-resources",
   comments: "/comments",
+  history: "/history",
 };
 const normalizePathname = (pathname) => {
   if (typeof pathname !== "string") return "/";
@@ -2049,6 +2052,15 @@ export default function AudioLabApp() {
   const [progressText, setProgressText] = useState(""); // 进度文本
   const [isCancelling, setIsCancelling] = useState(false); // 是否正在取消当前任务
   const cancelSeparationRef = useRef({ requested: false }); // 取消标记，用于打断轮询
+  // 历史任务导入相关状态
+  const [historyIdInput, setHistoryIdInput] = useState("");
+  const [historyImportLoading, setHistoryImportLoading] = useState(false);
+  const [myTaskHistory, setMyTaskHistory] = useState([]);
+  const [myTaskHistoryPage, setMyTaskHistoryPage] = useState(1);
+  const [myTaskHistoryTotalPages, setMyTaskHistoryTotalPages] = useState(1);
+  const [myTaskHistoryLoading, setMyTaskHistoryLoading] = useState(false);
+  const [myTaskHistoryError, setMyTaskHistoryError] = useState(null);
+  const [claimAnonymousLoading, setClaimAnonymousLoading] = useState(false);
   // 自定义残差 / 混合播放器相关状态
   const [mixSelectedStems, setMixSelectedStems] = useState([]);
   const [mixMode, setMixMode] = useState("remove"); // "keep" | "remove"
@@ -2535,7 +2547,7 @@ export default function AudioLabApp() {
     });
   }, [playbackState.playing, playbackState.currentTime, playbackState.duration, autoZoomSpectrumOnPause]);
 
-  // Auth Effect - 检查本地存储的 token
+  // Auth Effect - 检查本地存储的 token，并在登录后预加载个人历史（用于 history 视图）
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem("auth_token");
@@ -2560,7 +2572,254 @@ export default function AudioLabApp() {
       }
     };
     initAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 根据历史记录 ID 直接导入已完成的分离任务，避免重复计算
+  const handleImportHistoryById = async () => {
+    const raw = (historyIdInput || "").trim();
+    if (!raw) {
+      showError("请输入历史记录ID");
+      return;
+    }
+    if (!/^\d+$/.test(raw)) {
+      showError("历史记录ID格式不正确，仅支持数字");
+      return;
+    }
+
+    const taskIdStr = raw;
+    setHistoryImportLoading(true);
+    setIsProcessing(true);
+    setProgressText("正在加载历史任务...");
+    setResults(null);
+    setObjectiveByStem({});
+    setObjectiveError(null);
+    setStems([]);
+    setCurrentStem(null);
+
+    try {
+      // 1) 获取任务信息，确认任务存在且已完成
+      const taskUrl = `${API_BASE}/api/tasks/${encodeURIComponent(taskIdStr)}`;
+      const taskResp = await fetch(taskUrl);
+      let taskText = await taskResp.text();
+      if (!taskResp.ok) {
+        throw new Error(taskText || "加载历史任务失败");
+      }
+      const idPattern = /"id"\s*:\s*(\d+)/g;
+      if (idPattern.test(taskText)) {
+        taskText = taskText.replace(/"id"\s*:\s*(\d+)/, `"id":"$1"`);
+      }
+      const taskData = JSON.parse(taskText);
+      if (taskData.status !== "completed") {
+        throw new Error("该历史任务尚未完成或已失败，请先完成一次分离任务");
+      }
+
+      setTaskId(taskIdStr);
+      setSelectedAlgo(taskData.algorithm || null);
+
+      // 2) 拉取 stems 列表
+      const stemsResp = await fetch(
+        `${API_BASE}/api/tasks/${encodeURIComponent(taskIdStr)}/stems`,
+      );
+      if (!stemsResp.ok) throw new Error(await stemsResp.text());
+
+      let stemsResponseText = await stemsResp.text();
+      const stemIdPattern = /"id"\s*:\s*(\d+)/g;
+      if (stemIdPattern.test(stemsResponseText)) {
+        stemsResponseText = stemsResponseText.replace(
+          /"id"\s*:\s*(\d+)/g,
+          `"id":"$1"`,
+        );
+      }
+
+      const stemList = JSON.parse(stemsResponseText);
+      const stemsMapped = (stemList || []).map((s) => {
+        const stemIdStr = typeof s.id === "string" ? s.id : String(s.id);
+        return {
+          name: s.stem_name,
+          src: `${API_BASE}/api/tasks/${taskIdStr}/stems/${stemIdStr}/download`,
+          waveform: [],
+          waveformEnv: null,
+          spectrum: [],
+        };
+      });
+
+      // 预取 stem 文件，尽量与 runSeparation 行为保持一致
+      const stemsWithFiles = await Promise.all(
+        stemsMapped.map(async (s) => {
+          try {
+            const resp = await fetch(s.src);
+            if (!resp.ok) throw new Error(`fetch stem failed: ${resp.status}`);
+            const blob = await resp.blob();
+            const ext = blob.type?.includes("mpeg")
+              ? "mp3"
+              : blob.type?.includes("wav")
+              ? "wav"
+              : "bin";
+            const filename = s.name ? `${s.name}.${ext}` : `stem.${ext}`;
+            const fileObj = new File([blob], filename, {
+              type: blob.type || "audio/wav",
+            });
+            return {
+              ...s,
+              file: fileObj,
+              src: undefined,
+            };
+          } catch (e) {
+            console.warn(
+              "[handleImportHistoryById] Stem prefetch failed, fallback to remote src:",
+              s.name,
+              e,
+            );
+            return s;
+          }
+        }),
+      );
+
+      setStems(stemsWithFiles);
+      setMixSelectedStems(stemsWithFiles.map((s) => s.name));
+      setMixAudioFile(null);
+      setMixError(null);
+
+      // 2a) 还原混合音频到 Input Source 播放器
+      try {
+        const mixResp = await fetch(
+          `${API_BASE}/api/tasks/${encodeURIComponent(
+            taskIdStr,
+          )}/mixture/download`,
+        );
+        if (mixResp.ok) {
+          const mixBlob = await mixResp.blob();
+          const mixFile = new File(
+            [mixBlob],
+            taskData.original_filename || "mixture.wav",
+            { type: mixBlob.type || "audio/wav" },
+          );
+          setRawFile(mixFile);
+          setFile({
+            name: mixFile.name,
+            size: (mixFile.size / 1024 / 1024).toFixed(2) + " MB",
+          });
+          const url = URL.createObjectURL(mixFile);
+          setAudioUrl(url);
+          setCurrentBundleId(null);
+        }
+      } catch (e) {
+        console.warn(
+          "[handleImportHistoryById] mixture prefetch failed, still proceed:",
+          e,
+        );
+      }
+
+      // 3) 写入任务级客观指标
+      setResults({
+        sdr: taskData.sdr,
+        sir: taskData.sir,
+        sar: taskData.sar,
+        comment: taskData.comment,
+      });
+
+      // 4) 拉取分析结果（波形 + 频谱）
+      try {
+        const aResp = await fetch(
+          `${API_BASE}/api/tasks/${encodeURIComponent(
+            taskIdStr,
+          )}/analysis?target=Vocals&include_all_stems=true`,
+        );
+        if (aResp.ok) {
+          let analysisResponseText = await aResp.text();
+          const analysisIdPattern = /"task_id"\s*:\s*(\d+)/g;
+          if (analysisIdPattern.test(analysisResponseText)) {
+            analysisResponseText = analysisResponseText.replace(
+              /"task_id"\s*:\s*(\d+)/g,
+              `"task_id":"$1"`,
+            );
+          }
+          const a = JSON.parse(analysisResponseText);
+
+          if (a?.original?.waveform?.length) setGtWave(a.original.waveform);
+          if (
+            Array.isArray(a?.original?.waveform_min) &&
+            Array.isArray(a?.original?.waveform_max)
+          ) {
+            setGtWaveEnv({
+              min: a.original.waveform_min,
+              max: a.original.waveform_max,
+            });
+          }
+          if (a?.original?.spectrogram?.length)
+            setGtSpectrum(a.original.spectrogram);
+          if (Array.isArray(a?.original?.frequency_response)) {
+            setGtFrequencyResponse(a.original.frequency_response);
+          }
+
+          if (a?.target?.waveform?.length) setSepWave(a.target.waveform);
+          if (
+            Array.isArray(a?.target?.waveform_min) &&
+            Array.isArray(a?.target?.waveform_max)
+          ) {
+            setSepWaveEnv({
+              min: a.target.waveform_min,
+              max: a.target.waveform_max,
+            });
+          }
+          if (a?.target?.spectrogram?.length)
+            setSepSpectrum(a.target.spectrogram);
+          if (Array.isArray(a?.target?.frequency_response)) {
+            setSepFrequencyResponse(a.target.frequency_response);
+          }
+
+          // 如果 include_all_stems=true，尝试把每个 stem 的分析结果写回 stems 数组，
+          // 这样后续在 4. Stem Source 中切换声部时也能立即显示可视化。
+          if (a?.stems && typeof a.stems === "object") {
+            setStems((prevStems) =>
+              (prevStems || []).map((st) => {
+                if (!st || !st.name) return st;
+                const stemKey = st.name;
+                const stemAnalysis = a.stems[stemKey];
+                if (!stemAnalysis) return st;
+                return {
+                  ...st,
+                  waveform: Array.isArray(stemAnalysis.waveform)
+                    ? stemAnalysis.waveform
+                    : st.waveform,
+                  waveformEnv:
+                    Array.isArray(stemAnalysis.waveform_min) &&
+                    Array.isArray(stemAnalysis.waveform_max)
+                      ? {
+                          min: stemAnalysis.waveform_min,
+                          max: stemAnalysis.waveform_max,
+                        }
+                      : st.waveformEnv || null,
+                  spectrum: Array.isArray(stemAnalysis.spectrogram)
+                    ? stemAnalysis.spectrogram
+                    : st.spectrum,
+                  frequencyResponse: Array.isArray(
+                    stemAnalysis.frequency_response,
+                  )
+                    ? stemAnalysis.frequency_response
+                    : st.frequencyResponse,
+                };
+              }),
+            );
+          }
+        }
+      } catch (e) {
+        console.warn("[handleImportHistoryById] analysis fetch failed:", e);
+      }
+
+      setProgressText("历史任务导入完成");
+      setIsProcessing(false);
+      notifySeparationDone(taskData.algorithm);
+    } catch (e) {
+      console.error("[handleImportHistoryById] failed:", e);
+      showError(e.message || String(e));
+      setIsProcessing(false);
+      setProgressText("");
+    } finally {
+      setHistoryImportLoading(false);
+    }
+  };
 
   // Keep URL <-> currentView in sync, so pages are shareable via link.
   useEffect(() => {
@@ -2684,6 +2943,48 @@ export default function AudioLabApp() {
     setUser(null);
     setAuthToken(null);
     window.location.reload();
+  };
+
+  // 删除当前用户的一条历史任务记录
+  const handleDeleteHistoryTask = async (id) => {
+    if (!authToken || !id) return;
+    if (
+      !window.confirm(
+        "确定要删除这条历史记录吗？对应的本地分离结果文件也会被一并清理，释放存储空间。",
+      )
+    ) {
+      return;
+    }
+    try {
+      const resp = await fetch(
+        `${API_BASE}/api/tasks/history/${encodeURIComponent(String(id))}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        },
+      );
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt || "删除历史记录失败");
+      }
+      showSuccess("历史记录已删除（对应本地文件也已清理）");
+      // 刷新历史列表
+      fetchMyTaskHistory(myTaskHistoryPage || 1);
+      // 如果当前 taskId 就是被删的那条，顺便清空当前结果
+      if (taskId && String(taskId) === String(id)) {
+        setTaskId(null);
+        setStems([]);
+        setCurrentStem(null);
+        setResults(null);
+        setObjectiveByStem({});
+        setObjectiveError(null);
+      }
+    } catch (e) {
+      console.error("[handleDeleteHistoryTask] failed:", e);
+      showError(e.message || String(e));
+    }
   };
 
   // Fetch Stats Effect
@@ -2969,6 +3270,80 @@ export default function AudioLabApp() {
     [showSuccess],
   );
 
+  // 拉取当前专家的分离任务历史（用于“我的历史记录”面板）
+  const fetchMyTaskHistory = useCallback(
+    async (page = 1) => {
+      // 需要登录后才能拉取个人历史
+      if (!authToken || !user) return;
+
+      setMyTaskHistoryLoading(true);
+      setMyTaskHistoryError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("page", String(page));
+        params.set("page_size", "10");
+        const resp = await fetch(
+          `${API_BASE}/api/tasks/history/me?${params.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
+          },
+        );
+        if (!resp.ok) {
+          const txt = await resp.text();
+          throw new Error(txt || "加载历史记录失败");
+        }
+        const data = await resp.json();
+        setMyTaskHistory(Array.isArray(data.items) ? data.items : []);
+        setMyTaskHistoryPage(data.page || 1);
+        setMyTaskHistoryTotalPages(data.total_pages || 1);
+      } catch (e) {
+        console.warn("[fetchMyTaskHistory] failed:", e);
+        const msg = e?.message || "加载历史记录失败";
+        setMyTaskHistoryError(msg);
+        showError(msg);
+      } finally {
+        setMyTaskHistoryLoading(false);
+      }
+    },
+    [authToken, user, showError],
+  );
+
+  const handleClaimAnonymousHistory = useCallback(async () => {
+    if (!authToken || !user) return;
+    if (claimAnonymousLoading) return;
+    setClaimAnonymousLoading(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/tasks/history/claim-anonymous`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt || "找回匿名历史失败");
+      }
+      const data = await resp.json();
+      const updated = data?.updated ?? 0;
+      showSuccess(`已找回 ${updated} 条匿名历史`);
+      fetchMyTaskHistory(1);
+    } catch (e) {
+      const msg = e?.message || "找回匿名历史失败";
+      showError(msg);
+    } finally {
+      setClaimAnonymousLoading(false);
+    }
+  }, [authToken, user, claimAnonymousLoading, showError, showSuccess, fetchMyTaskHistory]);
+
+  // 当用户进入 /history（或登录状态就绪）时，自动拉取一次历史记录
+  useEffect(() => {
+    if (!authToken || !user) return;
+    if (currentView !== "history") return;
+    fetchMyTaskHistory(1);
+  }, [authToken, user, currentView, fetchMyTaskHistory]);
+
   const runSeparation = async (algo) => {
     setIsProcessing(true);
     setSelectedAlgo(algo);
@@ -2993,9 +3368,13 @@ export default function AudioLabApp() {
       setProgressText("正在上传音频文件...");
       const form = new FormData();
       form.append("file", rawFile);
+      const uploadHeaders = {};
+      if (authToken) {
+        uploadHeaders["Authorization"] = `Bearer ${authToken}`;
+      }
       const uploadResp = await fetch(
         `${API_BASE}/api/tasks/upload?algorithm=${encodeURIComponent(algo)}`,
-        { method: "POST", body: form },
+        { method: "POST", body: form, headers: uploadHeaders },
       );
       if (!uploadResp.ok) throw new Error(await uploadResp.text());
       
@@ -3791,6 +4170,7 @@ export default function AudioLabApp() {
           <nav className="hidden md:flex gap-1 bg-slate-800/50 p-1 rounded-lg border border-slate-700/50">
             {[
               { id: "dashboard", label: "工作台", icon: Layers },
+              { id: "history", label: "分离历史", icon: Clock },
               { id: "stats", label: "社区评估数据", icon: BarChart2 },
               { id: "audio_resources", label: "音频资源", icon: Music },
               { id: "comments", label: "社区评论", icon: User },
@@ -3872,6 +4252,39 @@ export default function AudioLabApp() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Left Panel: Controls */}
             <div className="lg:col-span-4 space-y-6">
+              {/* 历史记录 ID 一键导入（卡片上方的小工具栏，仅登录用户可见） */}
+              {user && (
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col flex-1">
+                      <span className="text-xs font-semibold text-slate-200">
+                        历史记录 ID 导入
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        已完成的分离任务，可以直接通过 ID 导入结果，避免重复计算。
+                      </span>
+                    </div>
+                    <div className="flex-1 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={historyIdInput}
+                        onChange={(e) => setHistoryIdInput(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
+                        placeholder="例如：177253401234567890"
+                      />
+                      <button
+                        type="button"
+                        disabled={historyImportLoading || !historyIdInput.trim()}
+                        onClick={() => handleImportHistoryById()}
+                        className="px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-xs font-medium text-white transition whitespace-nowrap"
+                      >
+                        {historyImportLoading ? "导入中..." : "按ID导入"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Upload Section */}
               <div
                 className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50"
@@ -3973,6 +4386,8 @@ export default function AudioLabApp() {
                   </>
                 )}
               </div>
+
+              {/* 我的分离历史卡片已移动到独立视图（history），此处不再展示 */}
 
               {/* Ground Truth 单源上传（可选：例如"金标准鼓轨"） */}
               <div
@@ -5305,6 +5720,212 @@ export default function AudioLabApp() {
                     </div>
                   </div>
                 </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 我的分离历史独立页面 */}
+        {currentView === "history" && user && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Clock size={18} className="text-cyan-400" />
+                  我的分离历史
+                </h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  查看和管理你过去创建的音频分离任务，可以按任务ID快速导入结果或删除历史记录。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchMyTaskHistory(1)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm text-slate-100 flex items-center gap-2"
+              >
+                <RotateCcw size={14} />
+                刷新
+              </button>
+            </div>
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    按任务 ID 搜索
+                  </label>
+                  <input
+                    type="text"
+                    value={historyIdInput}
+                    onChange={(e) => setHistoryIdInput(e.target.value)}
+                    placeholder="精确输入任务ID，例如：177253401234567890"
+                    className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
+                  />
+                </div>
+                <div className="md:col-span-2 flex items-end gap-2">
+                  <button
+                    type="button"
+                    disabled={historyImportLoading || !historyIdInput.trim()}
+                    onClick={() => handleImportHistoryById()}
+                    className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-xs font-medium text-white transition"
+                  >
+                    {historyImportLoading ? "按ID导入中..." : "按ID导入任务"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHistoryIdInput("");
+                      fetchMyTaskHistory(1);
+                    }}
+                    className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-medium text-slate-100"
+                  >
+                    清空条件
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+              {myTaskHistoryError ? (
+                <div className="mb-4 text-xs text-red-200 bg-red-900/20 border border-red-700/40 rounded-lg px-3 py-2">
+                  加载失败：{myTaskHistoryError}
+                </div>
+              ) : null}
+              {myTaskHistoryLoading ? (
+                <div className="text-center text-slate-400 py-8 text-sm">
+                  加载中...
+                </div>
+              ) : myTaskHistory.length === 0 ? (
+                <div className="text-center text-slate-400 py-10 text-sm space-y-3">
+                  <div>
+                    {myTaskHistoryError
+                      ? "历史记录加载失败，请稍后重试。"
+                      : "暂无历史记录，先在工作台执行一次分离任务。"}
+                  </div>
+                  {!myTaskHistoryError && (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        disabled={claimAnonymousLoading}
+                        onClick={() => handleClaimAnonymousHistory()}
+                        className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium text-slate-100"
+                      >
+                        {claimAnonymousLoading ? "找回中..." : "找回匿名历史"}
+                      </button>
+                      <div className="text-[11px] text-slate-500">
+                        如果你之前的任务是在未携带登录 token 的情况下创建的，会被记为 anonymous，可通过此按钮找回。
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-900">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                            任务ID
+                          </th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                            文件名
+                          </th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                            算法
+                          </th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                            状态
+                          </th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                            创建时间
+                          </th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                            操作
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-700">
+                        {myTaskHistory.map((t) => (
+                          <tr key={t.id} className="hover:bg-slate-700/40">
+                            <td className="px-3 py-2 font-mono text-slate-200">
+                              {t.id}
+                            </td>
+                            <td className="px-3 py-2 text-slate-100 max-w-xs truncate">
+                              {t.original_filename || "(未命名音频)"}
+                            </td>
+                            <td className="px-3 py-2 text-slate-300">
+                              {t.algorithm || "-"}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span
+                                className={`px-2 py-1 rounded-full text-[11px] ${
+                                  t.status === "completed"
+                                    ? "bg-emerald-500/20 text-emerald-300"
+                                    : t.status === "failed"
+                                    ? "bg-red-500/20 text-red-300"
+                                    : "bg-slate-600/60 text-slate-200"
+                                }`}
+                              >
+                                {t.status || "-"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-slate-400">
+                              {t.created_at
+                                ? new Date(t.created_at).toLocaleString("zh-CN")
+                                : "-"}
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[11px]"
+                                  onClick={() => {
+                                    setHistoryIdInput(String(t.id));
+                                    handleImportHistoryById();
+                                  }}
+                                >
+                                  导入
+                                </button>
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 rounded bg-slate-700 hover:bg-red-600 text-white text-[11px]"
+                                  onClick={() => handleDeleteHistoryTask(t.id)}
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {myTaskHistoryTotalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4 text-[11px] text-slate-400">
+                      <button
+                        type="button"
+                        disabled={myTaskHistoryPage <= 1}
+                        onClick={() =>
+                          fetchMyTaskHistory(myTaskHistoryPage - 1)
+                        }
+                        className="px-3 py-1.5 rounded bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        上一页
+                      </button>
+                      <span>
+                        第 {myTaskHistoryPage} / {myTaskHistoryTotalPages} 页
+                      </span>
+                      <button
+                        type="button"
+                        disabled={myTaskHistoryPage >= myTaskHistoryTotalPages}
+                        onClick={() =>
+                          fetchMyTaskHistory(myTaskHistoryPage + 1)
+                        }
+                        className="px-3 py-1.5 rounded bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        下一页
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
