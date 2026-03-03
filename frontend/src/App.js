@@ -7,6 +7,7 @@ import AudioResourceSelector from "./AudioResourceSelector";
 import AdminDashboard from "./AdminDashboard";
 import NotificationCenter from "./NotificationCenter";
 import ExpertMessageDialog from "./ExpertMessageDialog";
+import UserManual from "./UserManual";
 import { useToast } from "./Toast";
 //   orderBy,
 //   serverTimestamp,
@@ -37,6 +38,7 @@ import {
   X as CloseIcon,
   Clock,
   RotateCcw,
+  BookOpen,
 } from "lucide-react";
 import {
   LineChart,
@@ -54,8 +56,6 @@ import {
   PolarRadiusAxis,
   BarChart,
   Bar,
-  ScatterChart,
-  Scatter,
 } from "recharts";
 
 // --- Simple shareable routes (no full <Routes> needed; we sync view <-> path) ---
@@ -65,6 +65,7 @@ const VIEW_TO_PATH = {
   audio_resources: "/audio-resources",
   comments: "/comments",
   history: "/history",
+  manual: "/manual",
 };
 const normalizePathname = (pathname) => {
   if (typeof pathname !== "string") return "/";
@@ -2144,11 +2145,11 @@ export default function AudioLabApp() {
     [algorithmComparison, commentsAlgorithmFilter, commentsStemFilter],
   );
   // 按算法聚合的客观指标统计（用于客观指标雷达图等）
-  const [objectiveStats, setObjectiveStats] = useState([]);
+  const [, setObjectiveStats] = useState([]);
   // 单条“主观 + 客观”联合样本点，用于相关性散点图
-  const [subjectiveObjectivePoints, setSubjectiveObjectivePoints] = useState([]);
+  const [, setSubjectiveObjectivePoints] = useState([]);
   // 按算法的 SDR 样本分布（用于近似箱线/蜂群散点）
-  const [objectiveDistribution, setObjectiveDistribution] = useState([]);
+  const [, setObjectiveDistribution] = useState([]);
   const [loadingStats, setLoadingStats] = useState(false);
   // 当前专家自己的评分记录（用于“删除某一次手滑评分”）
   const [myScoreRecords, setMyScoreRecords] = useState([]);
@@ -2167,9 +2168,9 @@ export default function AudioLabApp() {
   const [gtWaveEnv, setGtWaveEnv] = useState(null); // { min: number[], max: number[] }
   const [sepWave, setSepWave] = useState([]); // 算法分离结果波形（separated，中线兼容）
   const [sepWaveEnv, setSepWaveEnv] = useState(null); // { min: number[], max: number[] }（供后续扩展/调试使用）
-  const [gtSpectrum, setGtSpectrum] = useState([]);
+  const [, setGtSpectrum] = useState([]);
   const [sepSpectrum, setSepSpectrum] = useState([]);
-  const [gtFrequencyResponse, setGtFrequencyResponse] = useState([]); // 标准音频频率响应
+  const [, setGtFrequencyResponse] = useState([]); // 标准音频频率响应
   const [sepFrequencyResponse, setSepFrequencyResponse] = useState([]); // 分离音频频率响应
   const [goldWave, setGoldWave] = useState(null); // Gold Standard 波形（可选）
   const [goldWaveEnv, setGoldWaveEnv] = useState(null); // Gold Standard 包络（可选）
@@ -4099,41 +4100,6 @@ export default function AudioLabApp() {
     return { source: "empty", total: 0, series: [], data: [] };
   }, [algorithmComparison, selectedRadarAlgorithms, selectedRadarStem]);
 
-  // 将按算法的 SDR 样本分布转换为“蜂群散点 + 算法索引”形式，便于绘图
-  const objectiveSdrScatterModel = useMemo(() => {
-    if (!Array.isArray(objectiveDistribution) || objectiveDistribution.length === 0) {
-      return { points: [], algoPositions: {}, algoOrder: [], xDomain: [0, 1] };
-    }
-    const algoOrder = objectiveDistribution
-      .map((d) => d.algorithm)
-      .filter((v, idx, arr) => v != null && arr.indexOf(v) === idx);
-    const algoPositions = {};
-    algoOrder.forEach((name, idx) => {
-      // 从 1 开始留点左右边距
-      algoPositions[name] = idx + 1;
-    });
-
-    const points = [];
-    objectiveDistribution.forEach((row) => {
-      const algo = row.algorithm;
-      const baseX = algoPositions[algo];
-      if (!baseX || !Array.isArray(row.sdr_values)) return;
-      row.sdr_values.forEach((sdr) => {
-        if (typeof sdr !== "number" || !isFinite(sdr)) return;
-        // 适度 horizontal jitter，让同一算法的样本不完全重叠
-        const jitter = (Math.random() - 0.5) * 0.5; // [-0.25, 0.25]
-        points.push({
-          algorithm: algo,
-          x: baseX + jitter,
-          sdr,
-        });
-      });
-    });
-
-    const xDomain = [0.5, algoOrder.length + 0.5];
-    return { points, algoPositions, algoOrder, xDomain };
-  }, [objectiveDistribution]);
-
 
   if (!user) {
     return <AuthPage onLoginSuccess={handleLoginSuccess} />;
@@ -4213,6 +4179,17 @@ export default function AudioLabApp() {
               )}
             </button>
 
+            {/* 说明文档（独立 URL 占位页） */}
+            <button
+              type="button"
+              onClick={() => setCurrentView("manual")}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-700/60 bg-slate-800/60 text-xs text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800 transition"
+              title="打开用户说明书"
+            >
+              <BookOpen size={14} className="text-cyan-400" />
+              {/*<span className="hidden sm:inline">说明文档</span>*/}
+            </button>
+
             {/* 给管理员建议按钮（仅专家可见） */}
             {user?.role === "expert" && (
               <button
@@ -4247,6 +4224,9 @@ export default function AudioLabApp() {
       )}
 
       <main className="pt-24 pb-12 px-4 max-w-7xl mx-auto">
+        {currentView === "manual" && (
+          <UserManual onBack={() => setCurrentView("dashboard")} />
+        )}
         {currentView === "dashboard" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Left Panel: Controls */}

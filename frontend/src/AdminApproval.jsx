@@ -77,7 +77,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   const [uploadProgress, setUploadProgress] = useState(0);
   const [audioTotal, setAudioTotal] = useState(0);
   const [audioViewMode, setAudioViewMode] = useState("grid"); // "grid" or "list"
-  const [audioTags, setAudioTags] = useState([]);
   const [audioFormats, setAudioFormats] = useState([]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const searchDebounceRef = useRef(null);
@@ -103,7 +102,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     algorithm: "",
     stem_name: "",
   });
-  const [editingScore, setEditingScore] = useState(null);
+  const [, setEditingScore] = useState(null);
 
   // 专家建议列表（管理员侧查看与回复）
   const [expertMessages, setExpertMessages] = useState([]);
@@ -587,7 +586,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       title,
       description,
       category,
-      tags,
     } = uploadForm;
 
     if (
@@ -742,28 +740,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
         showError(err.message);
       }
     });
-  };
-
-  const handleUpdateScore = async (scoreId, updates) => {
-    try {
-      const resp = await fetch(`${API_BASE}/api/scores/${scoreId}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updates),
-      });
-      if (!resp.ok) {
-        const error = await resp.json().catch(() => ({}));
-        throw new Error(error.detail || "更新评分失败");
-      }
-      showSuccess("评分记录已更新");
-      setEditingScore(null);
-      fetchScores();
-    } catch (err) {
-      showError(err.message || "更新评分失败");
-    }
   };
 
   const handleDeleteScore = async (scoreId) => {

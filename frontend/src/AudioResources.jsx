@@ -318,7 +318,6 @@ export default function AudioResources({ token }) {
       title,
       description,
       category,
-      tags,
     } = uploadForm;
 
     const files = [mixtureFile, vocalsFile, drumsFile, bassFile, otherFile].filter(Boolean);

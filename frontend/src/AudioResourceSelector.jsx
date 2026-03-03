@@ -100,7 +100,22 @@ export default function AudioResourceSelector({
     } finally {
       setLoading(false);
     }
-  }, [filters.category, filters.search, filters.page, filters.page_size, token, showError]);
+  }, [
+    filters.category,
+    filters.search,
+    filters.uploader,
+    filters.file_format,
+    filters.min_duration,
+    filters.max_duration,
+    filters.min_size,
+    filters.max_size,
+    filters.sort_by,
+    filters.sort_order,
+    filters.page,
+    filters.page_size,
+    token,
+    showError,
+  ]);
 
   const fetchCategories = useCallback(async () => {
     try {

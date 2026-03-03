@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
 from .routers import tasks, scores, auth, admin, audio_resources, system, messages
 import os
 import logging
@@ -82,19 +83,92 @@ if not audio_resource_dir.is_absolute():
 if audio_resource_dir.exists():
     app.mount("/audio_resources", StaticFiles(directory=str(audio_resource_dir)), name="audio_resources")
 
+def _get_frontend_build_dir() -> Path:
+    """
+    生产/打包场景：后端托管前端 CRA build，保证直链访问 /manual 等前端路由不 404。
+    repo_root = AudioLab/
+      - frontend/build
+      - backend/app/main.py
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    return repo_root / "frontend" / "build"
+
+
+frontend_build_dir = _get_frontend_build_dir()
+if frontend_build_dir.exists():
+    # CRA 的静态资源目录：/static/**
+    static_dir = frontend_build_dir / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="frontend_static")
+
+def _get_repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+@app.get("/user-manual.md", include_in_schema=False)
+async def user_manual_md():
+    """
+    用户说明书 Markdown 原文（仓库根目录：AudioLab/用户说明书.md）
+    前端 /manual 页面会拉取并渲染该内容。
+    """
+    manual_path = _get_repo_root() / "用户说明书.md"
+    if not manual_path.exists():
+        return JSONResponse(status_code=404, content={"detail": "用户说明书.md 不存在"})
+    return FileResponse(
+        str(manual_path),
+        media_type="text/markdown",
+        filename="用户说明书.md",
+        headers={"Cache-Control": "no-cache"},
+    )
+
 
 @app.get("/health", tags=["system"])
 async def health_check():
     return {"status": "ok"}
 
-
-@app.get("/", tags=["system"])
-async def root():
+@app.get("/api", tags=["system"])
+async def api_root():
     return {
         "message": "AudioLab Backend API",
         "version": "0.1.0",
-        "docs": "/docs"
+        "docs": "/docs",
     }
+
+@app.get("/", tags=["system"])
+async def root():
+    # 如果存在前端 build，则优先返回前端页面
+    if frontend_build_dir.exists():
+        index_file = frontend_build_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(str(index_file))
+    return {
+        "message": "AudioLab Backend API",
+        "version": "0.1.0",
+        "docs": "/docs",
+    }
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa_fallback(full_path: str):
+    """
+    SPA fallback：用于支持 /manual、/stats 等前端路由的直链/刷新。
+    - /api/** 由后端路由处理（本函数会被更具体路由优先匹配而不会进入）
+    - /docs、/openapi.json 也同理
+    """
+    if not frontend_build_dir.exists():
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+    # 先尝试直接返回 build 目录下的真实文件（如 favicon.ico、manifest.json 等）
+    requested = (frontend_build_dir / full_path).resolve()
+    base = frontend_build_dir.resolve()
+    if str(requested).startswith(str(base)) and requested.is_file():
+        return FileResponse(str(requested))
+
+    # 否则返回 index.html 让前端路由接管
+    index_file = frontend_build_dir / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
+    return JSONResponse(status_code=404, content={"detail": "Frontend build not found"})
 
 if __name__ == "__main__":
     import uvicorn

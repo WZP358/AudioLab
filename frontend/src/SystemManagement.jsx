@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import html2canvas from "html2canvas";
 import {
   FileText,
@@ -43,7 +43,6 @@ const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 export default function SystemManagement({ token }) {
   const location = useLocation();
-  const navigate = useNavigate();
   const pathname = (location?.pathname || "").replace(/\/+$/, "") || "/";
 
   // 根据 URL 判断当前是哪个独立子页面
