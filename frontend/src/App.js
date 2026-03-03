@@ -3255,10 +3255,10 @@ export default function AudioLabApp() {
       }
       setCurrentBundleId(bundleId);
     } else if (resourceSelectorType === "gold") {
-      // 兜底保护：必须先选 Mixture（成组上传）才能选择同组 Gold
-      if (!currentBundleId) {
+      // 兜底保护：仅要求 1. Input Source 中已选择任意音频（无须强制成组 Mixture）
+      if (!rawFile && !audioUrl) {
         showAlert(
-          "请先在 1. Input Source 中选择成组上传的 Mixture（标题形如 “xxx [Mixture]”），然后再选择对应的 Gold Standard Stem。",
+          "请先在 1. Input Source 中选择音频，然后再选择对应的 Gold Standard Stem。",
         );
         setShowResourceSelector(false);
         setResourceSelectorType(null);
@@ -4436,9 +4436,9 @@ export default function AudioLabApp() {
                     {/*</p>*/}
                     <button
                       onClick={() => {
-                        // 必须先在 1. Input Source 中选择成组上传的 Mixture，才能选择配套的 Gold Standard
-                        if (!currentBundleId) {
-                          showAlert("请先在 1. Input Source 中选择成组上传的 Mixture（标题形如 “xxx [Mixture]”），然后再选择对应的 Gold Standard Stem。");
+                        // 仅要求 1. Input Source 中已选择音频（无须强制成组 Mixture）
+                        if (!rawFile && !audioUrl) {
+                          showAlert("请先在 1. Input Source 中选择音频，然后再选择对应的 Gold Standard Stem。");
                           return;
                         }
                         setResourceSelectorType('gold');
