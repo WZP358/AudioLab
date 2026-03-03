@@ -57,11 +57,11 @@ export default function AuthPage({ onLoginSuccess }) {
 
   const handleSendCode = async () => {
     if (!formData.email) {
-      showError("请输入邮箱地址");
+      showError("请填写邮箱地址。");
       return;
     }
     if (cooldownLeft > 0) {
-      showError(`请稍等 ${cooldownLeft}s 后再试`);
+      showError(`操作频繁，请在 ${cooldownLeft}s 后重试。`);
       return;
     }
     setLoading(true);
@@ -83,7 +83,7 @@ export default function AuthPage({ onLoginSuccess }) {
         throw new Error(errorMsg);
       }
       setCodeSent(true);
-      showSuccess("验证码已生成");
+      showSuccess("验证码已发送，请查收。");
       // 简单冷却，避免频繁点导致 429
       setCooldownLeft(SEND_CODE_COOLDOWN_S);
       const timer = setInterval(() => {
@@ -99,11 +99,11 @@ export default function AuthPage({ onLoginSuccess }) {
       const msg = `${err?.message || err}`;
       // 后端会返回 429 Too Many Requests 的 detail；这里做个友好提示
       if (msg.includes("429") || msg.toLowerCase().includes("too many") || msg.toLowerCase().includes("please wait")) {
-        showError("请求太频繁，请稍后再试");
+        showError("请求过于频繁，请稍后重试。");
       } else if (msg.toLowerCase().includes("failed to send verification email")) {
-        showError("验证码发送失败（SMTP未配置或不可用）。可先启用 mock 模式并查看后端日志");
+        showError("验证码发送失败：邮件服务未就绪。请稍后重试或联系管理员。");
       } else {
-        showError(`发送失败: ${msg}`);
+        showError(`发送失败：${msg}`);
       }
     } finally {
       setLoading(false);
@@ -113,11 +113,11 @@ export default function AuthPage({ onLoginSuccess }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!codeSent) {
-      showError("请先获取验证码");
+      showError("请先获取验证码。");
       return;
     }
     if (!formData.username || !formData.password || !formData.code) {
-      showError("请填写所有必填项");
+      showError("请补全必填信息。");
       return;
     }
 
@@ -153,14 +153,14 @@ export default function AuthPage({ onLoginSuccess }) {
       const data = await resp.json();
       
       if (data.message === "application_submitted") {
-        showSuccess("申请已提交，请等待管理员审批！");
+        showSuccess("申请已提交，等待管理员审核。");
         setTimeout(() => {
           setMode("login");
           setFormData({ email: "", password: "", username: "", code: "", role: "expert", avatar_url: "" });
           setCodeSent(false);
         }, 2000);
       } else {
-        showSuccess("注册成功！正在跳转登录...");
+        showSuccess("注册成功，即将跳转至登录。");
         setTimeout(() => {
           setMode("login");
           setFormData({ ...formData, password: "", code: "" });
@@ -172,12 +172,12 @@ export default function AuthPage({ onLoginSuccess }) {
         setCodeAttempts(prev => prev + 1);
         if (codeAttempts >= 2) {
           setCodeSent(false);
-          showError("验证失败次数过多，请重新获取验证码");
+          showError("验证失败次数过多，请重新获取验证码。");
         } else {
-          showError("验证码错误，请重试");
+          showError("验证码错误，请重试。");
         }
       } else if (errorMsg.includes("用户名已被使用")) {
-        showError("该用户名已被使用，请更换一个新的用户名");
+        showError("用户名已被占用，请更换。");
       } else if (errorMsg.includes("邮箱已注册") || errorMsg.includes("邮箱已有")) {
         showError(errorMsg);
       } else {
@@ -191,7 +191,7 @@ export default function AuthPage({ onLoginSuccess }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!formData.email || !formData.password) {
-      showError("请输入邮箱和密码");
+      showError("请输入邮箱与密码。");
       return;
     }
 
@@ -230,7 +230,7 @@ export default function AuthPage({ onLoginSuccess }) {
       
       if (userResp.ok) {
         const user = await userResp.json();
-        showSuccess("登录成功！");
+        showSuccess("登录成功。");
         setTimeout(() => onLoginSuccess(user, data.access_token), 500);
       } else {
         // 如果获取用户信息失败，清除token并提示错误
@@ -248,9 +248,9 @@ export default function AuthPage({ onLoginSuccess }) {
     } catch (err) {
       const errorMsg = err.message || "登录失败";
       if (errorMsg.includes("pending admin approval")) {
-        showError("您的账号正在等待管理员审批");
+        showError("账号待管理员审核。");
       } else if (errorMsg.includes("rejected or disabled")) {
-        showError("账号已被禁用，请重新注册");
+        showError("账号已禁用，请重新提交申请。");
       } else {
         showError(errorMsg);
       }

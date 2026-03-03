@@ -40,11 +40,11 @@ export default function ExpertMessageDialog({ token, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!subject.trim()) {
-      showError("请填写主题");
+      showError("请填写主题。");
       return;
     }
     if (!content.trim()) {
-      showError("请填写内容");
+      showError("请填写内容。");
       return;
     }
     setSubmitting(true);
@@ -71,7 +71,7 @@ export default function ExpertMessageDialog({ token, onClose }) {
         }
         throw new Error(detail || "发送失败");
       }
-      showSuccess("已发送给管理员，感谢您的建议！");
+      showSuccess("已提交，管理员将统一处理。");
       setSubject("");
       setContent("");
       loadMessages();
@@ -110,7 +110,7 @@ export default function ExpertMessageDialog({ token, onClose }) {
             <div>
               {/*<h2 className="text-lg font-bold text-white">给管理员的建议</h2>*/}
               <p className="text-xs text-slate-400">
-                您可以将使用体验、功能需求或问题反馈发送给管理员，管理员会在后台统一查看并回复。
+                可提交使用反馈、需求或问题说明，管理员将在后台查看并回复。
               </p>
             </div>
           </div>
@@ -138,7 +138,7 @@ export default function ExpertMessageDialog({ token, onClose }) {
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 maxLength={255}
-                placeholder="例如：希望增加某种算法的支持 或 界面交互建议"
+                placeholder="例如：新增算法支持 / 交互体验优化"
                 className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
               />
             </div>
@@ -150,7 +150,7 @@ export default function ExpertMessageDialog({ token, onClose }) {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 rows={4}
-                placeholder="请尽可能详细地描述您的想法或问题，这将帮助管理员更好地优化系统。"
+                placeholder="建议包含：背景、复现步骤（如有）、期望结果。"
                 className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60 resize-none"
               />
             </div>
@@ -184,7 +184,7 @@ export default function ExpertMessageDialog({ token, onClose }) {
             </div>
             {messages.length === 0 && !loading ? (
               <div className="text-center text-slate-500 text-sm py-6">
-                暂无记录，欢迎随时向管理员反馈您的想法。
+                暂无记录。
               </div>
             ) : (
               <div className="space-y-3 max-h-64 overflow-y-auto pr-1">

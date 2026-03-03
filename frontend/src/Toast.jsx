@@ -149,7 +149,7 @@ const ConfirmDialog = ({ message, onConfirm, onCancel }) => {
             <AlertTriangle className="text-yellow-400" size={24} />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-slate-200 mb-2">确认操作</h3>
+            <h3 className="text-lg font-semibold text-slate-200 mb-2">操作确认</h3>
             <p className="text-sm text-slate-400 leading-relaxed">{message}</p>
           </div>
         </div>

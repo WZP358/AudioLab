@@ -1705,7 +1705,7 @@ function Analytics({ token }) {
       link.href = url;
       link.click();
     } catch (err) {
-      showError("图表导出失败: " + err.message);
+      showError("图表导出失败：" + (err?.message || String(err)));
     }
   };
 

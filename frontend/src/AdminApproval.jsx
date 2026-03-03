@@ -281,7 +281,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
         const error = await resp.json();
         throw new Error(error.detail || "审批失败");
       }
-      showSuccess("申请已批准");
+      showSuccess("已批准申请。");
       fetchPendingUsers();
       fetchUsers();
       fetchUserStats();
@@ -291,7 +291,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   };
 
   const handleRejectApplication = async (appId, reason) => {
-    showConfirm("确定要拒绝此申请吗？", async () => {
+    showConfirm("确认拒绝该申请？", async () => {
       try {
         const resp = await fetch(`${API_BASE}/api/auth/reject_application/${appId}`, {
           method: "POST",
@@ -305,7 +305,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           const error = await resp.json();
           throw new Error(error.detail || "拒绝失败");
         }
-        showSuccess("申请已拒绝");
+        showSuccess("已拒绝申请。");
         fetchPendingUsers();
         fetchUserStats();
       } catch (err) {
@@ -596,7 +596,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       !otherFile ||
       !title.trim()
     ) {
-      showError("请同时选择 Mixture 以及 4 个 Gold Standard Stem，并填写标题");
+      showError("请补全 Mixture、4 条 Gold Standard 及标题。");
       return;
     }
     
@@ -666,7 +666,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       });
       
       await promise;
-      showSuccess("音频资源上传成功（Mixture + 4 个 Gold Standard Stem 已全部上传）");
+      showSuccess("上传成功：已保存 Mixture 及 4 条 Gold Standard。");
       setUploadForm({
         mixtureFile: null,
         vocalsFile: null,

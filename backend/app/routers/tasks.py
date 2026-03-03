@@ -99,7 +99,7 @@ async def mix_stems_for_task(
 
     task = await db.get(SeparationTask, task_id_int)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="任务不存在")
 
     if not body.stem_names:
         raise HTTPException(status_code=400, detail="stem_names 不能为空")
@@ -376,10 +376,7 @@ async def get_task(task_id: str, db: AsyncSession = Depends(get_db)):
         )
         
         logger.warning(error_detail)
-        raise HTTPException(
-            status_code=404,
-            detail=error_detail
-        )
+        raise HTTPException(status_code=404, detail="任务不存在或已被删除")
     
     logger.info(f"任务查询成功: task_id={task.id}, status={task.status}")
     return task
@@ -627,7 +624,7 @@ async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db)):
 
     task = await db.get(SeparationTask, task_id_int)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="任务不存在")
 
     # 已经结束/失败的任务不允许重复取消，直接返回当前状态
     if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
@@ -661,7 +658,7 @@ async def get_stems(task_id: str, db: AsyncSession = Depends(get_db)):
     
     task = await db.get(SeparationTask, task_id_int)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="任务不存在")
     
     result = await db.execute(
         select(StemFile).where(StemFile.task_id == task_id_int)
@@ -766,14 +763,14 @@ async def download_stem(
     
     stem = await db.get(StemFile, stem_id_int)
     if not stem or stem.task_id != task_id_int:
-        raise HTTPException(status_code=404, detail="Stem not found")
+        raise HTTPException(status_code=404, detail="未找到对应的声部文件")
     
     file_path = Path(stem.file_path)
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail="文件不存在")
     if file_path.stat().st_size == 0:
         # 0 字节文件在浏览器音频播放时会导致 Range 请求直接 416
-        raise HTTPException(status_code=409, detail="Stem file is empty (mock output). Please re-run task.")
+        raise HTTPException(status_code=409, detail="声部文件为空（可能为模拟输出），请重新运行任务。")
     
     from fastapi.responses import FileResponse
     # FileResponse 会自动处理 Range 请求（用于音频 seek/流式播放）
@@ -803,13 +800,13 @@ async def download_mixture_audio(
 
     task = await db.get(SeparationTask, task_id_int)
     if not task or not task.file_path:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="任务不存在")
 
     file_path = Path(task.file_path)
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Mixture file not found")
+        raise HTTPException(status_code=404, detail="原始混合音频不存在")
     if file_path.stat().st_size == 0:
-        raise HTTPException(status_code=409, detail="Mixture file is empty")
+        raise HTTPException(status_code=409, detail="原始混合音频为空")
 
     from fastapi.responses import FileResponse
 
@@ -848,7 +845,7 @@ async def get_task_analysis(
     
     task = await db.get(SeparationTask, task_id_int)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="任务不存在")
 
     # 拉取 stems
     result = await db.execute(select(StemFile).where(StemFile.task_id == task_id_int))
@@ -963,7 +960,7 @@ async def compute_objective_metrics(
 
     task = await db.get(SeparationTask, task_id_int)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="任务不存在")
 
     # 拉取 stems，找到目标 stem 的算法输出
     from sqlalchemy import select, func
@@ -976,14 +973,14 @@ async def compute_objective_metrics(
     )
     stem = result.scalars().first()
     if not stem:
-        raise HTTPException(status_code=404, detail=f"Stem not found: {target}")
+        raise HTTPException(status_code=404, detail=f"未找到目标声部：{target}")
 
     mixture_path = Path(task.file_path)
     estimate_path = Path(stem.file_path)
     if not mixture_path.exists():
-        raise HTTPException(status_code=404, detail="Mixture file not found")
+        raise HTTPException(status_code=404, detail="原始混合音频不存在")
     if not estimate_path.exists():
-        raise HTTPException(status_code=404, detail="Estimated stem file not found")
+        raise HTTPException(status_code=404, detail="算法输出声部文件不存在")
 
     # 保存 reference 到临时文件
     tmp_dir = Path(tempfile.gettempdir()) / "audiolab_objective_metrics" / str(task_id_int)
@@ -1048,7 +1045,7 @@ async def get_residual_audio(
 
     task = await db.get(SeparationTask, task_id_int)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="任务不存在")
 
     from sqlalchemy import select, func
 
@@ -1060,14 +1057,14 @@ async def get_residual_audio(
     )
     stem = result.scalars().first()
     if not stem:
-        raise HTTPException(status_code=404, detail=f"Stem not found: {target}")
+        raise HTTPException(status_code=404, detail=f"未找到目标声部：{target}")
 
     mixture_path = Path(task.file_path)
     estimate_path = Path(stem.file_path)
     if not mixture_path.exists():
-        raise HTTPException(status_code=404, detail="Mixture file not found")
+        raise HTTPException(status_code=404, detail="原始混合音频不存在")
     if not estimate_path.exists():
-        raise HTTPException(status_code=404, detail="Estimated stem file not found")
+        raise HTTPException(status_code=404, detail="算法输出声部文件不存在")
 
     # 输出到临时 WAV 文件（mono, 44.1kHz）
     tmp_dir = Path(tempfile.gettempdir()) / "audiolab_residual" / str(task_id_int)

@@ -4236,11 +4236,11 @@ export default function AudioLabApp() {
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex flex-col flex-1">
-                      <span className="text-xs font-semibold text-slate-200">
+                      <span
+                        className="text-xs font-semibold text-slate-200"
+                        title="已完成的分离任务，可以直接通过 ID 导入结果，避免重复计算。"
+                      >
                         历史记录 ID 导入
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        已完成的分离任务，可以直接通过 ID 导入结果，避免重复计算。
                       </span>
                     </div>
                     <div className="flex-1 flex items-center gap-2">
@@ -4284,9 +4284,9 @@ export default function AudioLabApp() {
                   <>
                 {!file ? (
                   <div className="space-y-3">
-                    <p className="text-xs text-slate-400">
-                      为了便于在不同算法之间进行公平对比，目前仅支持从音频资源库中选择输入音频。
-                    </p>
+                    {/*<p className="text-xs text-slate-400">*/}
+                    {/*  为了便于在不同算法之间进行公平对比，目前仅支持从音频资源库中选择输入音频。*/}
+                    {/*</p>*/}
                     <button
                       onClick={() => {
                         setResourceSelectorType('input');
@@ -4403,9 +4403,9 @@ export default function AudioLabApp() {
                   <>
                 {!gtFile ? (
                   <div className="space-y-3">
-                    <p className="text-xs text-slate-400">
-                      为了确保能够在同一 Gold Standard 参考音轨上对比不同算法的表现，请从音频资源库中选择 Gold Standard Stem。
-                    </p>
+                    {/*<p className="text-xs text-slate-400">*/}
+                    {/*  为了确保能够在同一 Gold Standard 参考音轨上对比不同算法的表现，请从音频资源库中选择 Gold Standard Stem。*/}
+                    {/*</p>*/}
                     <button
                       onClick={() => {
                         setResourceSelectorType('gold');

@@ -275,9 +275,9 @@ async def test_email_send(payload: dict = Body(...), current_user: User = Depend
     except Exception as e:
         return {
             "status": "failed",
-            "message": f"邮件发送失败: {str(e)}",
+            "message": f"邮件发送失败：{str(e)}",
             "error": str(e),
-            "suggestion": "请检查 SMTP 配置和网络连接"
+            "suggestion": "请检查 SMTP 配置与网络连接"
         }
 
 
@@ -317,7 +317,7 @@ async def send_verification_code(payload: dict = Body(...), db: AsyncSession = D
     res_latest = await db.execute(q_latest)
     latest = res_latest.scalars().first()
     if latest and latest.created_at and latest.created_at > cutoff_minute:
-        raise HTTPException(status_code=429, detail=f"请求过于频繁，请等待 {SEND_INTERVAL_SECONDS} 秒后再试")
+        raise HTTPException(status_code=429, detail=f"操作频繁，请在 {SEND_INTERVAL_SECONDS} 秒后重试。")
     # count successfully sent in last hour
     q_count = select(func.count(EmailVerification.id)).where(
         EmailVerification.email == email,
@@ -327,13 +327,13 @@ async def send_verification_code(payload: dict = Body(...), db: AsyncSession = D
     res_count = await db.execute(q_count)
     count_last_hour = res_count.scalar_one()
     if count_last_hour >= MAX_PER_HOUR:
-        raise HTTPException(status_code=429, detail="一小时内请求次数过多，请稍后再试")
+        raise HTTPException(status_code=429, detail="请求超限，请稍后重试。")
 
     code = f"{random.randint(0,999999):06d}"
     expires = datetime.utcnow() + timedelta(minutes=VERIFICATION_TTL_MIN)
     # If there is an existing unused, unexpired verification that has already been sent, skip sending another
     if latest and not latest.is_used and latest.expires_at and latest.expires_at > datetime.utcnow() and getattr(latest, "send_count", 0) > 0:
-        return SendVerificationResponse(email=email, message="Verification code already sent")
+        return SendVerificationResponse(email=email, message="验证码已发送，请查收。")
 
     ev = EmailVerification(
         email=email,
@@ -371,15 +371,12 @@ async def send_verification_code(payload: dict = Body(...), db: AsyncSession = D
         except Exception:
             # 清理失败不应掩盖原错误
             pass
-        # 返回更详细的错误信息
-        raise HTTPException(
-            status_code=500, 
-            detail=f"邮件发送失败: {error_detail}\n\n请检查:\n1. SMTP配置是否正确 (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS)\n2. 邮箱密码是否为应用专用密码\n3. 网络连接是否正常\n4. 查看后端日志获取详细错误信息"
-        )
+        # 对外提示保持克制；详细原因记录在日志中
+        raise HTTPException(status_code=500, detail="邮件发送失败，请稍后重试或联系管理员。")
 
     # 从环境变量读取 EMAIL_DELIVERY_MODE（用于返回消息）
     email_delivery_mode = (os.getenv("EMAIL_DELIVERY_MODE", "mock") or "mock").strip().lower()
-    msg = "Verification code sent" if email_delivery_mode != "mock" else "Verification code generated (mock email; check backend logs)"
+    msg = "验证码已发送" if email_delivery_mode != "mock" else "验证码已生成（模拟发送，请查看后端日志）"
     return SendVerificationResponse(email=email, message=msg)
 
 

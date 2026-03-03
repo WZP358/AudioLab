@@ -190,7 +190,7 @@ export default function AudioResourceSelector({
         } catch (e) {
           // 忽略读取错误
         }
-        throw new Error(`下载失败: ${errorDetail}`);
+        throw new Error(`下载失败：${errorDetail}`);
       }
       
       const blob = await resp.blob();

@@ -223,8 +223,8 @@ export default function AudioResources({ token }) {
       fetchResources();
     } catch (err) {
       console.error("下载失败:", err);
-      const errorMsg = "下载失败: " + (err && err.message ? err.message : String(err));
-      showError(errorMsg);
+      const errorMsg = err && err.message ? String(err.message) : "下载失败";
+      showError(errorMsg || "下载失败");
     }
   };
 
@@ -273,7 +273,7 @@ export default function AudioResources({ token }) {
           return audio.play().catch((e) => {
             if (audio.__userStopped || isAbortLike(e)) return;
             console.error("播放失败(降级直播):", e);
-            showError("音频播放失败，请尝试下载后播放");
+            showError("播放失败，建议下载后播放。");
           });
         });
     } else {
@@ -281,7 +281,7 @@ export default function AudioResources({ token }) {
       audio.play().catch((err) => {
         if (audio.__userStopped || isAbortLike(err)) return;
         console.error("播放失败:", err);
-        showError("音频播放失败，请尝试下载后播放");
+        showError("播放失败，建议下载后播放。");
       });
     }
     
@@ -296,7 +296,7 @@ export default function AudioResources({ token }) {
       if (audio.__userStopped) return;
       if (!audio.src) return;
       console.error("音频播放错误:", e, audio?.error);
-      showError("音频播放失败，请尝试下载后播放");
+      showError("播放失败，建议下载后播放。");
     });
     
     setPlayingId(resourceId);
@@ -305,7 +305,7 @@ export default function AudioResources({ token }) {
 
   const handleUpload = async () => {
     if (!token) {
-      showError("请先登录");
+      showError("请先登录。");
       return;
     }
 
@@ -330,9 +330,7 @@ export default function AudioResources({ token }) {
     });
     if (invalidForBrowserPlay) {
       showError(
-        "当前上传中包含浏览器不推荐的在线播放格式（如 FLAC / M4A / AAC）。\n" +
-          "短期方案：请优先上传 MP3 / WAV / OGG，以便在音频资源库中直接在线播放。\n" +
-          "如需上传无损格式，请知悉：可能只能通过“下载后本地播放器播放”。",
+        "检测到 FLAC / M4A / AAC 等格式，浏览器可能无法直接播放。\n建议优先上传 MP3 / WAV / OGG，或上传后通过“下载”播放。",
       );
       return;
     }
@@ -345,7 +343,7 @@ export default function AudioResources({ token }) {
       !otherFile ||
       !title.trim()
     ) {
-      showError("请同时选择 Mixture 以及 4 个 Gold Standard Stem，并填写标题");
+      showError("请补全 Mixture、4 条 Gold Standard 及标题。");
       return;
     }
 
@@ -385,7 +383,7 @@ export default function AudioResources({ token }) {
         throw new Error(detail);
       }
 
-      showSuccess("上传成功！Mixture 及 4 个 Gold Standard Stem 已全部上传。");
+      showSuccess("上传成功：已保存 Mixture 及 4 条 Gold Standard。");
       setShowUploadModal(false);
       setUploadForm({
         mixtureFile: null,
@@ -943,16 +941,14 @@ export default function AudioResources({ token }) {
                 </label>
                 <div className="rounded-lg border border-cyan-500/40 bg-cyan-500/5 px-4 py-3 text-xs text-slate-200">
                   <div className="font-medium text-cyan-300 mb-1">
-                    温馨提示（短期方案）
+                    播放兼容性提示
                   </div>
                   <p className="leading-relaxed">
-                    为保证在「音频资源库」页面可以直接在线播放，建议优先上传{" "}
-                    <span className="font-semibold text-cyan-200">MP3 / WAV / OGG</span>{" "}
-                    等浏览器普遍支持的格式。
+                    为保证在「音频资源库」可直接播放，建议优先上传{" "}
+                    <span className="font-semibold text-cyan-200">MP3 / WAV / OGG</span>。
                   </p>
                   <p className="leading-relaxed mt-1 text-slate-300">
-                    上传 FLAC / M4A / AAC 等无损或特殊编码格式时，浏览器可能无法直接解码，
-                    此时只能通过「下载」后使用本地播放器收听。
+                    上传 FLAC / M4A / AAC 等格式时，可能需要下载后在本地播放器收听。
                   </p>
                 </div>
                 <div className="space-y-3">
