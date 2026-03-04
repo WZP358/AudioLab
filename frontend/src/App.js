@@ -2625,6 +2625,8 @@ export default function AudioLabApp() {
   const [computeMode, setComputeMode] = useState("gpu");
   // 后端统计数据
   const [backendStats, setBackendStats] = useState([]);
+  // 全站唯一专家人数（后端按 user_id 去重计数）
+  const [globalExpertCount, setGlobalExpertCount] = useState(0);
   const [algorithmComparison, setAlgorithmComparison] = useState([]);
   // 实时评分雷达图：用户选择要展示/叠加的算法（空数组时默认展示前 2 名）
   const [selectedRadarAlgorithms, setSelectedRadarAlgorithms] = useState([]);
@@ -2669,7 +2671,7 @@ export default function AudioLabApp() {
   // 按算法聚合的客观指标统计（用于客观指标雷达图等）
   const [, setObjectiveStats] = useState([]);
   // 单条“主观 + 客观”联合样本点，用于相关性散点图
-  const [, setSubjectiveObjectivePoints] = useState([]);
+  const [subjectiveObjectivePoints, setSubjectiveObjectivePoints] = useState([]);
   // 按算法的 SDR 样本分布（用于近似箱线/蜂群散点）
   const [, setObjectiveDistribution] = useState([]);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -2701,6 +2703,8 @@ export default function AudioLabApp() {
   const [goldFrequencyResponse, setGoldFrequencyResponse] = useState(null); // Gold Standard 频率响应（可选）
   const [gtFile, setGtFile] = useState(null); // 用户上传的"金标准"单源
   const gtFileRef = useRef(null); // 使用 ref 保存文件对象，避免状态更新时丢失
+  // 记录当前 Gold Standard 对应的声部类型（例如 "Vocals" / "Drums" / "Bass" / "Other"），用于与 4. Stem Source 联动
+  const [goldStemTargetName, setGoldStemTargetName] = useState(null);
   // 音频元数据：采样率和位深度
   const [audioMetadata, setAudioMetadata] = useState({
     sampleRate: null,
@@ -3684,6 +3688,18 @@ export default function AudioLabApp() {
           refreshedAny = true;
         }
 
+        // 获取全站唯一专家数量
+        const globalExpertsResp = await fetch(
+          `${API_BASE}/api/scores/stats/global-experts`,
+        );
+        if (globalExpertsResp.ok) {
+          const globalExpertsData = await globalExpertsResp.json();
+          if (typeof globalExpertsData === "number") {
+            setGlobalExpertCount(globalExpertsData);
+          }
+          refreshedAny = true;
+        }
+
         // 获取算法对比统计（主观评分聚合）
         const comparisonResp = await fetch(
           `${API_BASE}/api/scores/stats/algorithm-comparison`,
@@ -3975,6 +3991,38 @@ export default function AudioLabApp() {
         raw: file,
       });
       analyzeGoldForVisualization(file);
+
+      // 解析 Gold Standard 对应的目标声部类型（用于与 4. Stem Source 联动自动计算客观指标）
+      let stemTarget = null;
+      const role = (resource && typeof resource._role === "string" ? resource._role : "") || "";
+      if (role === "gold_vocals") {
+        stemTarget = "Vocals";
+      } else if (role === "gold_drums") {
+        stemTarget = "Drums";
+      } else if (role === "gold_bass") {
+        stemTarget = "Bass";
+      } else if (role === "gold_other") {
+        stemTarget = "Other";
+      }
+
+      // 如果 _role 不存在或未能识别，则回退到从标题后缀解析
+      if (!stemTarget) {
+        const rawTitle = resource?.title ? String(resource.title).trim() : "";
+        const baseTitle = rawTitle.split(" [")[0] || rawTitle;
+        const suffix = rawTitle.slice(baseTitle.length).trim();
+
+        if (/^\[Gold\s+Vocals\]/i.test(suffix)) {
+          stemTarget = "Vocals";
+        } else if (/^\[Gold\s+Drums\]/i.test(suffix)) {
+          stemTarget = "Drums";
+        } else if (/^\[Gold\s+Bass\]/i.test(suffix)) {
+          stemTarget = "Bass";
+        } else if (/^\[Gold\s+Other\]/i.test(suffix)) {
+          stemTarget = "Other";
+        }
+      }
+
+      setGoldStemTargetName(stemTarget || null);
     }
     setShowResourceSelector(false);
     setResourceSelectorType(null);
@@ -4730,6 +4778,36 @@ export default function AudioLabApp() {
     }
   }, [currentStem?.name, showError, showSuccess, taskId]);
 
+  // 当满足以下条件时，自动计算客观指标（每个 Stem 只自动计算一次）：
+  // 1) 已有分离任务 ID（taskId）
+  // 2) 已上传 Gold Standard（gtFileRef.current 存在）
+  // 3) 当前选择的 Stem 与 Gold Standard 对应的类型一致（例如 Vocals 对应 Gold Vocals）
+  // 4) 当前未在执行客观指标计算
+  // 5) 当前 Stem 尚无已缓存的客观指标（避免死循环）
+  useEffect(() => {
+    if (!taskId) return;
+    if (!gtFileRef.current) return;
+    if (!currentStem || !currentStem.name) return;
+    if (!goldStemTargetName) return;
+    if (objectiveLoading) return;
+
+    // 仅当 Gold 类型与当前 Stem 名称匹配时触发（忽略大小写）
+    if (currentStem.name.toLowerCase() !== goldStemTargetName.toLowerCase()) return;
+
+    // 如果当前 Stem 已经有缓存的客观指标，则不再自动计算（可以手动点击按钮重新计算）
+    const key = currentStem.name;
+    const cached =
+      key && objectiveByStem && Object.prototype.hasOwnProperty.call(objectiveByStem, key)
+        ? objectiveByStem[key]
+        : null;
+    if (cached && (cached.sdr != null || cached.sir != null || cached.sar != null)) {
+      return;
+    }
+
+    // 自动触发一次计算（内部已有参数完整性校验）
+    computeObjectiveMetrics();
+  }, [taskId, currentStem, goldStemTargetName, objectiveLoading, objectiveByStem, computeObjectiveMetrics]);
+
   const submitScore = async () => {
     if (!user || !selectedAlgo || selectedAlgo === ALGO_NONE || !currentStem) {
       showError("请先选择需要评估的单一声源（stem），并完成分离任务。");
@@ -5275,6 +5353,7 @@ export default function AudioLabApp() {
                         onClick={() => {
                           gtFileRef.current = null;
                           setGtFile(null);
+                          setGoldStemTargetName(null);
                           setGoldWave(null);
                           setGoldWaveEnv(null);
                           setGoldSpectrum(null);
@@ -6966,10 +7045,7 @@ export default function AudioLabApp() {
                     份专家评估报告生成的汇总数据。
                     <span className="ml-2 text-cyan-400">
                       （
-                      {backendStats.reduce(
-                        (sum, s) => sum + (s.unique_experts || 0),
-                        0,
-                      )}
+                      {globalExpertCount}
                       {" "}
                       位专家参与）
                     </span>
@@ -7131,6 +7207,193 @@ export default function AudioLabApp() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* 按 Stem 聚合的客观指标统计（SDR / SIR / SAR） */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <h3 className="font-bold text-white mb-4">按 Stem 维度的客观指标统计（SDR / SIR / SAR）</h3>
+              <p className="text-xs text-slate-400 mb-4">
+                基于联合样本点（主观评分 + 任务级 SDR/SIR/SAR），按 Vocals / Drums / Bass / Other 聚合得到各声源的平均客观指标。
+                用于从客观角度观察不同声源在分离任务中的难度与算法表现。
+              </p>
+              {(() => {
+                const hasPoints =
+                  Array.isArray(subjectiveObjectivePoints) &&
+                  subjectiveObjectivePoints.length > 0;
+                if (!hasPoints) {
+                  return (
+                    <div className="text-xs text-slate-500 py-4">
+                      暂无可用于客观指标统计的样本（需要任务级 SDR/SIR/SAR 才能计算）。
+                    </div>
+                  );
+                }
+
+                const stems = ["Vocals", "Drums", "Bass", "Other"];
+                const agg = {};
+                stems.forEach((name) => {
+                  agg[name] = { count: 0, sumSdr: 0, sumSir: 0, sumSar: 0 };
+                });
+
+                for (const row of subjectiveObjectivePoints) {
+                  const stemName = row?.stem_name || row?.stemName || "ALL";
+                  if (!stems.includes(stemName)) continue;
+                  const sdr = typeof row?.sdr === "number" ? row.sdr : null;
+                  const sir = typeof row?.sir === "number" ? row.sir : null;
+                  const sar = typeof row?.sar === "number" ? row.sar : null;
+                  if (sdr == null && sir == null && sar == null) continue;
+                  const bucket = agg[stemName];
+                  if (sdr != null && Number.isFinite(sdr)) bucket.sumSdr += sdr;
+                  if (sir != null && Number.isFinite(sir)) bucket.sumSir += sir;
+                  if (sar != null && Number.isFinite(sar)) bucket.sumSar += sar;
+                  bucket.count += 1;
+                }
+
+                const chartData = stems.map((name) => {
+                  const bucket = agg[name];
+                  const n = bucket.count || 0;
+                  return {
+                    stem: name,
+                    avg_sdr: n > 0 ? bucket.sumSdr / n : null,
+                    avg_sir: n > 0 ? bucket.sumSir / n : null,
+                    avg_sar: n > 0 ? bucket.sumSar / n : null,
+                    count: n,
+                  };
+                });
+
+                const hasAnyValue = chartData.some(
+                  (d) =>
+                    (typeof d.avg_sdr === "number" && Number.isFinite(d.avg_sdr)) ||
+                    (typeof d.avg_sir === "number" && Number.isFinite(d.avg_sir)) ||
+                    (typeof d.avg_sar === "number" && Number.isFinite(d.avg_sar)),
+                );
+
+                if (!hasAnyValue) {
+                  return (
+                    <div className="text-xs text-slate-500 py-4">
+                      已获取联合样本点，但其中缺少有效的 SDR/SIR/SAR 数值，暂无法绘制图表。
+                    </div>
+                  );
+                }
+
+                const safeData = chartData.map((d) => ({
+                  ...d,
+                  avg_sdr:
+                    typeof d.avg_sdr === "number" && Number.isFinite(d.avg_sdr)
+                      ? Number(d.avg_sdr.toFixed(2))
+                      : null,
+                  avg_sir:
+                    typeof d.avg_sir === "number" && Number.isFinite(d.avg_sir)
+                      ? Number(d.avg_sir.toFixed(2))
+                      : null,
+                  avg_sar:
+                    typeof d.avg_sar === "number" && Number.isFinite(d.avg_sar)
+                      ? Number(d.avg_sar.toFixed(2))
+                      : null,
+                }));
+
+                return (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+                    <div className="lg:col-span-2">
+                      <div className="h-64 bg-slate-900/40 rounded-lg border border-slate-700/70 px-4 py-3">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={safeData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis
+                              dataKey="stem"
+                              stroke="#94a3b8"
+                              fontSize={11}
+                            />
+                            <YAxis
+                              stroke="#94a3b8"
+                              fontSize={11}
+                              domain={["auto", "auto"]}
+                              label={{
+                                value: "dB",
+                                angle: -90,
+                                position: "insideLeft",
+                                fill: "#94a3b8",
+                                fontSize: 11,
+                              }}
+                            />
+                            <RechartsTooltip
+                              contentStyle={{
+                                backgroundColor: "#0f172a",
+                                borderColor: "#334155",
+                                color: "#fff",
+                                borderRadius: "12px",
+                                fontSize: "11px",
+                              }}
+                              formatter={(value, name) => {
+                                const v = Number(value);
+                                const display = Number.isFinite(v)
+                                  ? `${v.toFixed(2)} dB`
+                                  : "N/A";
+                                const labelMap = {
+                                  avg_sdr: "SDR",
+                                  avg_sir: "SIR",
+                                  avg_sar: "SAR",
+                                };
+                                return [display, labelMap[name] || name];
+                              }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: "11px" }} />
+                            <Bar
+                              dataKey="avg_sdr"
+                              name="SDR"
+                              fill="#10b981"
+                              radius={[4, 4, 0, 0]}
+                            />
+                            <Bar
+                              dataKey="avg_sir"
+                              name="SIR"
+                              fill="#0ea5e9"
+                              radius={[4, 4, 0, 0]}
+                            />
+                            <Bar
+                              dataKey="avg_sar"
+                              name="SAR"
+                              fill="#f59e0b"
+                              radius={[4, 4, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-400 space-y-2">
+                      <p>
+                        这里的数值是按 stem 聚合的平均客观指标：
+                        SDR 代表整体失真程度，SIR 代表干扰抑制能力，SAR 代表伪影控制能力（均为 dB，越高越好）。
+                      </p>
+                      <p>
+                        横轴是不同声源（Vocals / Drums / Bass / Other），纵轴为 dB 值。
+                        适合快速比较哪些声源在客观指标上更难分离，或算法在哪些声源上存在短板。
+                      </p>
+                      <div className="mt-3 space-y-1">
+                        {safeData.map((d) => (
+                          <div
+                            key={d.stem}
+                            className="flex justify-between items-center bg-slate-900/40 border border-slate-700/60 rounded px-2 py-1.5"
+                          >
+                            <span className="text-slate-300">{d.stem}</span>
+                            <span className="font-mono text-[11px] text-slate-400">
+                              SDR:{" "}
+                              {d.avg_sdr != null ? `${d.avg_sdr.toFixed(2)} dB` : "N/A"}
+                              {" · "}
+                              SIR:{" "}
+                              {d.avg_sir != null ? `${d.avg_sir.toFixed(2)} dB` : "N/A"}
+                              {" · "}
+                              SAR:{" "}
+                              {d.avg_sar != null ? `${d.avg_sar.toFixed(2)} dB` : "N/A"}
+                              {" · "}
+                              n={d.count}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* 算法在四个Stem上的表现对比图表 */}

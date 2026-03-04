@@ -239,12 +239,10 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
 @router.get("/stats/detailed", response_model=List[DetailedStatsResponse])
 async def get_detailed_stats(db: AsyncSession = Depends(get_db)):
     """
-    获取详细的统计信息，包含专家数量
-    
-    统计维度：
-    - algorithm
-    - stem_name（若为空，则聚合为 "ALL"）
-    - 包含参与评分的专家数量
+    获取详细的统计信息，包含每个 (algorithm, stem_name) 组合下的专家数量。
+
+    注意：这里的 unique_experts 是「在该算法 + 该 stem 组合下参与评分的专家数」，
+    并不是全站唯一专家总数。
     """
     stem_name_expr = func.coalesce(Score.stem_name, "ALL")
     result = await db.execute(
@@ -275,6 +273,22 @@ async def get_detailed_stats(db: AsyncSession = Depends(get_db)):
             )
 
     return stats_list
+
+
+@router.get("/stats/global-experts", response_model=int)
+async def get_global_expert_count(db: AsyncSession = Depends(get_db)) -> int:
+    """
+    获取全站唯一专家账号数量。
+
+    统计口径：User 表中 role == Role.EXPERT 的用户总数，
+    与「系统里实际存在多少个专家账号」保持一致，
+    不依赖是否已经提交过评分。
+    """
+    result = await db.execute(
+        select(func.count()).select_from(User).where(User.role == Role.EXPERT)
+    )
+    count_value = result.scalar() or 0
+    return int(count_value)
 
 
 @router.get("/stats/algorithm-comparison", response_model=List[AlgorithmComparisonResponse])

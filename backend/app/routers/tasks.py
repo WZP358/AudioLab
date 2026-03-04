@@ -1036,6 +1036,7 @@ async def compute_objective_metrics(
             reference_target_path=ref_path,
         )
     except HTTPException:
+        # 直接透传上游 HTTP 异常（例如参数错误等）
         raise
     except Exception as e:
         logger.error(
@@ -1050,12 +1051,29 @@ async def compute_objective_metrics(
             detail=f"计算客观指标失败: {type(e).__name__}: {str(e)}",
         )
 
+    # 将计算得到的客观指标写回 SeparationTask，便于后续统计接口使用
+    try:
+        task.sdr = float(m.sdr)
+        task.sir = float(m.sir)
+        task.sar = float(m.sar)
+        await db.commit()
+        await db.refresh(task)
+    except Exception as e:
+        # 写库失败不影响前端拿到计算结果，但在日志中记录
+        logger.error(
+            "写入客观指标到 SeparationTask 失败: task_id=%s target=%s err=%s",
+            task_id_int,
+            target,
+            e,
+            exc_info=True,
+        )
+
     return ObjectiveMetricsResponse(
         target_stem=target,
         sdr=float(m.sdr),
         sir=float(m.sir),
         sar=float(m.sar),
-        comment="已基于你上传的金标准参考 stem 计算 SDR/SIR/SAR（两源假设）。",
+        comment="已基于你上传的金标准参考 stem 计算 SDR/SIR/SAR（两源假设），并已写入任务记录。",
     )
 
 
