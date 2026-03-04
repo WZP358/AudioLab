@@ -18,6 +18,25 @@ from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/scores", tags=["scores"])
 
+def _to_0_100(value: Optional[float]) -> float:
+    """
+    统一评分口径为 0~100。
+    兼容历史数据：若值疑似为 0~1（比例），则放大到 0~100。
+    """
+    if value is None:
+        return 0.0
+    try:
+        v = float(value)
+    except Exception:
+        return 0.0
+    if v <= 1.0:
+        v *= 100.0
+    if v < 0:
+        return 0.0
+    if v > 100:
+        return 100.0
+    return v
+
 
 @router.post("", response_model=ScoreResponse)
 async def create_score(
@@ -207,9 +226,9 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
                 StatsResponse(
                     algorithm=row.algorithm,
                     stem_name=row.stem_name or "ALL",
-                    avg_quality=float(row.avg_quality or 0),
-                    avg_interference=float(row.avg_interference or 0),
-                    avg_artifacts=float(row.avg_artifacts or 0),
+                    avg_quality=_to_0_100(row.avg_quality),
+                    avg_interference=_to_0_100(row.avg_interference),
+                    avg_artifacts=_to_0_100(row.avg_artifacts),
                     total_scores=int(row.total_scores),
                 )
             )
@@ -247,9 +266,9 @@ async def get_detailed_stats(db: AsyncSession = Depends(get_db)):
                 DetailedStatsResponse(
                     algorithm=row.algorithm,
                     stem_name=row.stem_name or "ALL",
-                    avg_quality=float(row.avg_quality or 0),
-                    avg_interference=float(row.avg_interference or 0),
-                    avg_artifacts=float(row.avg_artifacts or 0),
+                    avg_quality=_to_0_100(row.avg_quality),
+                    avg_interference=_to_0_100(row.avg_interference),
+                    avg_artifacts=_to_0_100(row.avg_artifacts),
                     total_scores=int(row.total_scores),
                     unique_experts=int(row.unique_experts or 0),
                 )
@@ -300,9 +319,9 @@ async def get_algorithm_comparison(db: AsyncSession = Depends(get_db)):
                 StatsResponse(
                     algorithm=row.algorithm,
                     stem_name=row.stem_name or "ALL",
-                    avg_quality=float(row.avg_quality or 0),
-                    avg_interference=float(row.avg_interference or 0),
-                    avg_artifacts=float(row.avg_artifacts or 0),
+                    avg_quality=_to_0_100(row.avg_quality),
+                    avg_interference=_to_0_100(row.avg_interference),
+                    avg_artifacts=_to_0_100(row.avg_artifacts),
                     total_scores=int(row.total_scores),
                 )
             )
@@ -315,9 +334,9 @@ async def get_algorithm_comparison(db: AsyncSession = Depends(get_db)):
             comparison_list.append(
                 AlgorithmComparisonResponse(
                     algorithm=row.algorithm,
-                    overall_avg_quality=float(row.avg_quality or 0),
-                    overall_avg_interference=float(row.avg_interference or 0),
-                    overall_avg_artifacts=float(row.avg_artifacts or 0),
+                    overall_avg_quality=_to_0_100(row.avg_quality),
+                    overall_avg_interference=_to_0_100(row.avg_interference),
+                    overall_avg_artifacts=_to_0_100(row.avg_artifacts),
                     total_scores=int(row.total_scores),
                     stem_breakdown=stem_stats_dict.get(algo_key, []),
                 )
@@ -385,9 +404,9 @@ async def get_subjective_objective_points(
                 task_id=row.task_id,
                 algorithm=row.algorithm,
                 stem_name=row.stem_name,
-                quality=float(row.quality),
-                interference=float(row.interference),
-                artifacts=float(row.artifacts),
+                quality=_to_0_100(row.quality),
+                interference=_to_0_100(row.interference),
+                artifacts=_to_0_100(row.artifacts),
                 sdr=float(row.sdr) if row.sdr is not None else None,
                 sir=float(row.sir) if row.sir is not None else None,
                 sar=float(row.sar) if row.sar is not None else None,

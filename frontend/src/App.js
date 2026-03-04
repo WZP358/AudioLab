@@ -2216,6 +2216,7 @@ export default function AudioLabApp() {
   // 按算法的 SDR 样本分布（用于近似箱线/蜂群散点）
   const [, setObjectiveDistribution] = useState([]);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [statsRefreshedAt, setStatsRefreshedAt] = useState(null); // 最近一次成功刷新统计的时间戳
   // 当前专家自己的评分记录（用于“删除某一次手滑评分”）
   const [myScoreRecords, setMyScoreRecords] = useState([]);
   const [loadingMyScores, setLoadingMyScores] = useState(false);
@@ -3058,23 +3059,29 @@ export default function AudioLabApp() {
   // 评分统计现在完全依赖后端数据库，不再从本地 localStorage / Firestore 拉取全站数据
 
 
-  // Fetch Backend Stats Effect
-  useEffect(() => {
-    const fetchBackendStats = async () => {
-      setLoadingStats(true);
+  const fetchBackendStats = useCallback(
+    async ({ showLoading = true } = {}) => {
+      if (showLoading) setLoadingStats(true);
       try {
+        let refreshedAny = false;
         // 获取详细统计
-        const detailedResp = await fetch(`${API_BASE}/api/scores/stats/detailed`);
+        const detailedResp = await fetch(
+          `${API_BASE}/api/scores/stats/detailed`,
+        );
         if (detailedResp.ok) {
           const detailedData = await detailedResp.json();
           setBackendStats(detailedData);
+          refreshedAny = true;
         }
 
         // 获取算法对比统计（主观评分聚合）
-        const comparisonResp = await fetch(`${API_BASE}/api/scores/stats/algorithm-comparison`);
+        const comparisonResp = await fetch(
+          `${API_BASE}/api/scores/stats/algorithm-comparison`,
+        );
         if (comparisonResp.ok) {
           const comparisonData = await comparisonResp.json();
           setAlgorithmComparison(comparisonData);
+          refreshedAny = true;
         }
 
         // 获取客观指标统计（按算法聚合 SDR/SIR/SAR）
@@ -3095,7 +3102,9 @@ export default function AudioLabApp() {
           );
           if (jointResp.ok) {
             const jointData = await jointResp.json();
-            setSubjectiveObjectivePoints(Array.isArray(jointData) ? jointData : []);
+            setSubjectiveObjectivePoints(
+              Array.isArray(jointData) ? jointData : [],
+            );
           }
         } catch (e) {
           console.warn("Failed to fetch subjective-objective points:", e);
@@ -3103,7 +3112,9 @@ export default function AudioLabApp() {
 
         // 获取按算法的 SDR 样本分布（用于分布型可视化）
         try {
-          const distResp = await fetch(`${API_BASE}/api/tasks/stats/objective-distribution`);
+          const distResp = await fetch(
+            `${API_BASE}/api/tasks/stats/objective-distribution`,
+          );
           if (distResp.ok) {
             const distData = await distResp.json();
             setObjectiveDistribution(Array.isArray(distData) ? distData : []);
@@ -3111,20 +3122,36 @@ export default function AudioLabApp() {
         } catch (e) {
           console.warn("Failed to fetch objective SDR distribution:", e);
         }
+
+        if (refreshedAny) {
+          setStatsRefreshedAt(Date.now());
+        }
       } catch (err) {
         console.error("Failed to fetch backend stats:", err);
       } finally {
-        setLoadingStats(false);
+        if (showLoading) setLoadingStats(false);
       }
-    };
+    },
+    [
+      setAlgorithmComparison,
+      setBackendStats,
+      setObjectiveDistribution,
+      setObjectiveStats,
+      setSubjectiveObjectivePoints,
+    ],
+  );
 
-    if (user) {
-      fetchBackendStats();
-      // 每30秒刷新一次统计数据
-      const interval = setInterval(fetchBackendStats, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [user]);
+  // Fetch Backend Stats Effect
+  useEffect(() => {
+    if (!user) return;
+    fetchBackendStats({ showLoading: true });
+    // 每30秒刷新一次统计数据（静默刷新，避免 UI 频繁闪烁）
+    const interval = setInterval(
+      () => fetchBackendStats({ showLoading: false }),
+      30000,
+    );
+    return () => clearInterval(interval);
+  }, [user, fetchBackendStats]);
 
   // Fetch Compute Mode from Backend (poll + tab focus)
   useEffect(() => {
@@ -4170,6 +4197,14 @@ export default function AudioLabApp() {
 
   // Aggregated Stats for Chart（仅基于后端“全站”统计；不再混入本地浏览器历史评分）
   const radarModel = useMemo(() => {
+    const to0to100 = (value) => {
+      const v = Number(value);
+      if (!Number.isFinite(v)) return 0;
+      // 兼容历史/异常口径：若是 0~1，转为 0~100
+      const scaled = v <= 1 ? v * 100 : v;
+      return Math.max(0, Math.min(100, scaled));
+    };
+
     // 颜色映射（不在映射表内的算法用 fallback 配色）
     const COLOR = {
       "Demucs v4": "#06b6d4",
@@ -4271,7 +4306,7 @@ export default function AudioLabApp() {
             }
           }
 
-          row[algoName] = source ? source[metric.key] * 100 : 0;
+          row[algoName] = source ? to0to100(source[metric.key]) : 0;
         });
         return row;
       });
@@ -5735,34 +5770,68 @@ export default function AudioLabApp() {
                     </div>
                   </div>
 
-                  <div className="bg-slate-800/30 rounded-xl p-6 border border-slate-700/50 flex flex-col justify-center items-center text-center">
-                    <div className="w-full h-64">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">
-                        实时评分统计 (Radar)
-                      </h4>
+                  <div className="bg-slate-800/30 rounded-xl p-6 border border-slate-700/50">
+                    <div className="w-full min-h-[420px] flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="text-left min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase">
+                              实时评分统计
+                            </h4>
+                            <span className="text-[10px] uppercase px-2 py-0.5 rounded-full border border-slate-700/70 bg-slate-900/40 text-slate-400">
+                              RADAR
+                            </span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/80" />
+                              {radarModel.source === "backend"
+                                ? `后端统计：共 ${radarModel.total} 份（约 30 秒自动刷新）`
+                                : `本地浏览器：共 ${radarModel.total} 份`}
+                            </span>
+                            {statsRefreshedAt && (
+                              <span className="text-slate-500/90">
+                                最近刷新：
+                                <span className="text-slate-300">
+                                  {new Date(statsRefreshedAt).toLocaleTimeString()}
+                                </span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {radarModel.source === "backend" && (
+                          <button
+                            type="button"
+                            onClick={() => fetchBackendStats({ showLoading: true })}
+                            disabled={loadingStats}
+                            className="px-3 py-1.5 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-700 rounded-lg text-[11px] text-slate-100 inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0"
+                            title="立即刷新"
+                          >
+                            <RotateCcw size={12} />
+                            {loadingStats ? "刷新中..." : "刷新"}
+                          </button>
+                        )}
+                      </div>
                       {radarModel.source === "empty" && (
-                        <div className="text-xs text-slate-500 mb-2">
+                        <div className="text-xs text-slate-500">
                           暂无专家评分数据（提交评分后会自动显示聚合结果）
                         </div>
                       )}
                       {radarModel.source !== "empty" && (
-                        <>
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
-                            <div className="text-[11px] text-slate-500 text-left space-y-1.5">
+                        <div className="flex flex-col gap-3 flex-1 min-h-0">
+                          {/* Controls (above chart) */}
+                          <div className="rounded-xl border border-slate-700/50 bg-slate-900/20 p-3 text-left">
+                            <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-3 items-start">
                               <div>
-                                数据源：
-                                {radarModel.source === "backend"
-                                  ? `后端统计（共 ${radarModel.total} 份评分，约每30秒刷新）`
-                                  : `本地浏览器（共 ${radarModel.total} 份评分）`}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span>声源：</span>
+                                <div className="text-[10px] text-slate-400 mb-1">
+                                  声源
+                                </div>
                                 <select
                                   value={selectedRadarStem}
                                   onChange={(e) =>
                                     setSelectedRadarStem(e.target.value)
                                   }
-                                  className="bg-slate-900/80 border border-slate-700 rounded px-2 py-0.5 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                  className="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                                 >
                                   {availableRadarStems.map((stem) => (
                                     <option key={stem} value={stem}>
@@ -5773,147 +5842,178 @@ export default function AudioLabApp() {
                                   ))}
                                 </select>
                               </div>
+
                               <div>
-                                当前算法：
-                                <span className="text-slate-300">
-                                  {Array.isArray(selectedRadarAlgorithms) &&
-                                  selectedRadarAlgorithms.length > 0
-                                    ? selectedRadarAlgorithms.join(" / ")
-                                    : "默认对比前 2 名算法"}
-                                </span>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[10px] text-slate-400">
+                                    选择算法（可多选叠加）
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedRadarAlgorithms([])}
+                                    className="text-[10px] text-slate-400 hover:text-slate-200 transition"
+                                    title="清空算法选择（恢复默认前2名）"
+                                  >
+                                    清空
+                                  </button>
+                                </div>
+
+                                <div className="flex flex-wrap gap-1.5">
+                                  {(Array.isArray(algorithmComparison)
+                                    ? algorithmComparison
+                                        .slice()
+                                        .sort(
+                                          (a, b) =>
+                                            (b?.total_scores || 0) -
+                                            (a?.total_scores || 0),
+                                        )
+                                        .slice(0, 8)
+                                    : []
+                                  ).map((algo) => {
+                                    const name = algo?.algorithm || "Unknown";
+                                    const count = algo?.total_scores || 0;
+                                    const isActive =
+                                      selectedRadarAlgorithms.includes(name);
+                                    const COLOR = {
+                                      "Demucs v4": "#06b6d4",
+                                      Spleeter: "#8b5cf6",
+                                      OpenUnmix: "#f59e0b",
+                                      MDX23C: "#22c55e",
+                                      Demucs4HT: "#38bdf8",
+                                      "Band Split RoFormer": "#a78bfa",
+                                      SCNet: "#fb7185",
+                                      Unknown: "#94a3b8",
+                                    };
+                                    const FALLBACK = [
+                                      "#06b6d4",
+                                      "#8b5cf6",
+                                      "#22c55e",
+                                      "#f59e0b",
+                                      "#fb7185",
+                                      "#a78bfa",
+                                    ];
+                                    const baseColor =
+                                      COLOR[name] ||
+                                      FALLBACK[name.length % FALLBACK.length];
+                                    return (
+                                      <button
+                                        key={name}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedRadarAlgorithms((prev) => {
+                                            if (prev.includes(name)) {
+                                              return prev.filter(
+                                                (x) => x !== name,
+                                              );
+                                            }
+                                            return [...prev, name];
+                                          });
+                                        }}
+                                        className={`px-2.5 py-1 rounded-full border text-[11px] transition-colors inline-flex items-center gap-1.5 ${
+                                          isActive
+                                            ? "bg-slate-900/80 text-slate-50"
+                                            : "bg-slate-900/40 text-slate-200 hover:bg-slate-800/80"
+                                        }`}
+                                        style={{
+                                          borderColor: baseColor,
+                                          boxShadow: isActive
+                                            ? `0 0 0 1px ${baseColor}55`
+                                            : "none",
+                                        }}
+                                        title={name}
+                                      >
+                                        <span
+                                          className="inline-block w-2 h-2 rounded-full"
+                                          style={{ backgroundColor: baseColor }}
+                                        />
+                                        <span className="max-w-[180px] truncate">
+                                          {name}
+                                        </span>
+                                        <span className="text-slate-400">
+                                          ({count})
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             </div>
-                            {Array.isArray(algorithmComparison) &&
-                              algorithmComparison.length > 0 && (
-                                <div className="flex flex-col items-stretch text-left">
-                                  <span className="text-[10px] text-slate-400 mb-1">
-                                    选择算法（竖排按钮，可多选叠加）
-                                  </span>
-                                  <div className="flex flex-col gap-1">
-                                    {algorithmComparison
-                                      .slice()
-                                      .sort(
-                                        (a, b) =>
-                                          (b?.total_scores || 0) -
-                                          (a?.total_scores || 0),
-                                      )
-                                      .slice(0, 4)
-                                      .map((algo) => {
-                                        const name =
-                                          algo?.algorithm || "Unknown";
-                                        const count =
-                                          algo?.total_scores || 0;
-                                        const isActive =
-                                          selectedRadarAlgorithms.includes(
-                                            name,
-                                          );
-                                        const COLOR = {
-                                          "Demucs v4": "#06b6d4",
-                                          Spleeter: "#8b5cf6",
-                                          OpenUnmix: "#f59e0b",
-                                          MDX23C: "#22c55e",
-                                          Demucs4HT: "#38bdf8",
-                                          "Band Split RoFormer": "#a78bfa",
-                                          SCNet: "#fb7185",
-                                          Unknown: "#94a3b8",
-                                        };
-                                        const FALLBACK = [
-                                          "#06b6d4",
-                                          "#8b5cf6",
-                                          "#22c55e",
-                                          "#f59e0b",
-                                          "#fb7185",
-                                          "#a78bfa",
-                                        ];
-                                        const baseColor =
-                                          COLOR[name] ||
-                                          FALLBACK[
-                                            name.length % FALLBACK.length
-                                          ];
-                                        return (
-                                          <button
-                                            key={name}
-                                            type="button"
-                                            onClick={() => {
-                                              setSelectedRadarAlgorithms(
-                                                (prev) => {
-                                                  if (prev.includes(name)) {
-                                                    return prev.filter(
-                                                      (x) => x !== name,
-                                                    );
-                                                  }
-                                                  return [...prev, name];
-                                                },
-                                              );
-                                            }}
-                                            className={`w-full px-2 py-1 rounded-full border text-[11px] text-left transition-colors ${
-                                              isActive
-                                                ? "bg-slate-900/80 text-slate-50"
-                                                : "bg-slate-900/40 text-slate-200 hover:bg-slate-800/80"
-                                            }`}
-                                            style={{
-                                              borderColor: baseColor,
-                                              boxShadow: isActive
-                                                ? `0 0 0 1px ${baseColor}55`
-                                                : "none",
-                                            }}
-                                          >
-                                            <span
-                                              className="inline-block w-2 h-2 rounded-full mr-1 align-middle"
-                                              style={{
-                                                backgroundColor: baseColor,
-                                              }}
-                                            />
-                                            <span className="align-middle">
-                                              {name}（{count}）
-                                            </span>
-                                          </button>
-                                        );
-                                      })}
-                                  </div>
-                                </div>
-                              )}
+
+                            <div className="mt-2 text-[11px] text-slate-500">
+                              当前算法：
+                              <span className="text-slate-300">
+                                {Array.isArray(selectedRadarAlgorithms) &&
+                                selectedRadarAlgorithms.length > 0
+                                  ? selectedRadarAlgorithms.join(" / ")
+                                  : "默认对比前 2 名算法"}
+                              </span>
+                            </div>
                           </div>
-                        </>
+
+                          {/* Chart (below '当前算法…') */}
+                          <div className="relative rounded-xl border border-slate-700/50 bg-slate-900/20 p-3">
+                            {loadingStats && (
+                              <div className="absolute inset-0 rounded-xl bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center text-[11px] text-slate-200 animate-pulse">
+                                正在刷新统计…
+                              </div>
+                            )}
+                            <div className="h-[300px] sm:h-[360px] lg:h-[400px]">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <RadarChart
+                                  cx="50%"
+                                  cy="52%"
+                                  outerRadius="80%"
+                                  margin={{ top: 14, right: 34, bottom: 22, left: 34 }}
+                                  data={radarModel.data}
+                                >
+                                  <PolarGrid stroke="#334155" />
+                                  <PolarAngleAxis
+                                    dataKey="subject"
+                                    tick={{ fill: "#94a3b8", fontSize: 10 }}
+                                    tickMargin={12}
+                                  />
+                                  <PolarRadiusAxis
+                                    angle={30}
+                                    domain={[0, 100]}
+                                    tick={false}
+                                    axisLine={false}
+                                  />
+                                  {radarModel.series.map((s) => (
+                                    <Radar
+                                      key={s.key}
+                                      name={s.key}
+                                      dataKey={s.key}
+                                      stroke={s.color}
+                                      fill={s.color}
+                                      fillOpacity={0.28}
+                                    />
+                                  ))}
+                                  <Legend
+                                    wrapperStyle={{ fontSize: "11px" }}
+                                    verticalAlign="bottom"
+                                    height={32}
+                                  />
+                                  <RechartsTooltip
+                                    contentStyle={{
+                                      backgroundColor: "#0f172a",
+                                      borderColor: "#334155",
+                                      color: "#fff",
+                                      borderRadius: "12px",
+                                    }}
+                                    formatter={(value, name) => {
+                                      const v = Number(value);
+                                      const display = Number.isFinite(v)
+                                        ? v.toFixed(1)
+                                        : value;
+                                      return [display, name];
+                                    }}
+                                  />
+                                </RadarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        </div>
                       )}
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart
-                          cx="50%"
-                          cy="50%"
-                          outerRadius="80%"
-                          data={radarModel.data}
-                        >
-                          <PolarGrid stroke="#334155" />
-                          <PolarAngleAxis
-                            dataKey="subject"
-                            tick={{ fill: "#94a3b8", fontSize: 10 }}
-                          />
-                          <PolarRadiusAxis
-                            angle={30}
-                            domain={[0, 100]}
-                            tick={false}
-                            axisLine={false}
-                          />
-                          {radarModel.series.map((s) => (
-                            <Radar
-                              key={s.key}
-                              name={s.key}
-                              dataKey={s.key}
-                              stroke={s.color}
-                              fill={s.color}
-                              fillOpacity={0.28}
-                            />
-                          ))}
-                          <Legend wrapperStyle={{ fontSize: "10px" }} />
-                          <RechartsTooltip
-                            contentStyle={{
-                              backgroundColor: "#0f172a",
-                              borderColor: "#334155",
-                              color: "#fff",
-                            }}
-                          />
-                        </RadarChart>
-                      </ResponsiveContainer>
                     </div>
                   </div>
                 </div>
