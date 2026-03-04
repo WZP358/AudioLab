@@ -1544,6 +1544,7 @@ const SpectrumComparator = ({
 };
 
 // 单音频波形视图：一条音频 = 一块独立波形面板（Au 风格）
+// eslint-disable-next-line no-unused-vars
 const SingleWaveformView = ({
   wave,
   heightPx = 160,
@@ -1787,6 +1788,7 @@ const SingleWaveformView = ({
 };
 
 // 单音频频谱视图：一条音频 = 一块独立 Spectrogram 面板（带进度红线）
+// eslint-disable-next-line no-unused-vars
 const SingleSpectrogramView = ({
   spectrum,
   heightPx = 180,
@@ -1936,6 +1938,461 @@ const SingleSpectrogramView = ({
       onMouseUp={handleDragZoom.onMouseUp}
       onMouseLeave={handleDragZoom.onMouseLeave}
       onDoubleClick={handleDoubleClick}
+    >
+      <canvas
+        ref={canvasRef}
+        width={256}
+        height={heightPx}
+        className="w-full h-full rounded border border-slate-700 bg-slate-950"
+      />
+    </div>
+  );
+};
+
+// 叠加对比波形视图：Gold vs Separated 同一画布叠加显示（可用勾选框控制显示）
+const OverlayWaveformComparisonView = ({
+  goldWave,
+  separatedWave,
+  showGold = true,
+  showSeparated = true,
+  mode = "stacked", // "stacked" | "overlay"
+  heightPx = 220,
+  autoGain = true,
+  yZoom = 1.0,
+  viewRange,
+  playbackState = { currentTime: 0, duration: 0, seek: null },
+}) => {
+  const canvasRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const [layout, setLayout] = useState({ w: 800, h: heightPx });
+
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+  const unpackWave = useCallback((input) => {
+    if (Array.isArray(input)) {
+      return { mid: input, min: null, max: null };
+    }
+    if (input && typeof input === "object") {
+      const wMin = input.min;
+      const wMax = input.max;
+      if (Array.isArray(wMin) && Array.isArray(wMax) && wMin.length && wMax.length) {
+        const n = Math.min(wMin.length, wMax.length);
+        const mid = new Array(n);
+        for (let i = 0; i < n; i += 1) {
+          const a = typeof wMin[i] === "number" && isFinite(wMin[i]) ? wMin[i] : 0;
+          const b = typeof wMax[i] === "number" && isFinite(wMax[i]) ? wMax[i] : 0;
+          mid[i] = (a + b) * 0.5;
+        }
+        return { mid, min: wMin, max: wMax };
+      }
+    }
+    return { mid: [], min: null, max: null };
+  }, []);
+
+  const getValAt = useCallback((arr, pos01) => {
+    if (!Array.isArray(arr) || arr.length === 0) return 0;
+    if (arr.length === 1) return arr[0] || 0;
+    const p = clamp01(pos01);
+    const idx = Math.floor(p * (arr.length - 1));
+    const v = arr[idx];
+    return typeof v === "number" && isFinite(v) ? v : 0;
+  }, []);
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries?.[0];
+      const rect = entry?.contentRect;
+      if (!rect) return;
+      const w = Math.max(1, Math.floor(rect.width));
+      const h = Math.max(1, Math.floor(rect.height));
+      setLayout((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = layout.w || canvas.clientWidth || 800;
+    const cssHeight = layout.h || canvas.clientHeight || heightPx;
+    const width = cssWidth;
+    const height = cssHeight;
+
+    const pxW = Math.max(1, Math.floor(cssWidth * dpr));
+    const pxH = Math.max(1, Math.floor(cssHeight * dpr));
+    if (canvas.width !== pxW) canvas.width = pxW;
+    if (canvas.height !== pxH) canvas.height = pxH;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // 背景 & 网格
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "#020617";
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = "#1e293b";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const gridX = Math.max(40, Math.floor(width / 16));
+    const gridY = Math.max(24, Math.floor(height / 8));
+    for (let x = 0; x < width; x += gridX) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+    }
+    for (let y = 0; y < height; y += gridY) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
+    ctx.stroke();
+
+    const drawZeroLine = (y) => {
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    };
+
+    const vrStart = Math.max(0, Math.min(1, viewRange?.start ?? 0));
+    const vrEnd = Math.max(vrStart, Math.min(1, viewRange?.end ?? 1));
+    const span = Math.max(0.0001, vrEnd - vrStart);
+
+    const goldW = unpackWave(goldWave);
+    const sepW = unpackWave(separatedWave);
+
+    const getPeakAbsInView = (arr) => {
+      if (!Array.isArray(arr) || arr.length === 0) return 0;
+      if (arr.length === 1) return Math.abs(arr[0] || 0);
+      const s = Math.max(0, Math.min(arr.length - 1, Math.floor(vrStart * (arr.length - 1))));
+      const e = Math.max(s, Math.min(arr.length - 1, Math.ceil(vrEnd * (arr.length - 1))));
+      let peak = 0;
+      for (let i = s; i <= e; i += 1) {
+        const v = arr[i];
+        if (typeof v !== "number" || !isFinite(v)) continue;
+        const a = Math.abs(v);
+        if (a > peak) peak = a;
+      }
+      return peak;
+    };
+
+    const safeZoom =
+      typeof yZoom === "number" && isFinite(yZoom) ? Math.max(0.1, Math.min(10, yZoom)) : 1.0;
+
+    // overlay: 一条零线；stacked: 上下两条零线（更接近原来的“分轨”观感）
+    const isStacked = String(mode || "").toLowerCase() === "stacked";
+    const centerY = height / 2;
+    const refCenterY = isStacked ? height * 0.28 : centerY;
+    const sepCenterY = isStacked ? height * 0.72 : centerY;
+
+    // 零线
+    if (isStacked) {
+      drawZeroLine(refCenterY);
+      drawZeroLine(sepCenterY);
+    } else {
+      drawZeroLine(centerY);
+    }
+
+    // 纵向占用：叠加模式更“饱满”，分轨模式更“细长”（接近原来的 Reference / Separated 样式）
+    let baseScaleY = isStacked ? height * 0.18 : height * 0.42;
+    if (autoGain) {
+      let peak = 0;
+      if (showGold) peak = Math.max(peak, getPeakAbsInView(goldW.mid));
+      if (showSeparated) peak = Math.max(peak, getPeakAbsInView(sepW.mid));
+      const denom = peak > 1e-6 ? peak : 1.0;
+      baseScaleY = (isStacked ? height * 0.22 : height * 0.44) / denom;
+    }
+    const scaleY = baseScaleY * safeZoom;
+
+    const drawLineWave = (centerLineY, w, rgbaStroke, strokeWidth = 2) => {
+      const midArr = w?.mid;
+      if (!Array.isArray(midArr) || midArr.length === 0) return;
+
+      ctx.beginPath();
+      ctx.strokeStyle = rgbaStroke;
+      ctx.lineWidth = strokeWidth;
+      for (let i = 0; i < width; i += 1) {
+        const pos = vrStart + (i / width) * span;
+        const val = getValAt(midArr, pos);
+        if (i === 0) ctx.moveTo(i, centerLineY + val * scaleY);
+        else ctx.lineTo(i, centerLineY + val * scaleY);
+      }
+      ctx.stroke();
+    };
+
+    // 颜色：Gold=鲜明紫红；Separated=亮青色
+    const goldStroke = "rgba(217, 70, 239, 0.92)"; // magenta
+    const sepStroke = "rgba(34, 211, 238, 0.95)"; // cyan
+
+    if (isStacked) {
+      // 分轨：Gold 在上，Separated 在下（更接近原来的观感，也更易读）
+      if (showGold) drawLineWave(refCenterY, goldW, goldStroke, 1.1);
+      if (showSeparated) drawLineWave(sepCenterY, sepW, sepStroke, 1.25);
+    } else {
+      // 叠加：同一零线（更强调相位/对齐差异）
+      if (showGold) drawLineWave(centerY, goldW, goldStroke, 1.15);
+      if (showSeparated) drawLineWave(centerY, sepW, sepStroke, 1.3);
+    }
+
+    // 播放进度线
+    if (playbackState?.duration > 0) {
+      const globalPos = playbackState.currentTime / playbackState.duration;
+      const posInView = (globalPos - vrStart) / span;
+      if (posInView >= 0 && posInView <= 1) {
+        const x = posInView * width;
+        ctx.strokeStyle = "#fbbf24"; // amber-400
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+    }
+  }, [
+    goldWave,
+    separatedWave,
+    showGold,
+    showSeparated,
+    mode,
+    heightPx,
+    autoGain,
+    yZoom,
+    viewRange,
+    playbackState,
+    layout,
+    unpackWave,
+    getValAt,
+  ]);
+
+  const getNormalizedX = (event) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return 0;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    return Math.max(0, Math.min(1, x / rect.width));
+  };
+
+  const handleClick = (e) => {
+    if (!playbackState?.seek || !playbackState?.duration) return;
+    const nx = getNormalizedX(e);
+    const vrStart = Math.max(0, Math.min(1, viewRange?.start ?? 0));
+    const vrEnd = Math.max(vrStart, Math.min(1, viewRange?.end ?? 1));
+    const span = Math.max(0.0001, vrEnd - vrStart);
+    const globalPos = vrStart + nx * span;
+    const time = globalPos * playbackState.duration;
+    playbackState.seek(time);
+  };
+
+  return (
+    <div ref={wrapperRef} className="w-full" style={{ height: heightPx }} onClick={handleClick}>
+      <canvas ref={canvasRef} className="w-full h-full rounded border border-slate-700 bg-slate-950" />
+    </div>
+  );
+};
+
+// 叠加对比语谱图：Gold vs Separated 同一画布叠加显示（可用勾选框控制显示）
+const OverlaySpectrogramComparisonView = ({
+  goldSpectrum,
+  separatedSpectrum,
+  showGold = true,
+  showSeparated = true,
+  heightPx = 240,
+  viewRange,
+  onViewRangeChange,
+  playbackState = { currentTime: 0, duration: 0, seek: null },
+}) => {
+  const canvasRef = useRef(null);
+
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+  const drawSpectrogram = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#020617";
+    ctx.fillRect(0, 0, w, h);
+
+    const colorizeGold = (v01) => {
+      // vivid fuchsia -> pink -> amber
+      const v = clamp01(v01);
+      const a = Math.pow(v, 0.8);
+      const r = 255 * Math.min(1, 0.65 + a * 0.75);
+      const g = 255 * Math.min(1, 0.05 + a * 0.55);
+      const b = 255 * Math.min(1, 0.75 - a * 0.45);
+      return [r, g, b, a];
+    };
+
+    const colorizeSeparated = (v01) => {
+      // vivid cyan -> sky -> blue
+      const v = clamp01(v01);
+      const a = Math.pow(v, 0.78);
+      const r = 255 * Math.min(1, 0.05 + a * 0.25);
+      const g = 255 * Math.min(1, 0.45 + a * 0.60);
+      const b = 255 * Math.min(1, 0.65 + a * 0.55);
+      return [r, g, b, a];
+    };
+
+    const hasGold = Array.isArray(goldSpectrum) && goldSpectrum.length > 0 && showGold;
+    const hasSep = Array.isArray(separatedSpectrum) && separatedSpectrum.length > 0 && showSeparated;
+    if (!hasGold && !hasSep) return;
+
+    const fBinsGold = hasGold ? goldSpectrum.length : 0;
+    const tBinsGold = hasGold && Array.isArray(goldSpectrum[0]) ? goldSpectrum[0].length : 0;
+    const fBinsSep = hasSep ? separatedSpectrum.length : 0;
+    const tBinsSep = hasSep && Array.isArray(separatedSpectrum[0]) ? separatedSpectrum[0].length : 0;
+
+    const vrStart = Math.max(0, Math.min(1, viewRange?.start ?? 0));
+    const vrEnd = Math.max(vrStart, Math.min(1, viewRange?.end ?? 1));
+    const span = Math.max(0.0001, vrEnd - vrStart);
+
+    const image = ctx.createImageData(w, h);
+    for (let y = 0; y < h; y += 1) {
+      const fGold = hasGold ? Math.floor(((h - 1 - y) / h) * fBinsGold) : 0;
+      const rowGold = hasGold ? goldSpectrum[fGold] || [] : null;
+      const fSep = hasSep ? Math.floor(((h - 1 - y) / h) * fBinsSep) : 0;
+      const rowSep = hasSep ? separatedSpectrum[fSep] || [] : null;
+
+      for (let x = 0; x < w; x += 1) {
+        const pos = vrStart + (x / w) * span;
+
+        let rAcc = 0;
+        let gAcc = 0;
+        let bAcc = 0;
+
+        if (hasGold && tBinsGold > 0) {
+          const t = Math.floor(pos * (tBinsGold - 1));
+          const v = clamp01(rowGold?.[t] ?? 0);
+          const [r, g, b, a] = colorizeGold(v);
+          const alpha = Math.min(0.92, a * 0.95);
+          rAcc += r * alpha;
+          gAcc += g * alpha;
+          bAcc += b * alpha;
+        }
+
+        if (hasSep && tBinsSep > 0) {
+          const t = Math.floor(pos * (tBinsSep - 1));
+          const v = clamp01(rowSep?.[t] ?? 0);
+          const [r, g, b, a] = colorizeSeparated(v);
+          const alpha = Math.min(0.92, a * 0.95);
+          rAcc += r * alpha;
+          gAcc += g * alpha;
+          bAcc += b * alpha;
+        }
+
+        const idx = (y * w + x) * 4;
+        image.data[idx + 0] = Math.max(0, Math.min(255, Math.floor(rAcc)));
+        image.data[idx + 1] = Math.max(0, Math.min(255, Math.floor(gAcc)));
+        image.data[idx + 2] = Math.max(0, Math.min(255, Math.floor(bAcc)));
+        image.data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+
+    // 播放进度线（统一时间轴）
+    if (playbackState?.duration > 0) {
+      const globalPos = playbackState.currentTime / playbackState.duration;
+      const posInView = (globalPos - vrStart) / span;
+      if (posInView >= 0 && posInView <= 1) {
+        const x = posInView * w;
+        ctx.strokeStyle = "#fbbf24"; // amber-400
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+    }
+  }, [goldSpectrum, separatedSpectrum, showGold, showSeparated, viewRange, playbackState]);
+
+  useEffect(() => {
+    drawSpectrogram();
+  }, [drawSpectrogram]);
+
+  const getNormalizedX = (event) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return 0;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    return Math.max(0, Math.min(1, x / rect.width));
+  };
+
+  const handleDragZoom = (() => {
+    let dragging = false;
+    let startX = 0;
+
+    const finalize = (nxStart, nxEnd) => {
+      if (!onViewRangeChange) return;
+      const s = Math.min(nxStart, nxEnd);
+      const e = Math.max(nxStart, nxEnd);
+      if (e - s < 0.01) return;
+      const baseStart = viewRange?.start ?? 0;
+      const baseEnd = viewRange?.end ?? 1;
+      const baseSpan = Math.max(0.0001, baseEnd - baseStart);
+      const newStart = baseStart + s * baseSpan;
+      const newEnd = baseStart + e * baseSpan;
+      onViewRangeChange({
+        start: Math.max(0, Math.min(1, newStart)),
+        end: Math.max(0, Math.min(1, newEnd)),
+      });
+    };
+
+    const onMouseDown = (e) => {
+      dragging = true;
+      startX = getNormalizedX(e);
+    };
+
+    const onMouseMove = (e) => {
+      if (!dragging) return;
+      getNormalizedX(e);
+    };
+
+    const onMouseUp = (e) => {
+      if (!dragging) return;
+      const nx = getNormalizedX(e);
+      dragging = false;
+      finalize(startX, nx);
+    };
+
+    const onMouseLeave = () => {
+      dragging = false;
+    };
+
+    return { onMouseDown, onMouseMove, onMouseUp, onMouseLeave };
+  })();
+
+  const handleDoubleClick = () => {
+    if (onViewRangeChange) onViewRangeChange({ start: 0, end: 1 });
+  };
+
+  const handleClick = (e) => {
+    // 点击跳转播放位置（与波形一致）
+    if (!playbackState?.seek || !playbackState?.duration) return;
+    const nx = getNormalizedX(e);
+    const vrStart = Math.max(0, Math.min(1, viewRange?.start ?? 0));
+    const vrEnd = Math.max(vrStart, Math.min(1, viewRange?.end ?? 1));
+    const span = Math.max(0.0001, vrEnd - vrStart);
+    const globalPos = vrStart + nx * span;
+    const time = globalPos * playbackState.duration;
+    playbackState.seek(time);
+  };
+
+  return (
+    <div
+      className="w-full"
+      style={{ height: heightPx }}
+      onMouseDown={handleDragZoom.onMouseDown}
+      onMouseMove={handleDragZoom.onMouseMove}
+      onMouseUp={handleDragZoom.onMouseUp}
+      onMouseLeave={handleDragZoom.onMouseLeave}
+      onDoubleClick={handleDoubleClick}
+      onClick={handleClick}
     >
       <canvas
         ref={canvasRef}
@@ -2137,7 +2594,7 @@ export default function AudioLabApp() {
   // 波形显示增强：仅影响展示（便于对比），不改变任何音频/评分数据
   const [waveAutoGain, setWaveAutoGain] = useState(true);
   const [waveYZoom, setWaveYZoom] = useState(1.6);
-  const [waveExpanded, setWaveExpanded] = useState(false);
+  const [waveExpanded, setWaveExpanded] = useState(false); // 弹窗放大波形对比
   // 按 stem 维度存储主观评分：stemName -> { quality, interference, artifacts }
   const [stemScores, setStemScores] = useState({});
 
@@ -2251,7 +2708,15 @@ export default function AudioLabApp() {
     fileFormat: null, // 文件格式，用于显示解释
   });
   // 暂停时自动放大频谱图对应时间带（目前仅内部使用，不暴露 UI 开关）
-  const [autoZoomSpectrumOnPause] = useState(false);
+  const [autoZoomSpectrumOnPause, setAutoZoomSpectrumOnPause] = useState(false);
+  const pauseZoomPrevViewRangeRef = useRef(null); // 进入“暂停放大”前的 viewRange，用于恢复
+  const pauseZoomWindowSpanRef = useRef(0.1); // 默认时间带宽度（0~1）
+
+  // 对比视图：两路信号的显示开关（波形/频谱共用）
+  const [showGoldInComparison, setShowGoldInComparison] = useState(true);
+  const [showSeparatedInComparison, setShowSeparatedInComparison] = useState(true);
+  // 波形对比显示方式：分轨（更接近原来）/叠加
+  const [waveCompareMode, setWaveCompareMode] = useState("stacked"); // "stacked" | "overlay"
   // 音频资源选择器状态
   const [showResourceSelector, setShowResourceSelector] = useState(false);
   const [resourceSelectorType, setResourceSelectorType] = useState(null); // 'input' 或 'gold'
@@ -2542,6 +3007,34 @@ export default function AudioLabApp() {
     [syncedCurrentTime, syncedDuration, syncedPlaying, seekAll],
   );
 
+  // ---- 可视化对比数据源（Gold vs Separated）----
+  const goldWaveForViz = useMemo(() => (goldWaveEnv || goldWave || []), [goldWaveEnv, goldWave]);
+  const separatedWaveForViz = useMemo(() => {
+    if (currentStem?.waveformEnv) return currentStem.waveformEnv;
+    if (currentStem?.waveform) return currentStem.waveform;
+    if (results) return (sepWaveEnv || sepWave || []);
+    return [];
+  }, [currentStem, results, sepWaveEnv, sepWave]);
+  const goldSpectrumForViz = useMemo(() => (goldSpectrum || []), [goldSpectrum]);
+  const separatedSpectrumForViz = useMemo(
+    () => (currentStem?.spectrum || sepSpectrum || []),
+    [currentStem, sepSpectrum],
+  );
+
+  const hasWave = useCallback((w) => {
+    if (Array.isArray(w)) return w.length > 0;
+    if (w && typeof w === "object") {
+      return Array.isArray(w.min) && Array.isArray(w.max) && w.min.length > 0 && w.max.length > 0;
+    }
+    return false;
+  }, []);
+  const hasSpec = useCallback((s) => Array.isArray(s) && s.length > 0, []);
+
+  const hasGoldWaveForViz = useMemo(() => hasWave(goldWaveForViz), [goldWaveForViz, hasWave]);
+  const hasSeparatedWaveForViz = useMemo(() => hasWave(separatedWaveForViz), [separatedWaveForViz, hasWave]);
+  const hasGoldSpectrumForViz = useMemo(() => hasSpec(goldSpectrumForViz), [goldSpectrumForViz, hasSpec]);
+  const hasSeparatedSpectrumForViz = useMemo(() => hasSpec(separatedSpectrumForViz), [separatedSpectrumForViz, hasSpec]);
+
   // 根据当前视窗计算等效放大倍数，供 UI 展示
   const zoomLevel = useMemo(() => {
     const span = Math.max(0.0001, (viewRange?.end || 1) - (viewRange?.start || 0));
@@ -2586,31 +3079,69 @@ export default function AudioLabApp() {
 
   // 监听播放状态，当暂停时自动放大频谱图对应时间带
   useEffect(() => {
-    if (!autoZoomSpectrumOnPause) return;
     if (!playbackState.duration || playbackState.duration <= 0) return;
-    if (playbackState.playing) return; // 只在暂停时触发
+    const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+    // 播放中：自动恢复到进入“暂停放大”之前的视窗
+    if (playbackState.playing) {
+      if (pauseZoomPrevViewRangeRef.current) {
+        const prev = pauseZoomPrevViewRangeRef.current;
+        pauseZoomPrevViewRangeRef.current = null;
+        setViewRange(prev);
+      }
+      return;
+    }
+
+    // 暂停但未启用：若曾保存过“进入前视窗”，则立即恢复并清空
+    if (!autoZoomSpectrumOnPause) {
+      if (pauseZoomPrevViewRangeRef.current) {
+        const prev = pauseZoomPrevViewRangeRef.current;
+        pauseZoomPrevViewRangeRef.current = null;
+        setViewRange(prev);
+      }
+      return;
+    }
 
     const currentTime = playbackState.currentTime;
     const duration = playbackState.duration;
-    const currentPos = currentTime / duration; // 0~1
+    const currentPos = clamp01(currentTime / duration); // 0~1
 
-    // 设置一个较小的时间窗口（当前时间前后各5%）
-    const windowSize = 0.1; // 10% 的时间窗口
-    const newStart = Math.max(0, currentPos - windowSize / 2);
-    const newEnd = Math.min(1, currentPos + windowSize / 2);
-
-    // 只有当新的范围与当前范围不同时才更新，避免无限循环
     setViewRange((prev) => {
-      const currentStart = prev?.start ?? 0;
-      const currentEnd = prev?.end ?? 1;
-      const threshold = 0.01; // 1% 的容差
-      if (
-        Math.abs(newStart - currentStart) > threshold ||
-        Math.abs(newEnd - currentEnd) > threshold
-      ) {
+      // 首次进入“暂停放大”时保存旧范围，供恢复使用
+      if (!pauseZoomPrevViewRangeRef.current) {
+        pauseZoomPrevViewRangeRef.current = prev;
+      }
+
+      const prevStart = clamp01(prev?.start ?? 0);
+      const prevEnd = Math.max(prevStart, clamp01(prev?.end ?? 1));
+      const prevSpan = Math.max(0.0001, prevEnd - prevStart);
+
+      // 若用户原本已经 zoom-in 很深，则保留该 span；否则用默认 window span
+      const defaultSpan =
+        typeof pauseZoomWindowSpanRef.current === "number" && isFinite(pauseZoomWindowSpanRef.current)
+          ? Math.max(0.02, Math.min(0.4, pauseZoomWindowSpanRef.current))
+          : 0.1;
+      const spanToUse = prevSpan < 0.25 ? prevSpan : defaultSpan;
+
+      let newStart = currentPos - spanToUse / 2;
+      let newEnd = currentPos + spanToUse / 2;
+      if (newStart < 0) {
+        newEnd -= newStart;
+        newStart = 0;
+      }
+      if (newEnd > 1) {
+        const diff = newEnd - 1;
+        newStart -= diff;
+        newEnd = 1;
+        if (newStart < 0) newStart = 0;
+      }
+
+      // 小容差：避免因浮点抖动导致频繁 setState
+      const threshold = 0.004;
+      if (Math.abs(newStart - prevStart) > threshold || Math.abs(newEnd - prevEnd) > threshold) {
         return { start: newStart, end: newEnd };
       }
-      return prev; // 没有变化时返回原值
+      return prev;
     });
   }, [playbackState.playing, playbackState.currentTime, playbackState.duration, autoZoomSpectrumOnPause]);
 
@@ -2834,6 +3365,85 @@ export default function AudioLabApp() {
             setSepSpectrum(a.target.spectrogram);
           if (Array.isArray(a?.target?.frequency_response)) {
             setSepFrequencyResponse(a.target.frequency_response);
+          }
+
+          // 保存音频元数据（与实时分离流程保持一致逻辑）
+          const originalData = a?.original;
+          const targetData = a?.target;
+          const stemsData = a?.stems;
+
+          let metadataFound = false;
+
+          // 1. 优先从 original 获取
+          if (
+            originalData &&
+            originalData.sample_rate !== undefined &&
+            originalData.sample_rate !== null
+          ) {
+            console.log("【元数据-历史导入】从 original 获取:", {
+              sample_rate: originalData.sample_rate,
+              bit_depth: originalData.bit_depth,
+            });
+            setAudioMetadata({
+              sampleRate: originalData.sample_rate,
+              bitDepth:
+                originalData.bit_depth !== undefined
+                  ? originalData.bit_depth
+                  : null,
+              fileFormat: null, // 后端数据不包含格式信息
+            });
+            metadataFound = true;
+          }
+          // 2. 其次从 target 获取
+          else if (
+            targetData &&
+            targetData.sample_rate !== undefined &&
+            targetData.sample_rate !== null
+          ) {
+            console.log("【元数据-历史导入】从 target 获取:", {
+              sample_rate: targetData.sample_rate,
+              bit_depth: targetData.bit_depth,
+            });
+            setAudioMetadata({
+              sampleRate: targetData.sample_rate,
+              bitDepth:
+                targetData.bit_depth !== undefined ? targetData.bit_depth : null,
+              fileFormat: null, // 后端数据不包含格式信息
+            });
+            metadataFound = true;
+          }
+          // 3. 尝试从 stems 中获取（取第一个有效的）
+          else if (stemsData && typeof stemsData === "object") {
+            for (const [stemName, stemData] of Object.entries(stemsData)) {
+              if (
+                stemData &&
+                stemData.sample_rate !== undefined &&
+                stemData.sample_rate !== null
+              ) {
+                console.log("【元数据-历史导入】从 stem 获取:", stemName, {
+                  sample_rate: stemData.sample_rate,
+                  bit_depth: stemData.bit_depth,
+                });
+                setAudioMetadata({
+                  sampleRate: stemData.sample_rate,
+                  bitDepth:
+                    stemData.bit_depth !== undefined ? stemData.bit_depth : null,
+                  fileFormat: null, // 后端数据不包含格式信息
+                });
+                metadataFound = true;
+                break;
+              }
+            }
+          }
+
+          if (!metadataFound) {
+            console.warn("【元数据-历史导入】未找到 sample_rate 数据", {
+              hasOriginal: !!originalData,
+              hasTarget: !!targetData,
+              hasStems: !!stemsData,
+              originalSampleRate: originalData?.sample_rate,
+              targetSampleRate: targetData?.sample_rate,
+            });
           }
 
           // 如果 include_all_stems=true，尝试把每个 stem 的分析结果写回 stems 数组，
@@ -5368,12 +5978,6 @@ export default function AudioLabApp() {
                               </div>
                             )}
 
-                            <div className="p-3 bg-slate-800 rounded border border-slate-600 text-xs text-slate-300 mt-4 leading-relaxed">
-                              <span className="text-cyan-400 font-bold">
-                                AI Summary:
-                              </span>{" "}
-                              {m.comment || (results && results.comment) || ""}
-                            </div>
                           </>
                         );
                       })()}
@@ -5444,11 +6048,68 @@ export default function AudioLabApp() {
 
                   {/* Waveform Comparison：两个波形图放在一起（Gold/Mix vs Separated） */}
                   <div className="space-y-3">
-                    <div className="flex items-baseline justify-between">
+                    <div className="flex items-center justify-between">
                       <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">
                         波形对比 · Waveform Comparison
                       </span>
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                      <div className="flex items-center gap-3 text-[11px] leading-none text-slate-400">
+                        {/* 显示开关：Gold / Separated */}
+                        <div className="flex items-center gap-2 pr-2 mr-1 border-r border-slate-700/60">
+                          <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                            <input
+                              type="checkbox"
+                              checked={!!showGoldInComparison}
+                              onChange={(e) => setShowGoldInComparison(e.target.checked)}
+                              disabled={!hasGoldWaveForViz}
+                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-fuchsia-500 focus:ring-2 focus:ring-fuchsia-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-fuchsia-400" />
+                              Gold
+                            </span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                            <input
+                              type="checkbox"
+                              checked={!!showSeparatedInComparison}
+                              onChange={(e) => setShowSeparatedInComparison(e.target.checked)}
+                              disabled={!hasSeparatedWaveForViz}
+                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-2 focus:ring-cyan-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                              Separated
+                            </span>
+                          </label>
+                        </div>
+                        {/* 显示方式：分轨 / 叠加 */}
+                        <div className="flex items-center gap-1.5 pr-2 mr-1 border-r border-slate-700/60">
+                          <span className="text-slate-500">样式</span>
+                          <button
+                            type="button"
+                            onClick={() => setWaveCompareMode("stacked")}
+                            className={`px-2 py-1 rounded border text-[11px] transition ${
+                              waveCompareMode === "stacked"
+                                ? "bg-slate-700/70 border-slate-600 text-slate-100"
+                                : "bg-slate-900/20 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                            }`}
+                            title="上下分轨（更接近原来的波形对比样式）"
+                          >
+                            分轨
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWaveCompareMode("overlay")}
+                            className={`px-2 py-1 rounded border text-[11px] transition ${
+                              waveCompareMode === "overlay"
+                                ? "bg-slate-700/70 border-slate-600 text-slate-100"
+                                : "bg-slate-900/20 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                            }`}
+                            title="同一零线叠加（更强调对齐/相位差异）"
+                          >
+                            叠加
+                          </button>
+                        </div>
                         <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
                           <input
                             type="checkbox"
@@ -5474,12 +6135,12 @@ export default function AudioLabApp() {
                           </span>
                         </div>
                         <button
-                          onClick={() => setWaveExpanded((v) => !v)}
+                          onClick={() => setWaveExpanded(true)}
                           className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700/70 text-slate-200 transition"
-                          title={waveExpanded ? "收起波形图" : "展开波形图"}
+                          title="全屏查看波形对比"
                         >
-                          {waveExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-                          <span>{waveExpanded ? "收起" : "展开"}</span>
+                          <Maximize2 size={13} />
+                          <span>展开</span>
                         </button>
                       </div>
                     </div>
@@ -5508,56 +6169,96 @@ export default function AudioLabApp() {
                       />
                     </div>
 
-                    <div className="space-y-3 pt-1">
-                      {/* 参考波形：Gold Standard（若有）或 Mixture */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-slate-400">
-                          <span className="font-mono text-emerald-300">
-                            Reference
-                          </span>
-                      <span className="text-slate-500">
-                        {gtFileRef.current ? "Gold Standard Stem" : "暂无 Gold Standard（尚未选择）"}
-                      </span>
-                        </div>
-                        <SingleWaveformView
-                      wave={goldWaveEnv || goldWave || []}
-                          heightPx={waveExpanded ? 200 : 140}
-                          autoGain={waveAutoGain}
-                          yZoom={waveYZoom}
-                          viewRange={viewRange}
-                          playbackState={playbackState}
-                        />
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span className="font-mono text-slate-400">Overlay</span>
+                        <span className="text-slate-500">
+                          {gtFileRef.current ? "Gold Standard vs Auto Separation" : "请先选择 Gold Standard Stem 以进行对比"}
+                        </span>
                       </div>
-
-                      {/* 分离结果波形 */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-slate-400">
-                          <span className="font-mono text-cyan-300">
-                            Separated
-                          </span>
-                          <span className="text-slate-500">
-                            {currentStem?.name || "未选择 Stem"}
-                          </span>
-                        </div>
-                        <SingleWaveformView
-                          wave={
-                            currentStem?.waveformEnv
-                              ? currentStem.waveformEnv
-                              : currentStem?.waveform
-                                ? currentStem.waveform
-                                : results
-                                  ? (sepWaveEnv || sepWave)
-                                  : []
-                          }
-                          heightPx={waveExpanded ? 200 : 140}
-                          autoGain={waveAutoGain}
-                          yZoom={waveYZoom}
-                          viewRange={viewRange}
-                          playbackState={playbackState}
-                        />
-                      </div>
+                      <OverlayWaveformComparisonView
+                        goldWave={goldWaveForViz}
+                        separatedWave={separatedWaveForViz}
+                        showGold={showGoldInComparison}
+                        showSeparated={showSeparatedInComparison}
+                        mode={waveCompareMode}
+                        heightPx={220}
+                        autoGain={waveAutoGain}
+                        yZoom={waveYZoom}
+                        viewRange={viewRange}
+                        playbackState={playbackState}
+                      />
                     </div>
                   </div>
+
+                  {/* 波形对比全屏弹窗 */}
+                  {waveExpanded && (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+                      <div className="relative w-[96%] h-[88%] max-w-6xl max-h-[860px] bg-slate-900 border border-cyan-500/40 rounded-2xl shadow-2xl shadow-cyan-500/20 flex flex-col">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/70 bg-slate-900/80">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs uppercase font-bold text-cyan-300 tracking-wider">
+                              Waveform Comparison · 全屏对比
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              {gtFileRef.current ? "Gold Standard vs Auto Separation" : "请先选择 Gold Standard Stem"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] text-slate-300">
+                            <div className="flex items-center gap-3 pr-3 mr-2 border-r border-slate-700/60">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-fuchsia-400" />
+                                Gold
+                              </span>
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                                Separated
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setWaveCompareMode((prev) => (prev === "stacked" ? "overlay" : "stacked"))}
+                              className="px-2 py-1 rounded border border-slate-600 bg-slate-800/80 hover:bg-slate-700/80 text-[11px] transition"
+                            >
+                              样式：{waveCompareMode === "stacked" ? "分轨" : "叠加"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setWaveExpanded(false)}
+                              className="ml-3 p-1.5 rounded-full hover:bg-slate-700 text-slate-300"
+                              aria-label="关闭"
+                            >
+                              <Minimize2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex-1 px-4 pb-4 pt-3 flex flex-col gap-3">
+                          <OverlayWaveformComparisonView
+                            goldWave={goldWaveForViz}
+                            separatedWave={separatedWaveForViz}
+                            showGold={showGoldInComparison}
+                            showSeparated={showSeparatedInComparison}
+                            mode={waveCompareMode}
+                            heightPx={window.innerHeight ? Math.min(window.innerHeight * 0.6, 520) : 520}
+                            autoGain={waveAutoGain}
+                            yZoom={waveYZoom}
+                            viewRange={viewRange}
+                            playbackState={playbackState}
+                          />
+                          <div className="flex items-center justify-between text-[11px] text-slate-400">
+                            <span>
+                              提示：点击波形跳转播放位置；拖拽缩放视窗（按住 Ctrl 在主界面中亦可）；顶部按钮可切换分轨/叠加样式。
+                            </span>
+                            <span className="font-mono text-slate-300">
+                              {playbackState.playing ? "Playing" : "Paused"} ·{" "}
+                              {Number(playbackState.currentTime || 0).toFixed(2)}s /{" "}
+                              {Number(playbackState.duration || 0).toFixed(2)}s
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Spectrum Comparison：两个频谱瀑布图放在一起（Mix vs Separated） */}
                   <div className="space-y-3 pt-4 border-t border-slate-800/80">
@@ -5565,50 +6266,73 @@ export default function AudioLabApp() {
                       <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">
                         频谱对比 · Spectrogram / 语谱图
                       </span>
-                      <div className="text-[11px] text-slate-500">
-                        参考频谱仅展示 Gold Standard Stem，若暂无则留空不显示。
+                      <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                        <div className="flex items-center gap-2 pr-2 mr-1 border-r border-slate-700/60">
+                          <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                            <input
+                              type="checkbox"
+                              checked={!!showGoldInComparison}
+                              onChange={(e) => setShowGoldInComparison(e.target.checked)}
+                              disabled={!hasGoldSpectrumForViz}
+                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-fuchsia-500 focus:ring-2 focus:ring-fuchsia-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-fuchsia-400" />
+                              Gold
+                            </span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                            <input
+                              type="checkbox"
+                              checked={!!showSeparatedInComparison}
+                              onChange={(e) => setShowSeparatedInComparison(e.target.checked)}
+                              disabled={!hasSeparatedSpectrumForViz}
+                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-2 focus:ring-cyan-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                              Separated
+                            </span>
+                          </label>
+                        </div>
+
+                        <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                          <input
+                            type="checkbox"
+                            checked={autoZoomSpectrumOnPause}
+                            onChange={(e) => setAutoZoomSpectrumOnPause(e.target.checked)}
+                            disabled={!!playbackState.playing}
+                            className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                          <span>暂停时放大当前时间带</span>
+                        </label>
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-slate-400">
-                          <span className="font-mono text-emerald-300">
-                            Reference Spectrogram
-                          </span>
-                          <span className="text-slate-500">
-                            {goldSpectrum ? "Gold Standard Stem" : "暂无 Gold Standard 频谱"}
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          <SingleSpectrogramView
-                            spectrum={goldSpectrum || []}
-                            heightPx={220}
-                            viewRange={viewRange}
-                            onViewRangeChange={setViewRange}
-                            playbackState={playbackState}
-                          />
-                        </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span className="font-mono text-slate-400">Overlay</span>
+                        <span className="text-slate-500">
+                          {gtFileRef.current ? "Gold Standard vs Auto Separation" : "参考频谱需要 Gold Standard Stem"}
+                        </span>
                       </div>
-
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-slate-400">
-                          <span className="font-mono text-cyan-300">
-                            Separated Spectrogram
-                          </span>
-                          <span className="text-slate-500">
-                            {currentStem?.name || "未选择 Stem"}
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          <SingleSpectrogramView
-                            spectrum={currentStem?.spectrum || sepSpectrum}
-                            heightPx={220}
-                            viewRange={viewRange}
-                            onViewRangeChange={setViewRange}
-                            playbackState={playbackState}
-                          />
-                        </div>
+                      <OverlaySpectrogramComparisonView
+                        goldSpectrum={goldSpectrumForViz}
+                        separatedSpectrum={separatedSpectrumForViz}
+                        showGold={showGoldInComparison}
+                        showSeparated={showSeparatedInComparison}
+                        heightPx={240}
+                        viewRange={viewRange}
+                        onViewRangeChange={setViewRange}
+                        playbackState={playbackState}
+                      />
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span>
+                          提示：拖拽选择时间窗缩放，双击还原；开启“暂停放大”后，暂停时会自动聚焦当前时间带（播放恢复会自动还原）。
+                        </span>
+                        <span className="font-mono">
+                          {playbackState.playing ? "Playing" : "Paused"} · {Number(playbackState.currentTime || 0).toFixed(2)}s
+                        </span>
                       </div>
                     </div>
 
