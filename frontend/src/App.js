@@ -2087,6 +2087,8 @@ const ALGORITHMS = [
   "Band Split RoFormer",
   "SCNet",
 ];
+// Algorithm 下拉框的“无”选项（前端哨兵值；不要传给后端）
+const ALGO_NONE = "__NONE__";
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 export default function AudioLabApp() {
@@ -2102,7 +2104,8 @@ export default function AudioLabApp() {
   const [stems, setStems] = useState([]);
   const [currentStem, setCurrentStem] = useState(null); // 当前选中的单声源（用于与金标准对比）
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedAlgo, setSelectedAlgo] = useState(null);
+  // 默认选中“无”，便于取消/结束后再次选择算法
+  const [selectedAlgo, setSelectedAlgo] = useState(ALGO_NONE);
   const [results, setResults] = useState(null);
   // 客观指标：按 stem 缓存（需要用户上传金标准 reference 才能计算）
   const [objectiveByStem, setObjectiveByStem] = useState({});
@@ -2678,7 +2681,7 @@ export default function AudioLabApp() {
       }
 
       setTaskId(taskIdStr);
-      setSelectedAlgo(taskData.algorithm || null);
+      setSelectedAlgo(taskData.algorithm || ALGO_NONE);
 
       // 2) 拉取 stems 列表
       const stemsResp = await fetch(
@@ -3043,6 +3046,7 @@ export default function AudioLabApp() {
         setResults(null);
         setObjectiveByStem({});
         setObjectiveError(null);
+        setSelectedAlgo(ALGO_NONE);
       }
     } catch (e) {
       console.error("[handleDeleteHistoryTask] failed:", e);
@@ -3621,6 +3625,7 @@ export default function AudioLabApp() {
           setIsProcessing(false);
           setIsCancelling(false);
           setProgressText("任务已取消");
+          setSelectedAlgo(ALGO_NONE);
           return;
         }
         if (t.status !== lastStatus) {
@@ -3654,6 +3659,7 @@ export default function AudioLabApp() {
           queuePollIntervalRef.current = null;
         }
         setQueuePosition(null);
+        setSelectedAlgo(ALGO_NONE);
         return;
       }
 
@@ -4024,6 +4030,7 @@ export default function AudioLabApp() {
       console.error(e);
       showError(`分离失败：${e?.message || e}`);
       setProgressText("");
+      setSelectedAlgo(ALGO_NONE);
     } finally {
       setIsProcessing(false);
     }
@@ -4087,7 +4094,7 @@ export default function AudioLabApp() {
   }, [currentStem?.name, showError, showSuccess, taskId]);
 
   const submitScore = async () => {
-    if (!user || !selectedAlgo || !currentStem) {
+    if (!user || !selectedAlgo || selectedAlgo === ALGO_NONE || !currentStem) {
       showError("请先选择需要评估的单一声源（stem），并完成分离任务。");
       return;
     }
@@ -4503,6 +4510,7 @@ export default function AudioLabApp() {
                         setStems([]);
                         setCurrentStem(null);
                         setResults(null);
+                        setSelectedAlgo(ALGO_NONE);
                       }}
                       className="text-slate-500 hover:text-red-400"
                     >
@@ -4706,10 +4714,11 @@ export default function AudioLabApp() {
                 )}
                 <div className="relative">
                   <select
-                    value={selectedAlgo || ""}
+                    value={selectedAlgo || ALGO_NONE}
                     onChange={(e) => {
                       const algo = e.target.value;
-                      if (!algo) return;
+                      setSelectedAlgo(algo);
+                      if (algo === ALGO_NONE) return;
                       if (!file) {
                         showError("请先上传音频文件！");
                         return;
@@ -4720,7 +4729,7 @@ export default function AudioLabApp() {
                     className={`w-full px-4 py-3 pr-10 rounded-lg border transition-all appearance-none cursor-pointer bg-slate-800 text-slate-300 text-sm font-medium focus:outline-none ${
                       !file || isProcessing
                         ? "bg-slate-900/50 border-slate-800 text-slate-600 cursor-not-allowed opacity-50"
-                        : selectedAlgo
+                        : selectedAlgo && selectedAlgo !== ALGO_NONE
                           ? "border-cyan-500 bg-slate-800 hover:border-cyan-400 hover:bg-slate-700/50 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                           : "border-slate-700 hover:border-slate-500 hover:bg-slate-700/50 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                     }`}
@@ -4728,8 +4737,8 @@ export default function AudioLabApp() {
                       backgroundImage: "none",
                     }}
                   >
-                    <option value="" disabled className="bg-slate-800 text-slate-300">
-                      {!file ? "请先上传音频文件" : isProcessing ? "处理中..." : "选择算法..."}
+                    <option value={ALGO_NONE} className="bg-slate-800 text-slate-300">
+                      无
                     </option>
                     {ALGORITHMS.map((algo) => (
                       <option
@@ -4743,7 +4752,7 @@ export default function AudioLabApp() {
                   </select>
                   {/* 自定义下拉箭头 */}
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                    {isProcessing && selectedAlgo ? (
+                    {isProcessing && selectedAlgo && selectedAlgo !== ALGO_NONE ? (
                       <Activity size={16} className="text-cyan-400 animate-pulse" />
                     ) : (
                       <ChevronRight
@@ -5093,7 +5102,10 @@ export default function AudioLabApp() {
                   <div>
               <div className="flex items-center gap-4 text-xs text-slate-400 mb-3">
                 <div>
-                  算法: <span className="font-mono text-cyan-400">{selectedAlgo || "未选择"}</span>
+                  算法:{" "}
+                  <span className="font-mono text-cyan-400">
+                    {selectedAlgo && selectedAlgo !== ALGO_NONE ? selectedAlgo : "无"}
+                  </span>
                 </div>
                 <div>
                   评估 Stem: <span className="font-mono text-cyan-400">{currentStem?.name || "未选择"}</span>
@@ -5390,7 +5402,7 @@ export default function AudioLabApp() {
                         Running Neural Inference...
                       </p>
                       <p className="text-slate-500 text-xs mt-2">
-                        Model: {selectedAlgo}
+                        Model: {selectedAlgo && selectedAlgo !== ALGO_NONE ? selectedAlgo : "None"}
                       </p>
                     </div>
                   )}
@@ -5615,7 +5627,7 @@ export default function AudioLabApp() {
                       <div className="text-xs text-slate-400 mb-2">
                         当前算法：{" "}
                         <span className="font-mono text-cyan-400">
-                          {selectedAlgo || "未选择"}
+                          {selectedAlgo && selectedAlgo !== ALGO_NONE ? selectedAlgo : "无"}
                         </span>
                       </div>
                       <div className="text-xs text-slate-400 mb-2">
