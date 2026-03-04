@@ -100,43 +100,43 @@ const AuthPanel = ({ user, onLogout, onClickUser }) => {
   const badge = getRoleBadge(user.role);
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       <button
         type="button"
         onClick={onClickUser}
-        className="flex items-center gap-3 bg-slate-800 p-2 rounded-lg border border-slate-700 hover:border-cyan-500/70 hover:bg-slate-800/80 transition cursor-pointer"
+        className="flex items-center gap-2.5 bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-700 hover:border-cyan-500/70 hover:bg-slate-800/80 transition cursor-pointer flex-shrink-0"
         title="点击查看和编辑个人信息"
       >
         {user.avatar_url ? (
           <img
             src={user.avatar_url}
             alt={user.username}
-            className="w-8 h-8 rounded-full object-cover"
+            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
           />
         ) : (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white text-xs">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white text-xs flex-shrink-0">
             {user.username.slice(0, 2).toUpperCase()}
           </div>
         )}
-        <div className="text-sm">
-          <div className="flex items-center gap-2">
-            <p className="text-slate-300 font-medium">{user.username}</p>
-            <span className={`px-2 py-0.5 text-xs rounded ${badge.color}`}>
+        <div className="text-sm min-w-0 hidden md:block">
+          <div className="flex items-center gap-1.5">
+            <p className="text-slate-300 font-medium truncate">{user.username}</p>
+            <span className={`px-2 py-0.5 text-xs rounded whitespace-nowrap flex-shrink-0 ${badge.color}`}>
               {badge.label}
             </span>
           </div>
           <p className="text-xs text-emerald-400 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
             在线
           </p>
         </div>
       </button>
       <button
         onClick={onLogout}
-        className="ml-1 p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition"
+        className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition flex-shrink-0"
         title="登出"
       >
-        <LogOut size={16} />
+        <LogOut size={18} />
       </button>
     </div>
   );
@@ -4302,18 +4302,20 @@ export default function AudioLabApp() {
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-cyan-500/30">
       {/* Navbar */}
       <header className="fixed top-0 w-full z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="text-cyan-400" />
-            <span className="font-bold text-xl tracking-tight">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+          {/* 左侧 Logo 区域 */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Activity className="text-cyan-400 flex-shrink-0" size={20} />
+            <span className="font-bold text-xl tracking-tight whitespace-nowrap">
               Audio<span className="text-cyan-400">Lab</span>
             </span>
-            <span className="ml-2 text-[10px] uppercase bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-400">
+            <span className="ml-2 text-[10px] uppercase bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-400 whitespace-nowrap flex-shrink-0">
               Beta v2.1
             </span>
           </div>
 
-          <nav className="hidden md:flex gap-1 bg-slate-800/50 p-1 rounded-lg border border-slate-700/50">
+          {/* 中间导航菜单 */}
+          <nav className="hidden lg:flex gap-1 bg-slate-800/50 p-1 rounded-lg border border-slate-700/50 flex-shrink-0">
             {[
               { id: "dashboard", label: "工作台", icon: Layers },
               { id: "history", label: "分离历史", icon: Clock },
@@ -4324,20 +4326,22 @@ export default function AudioLabApp() {
               <button
                 key={item.id}
                 onClick={() => navigate(VIEW_TO_PATH[item.id] || "/")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition ${currentView === item.id ? "bg-cyan-600 text-white shadow-lg shadow-cyan-900/20" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition whitespace-nowrap ${currentView === item.id ? "bg-cyan-600 text-white shadow-lg shadow-cyan-900/20" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}
               >
-                <item.icon size={14} /> {item.label}
+                <item.icon size={14} className="flex-shrink-0" /> <span>{item.label}</span>
               </button>
             ))}
           </nav>
 
-          <div className="flex items-center gap-3">
+          {/* 右侧功能区 */}
+          <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+            {/* 设备状态 */}
             <div
               title="当前设备模式（由管理员在系统设置中配置）"
-              className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700/50 bg-slate-800/50 text-slate-300"
+              className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 text-slate-300 whitespace-nowrap"
             >
               <span
-                className={`w-2 h-2 rounded-full ${
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${
                   computeMode === "cpu" ? "bg-amber-400" : "bg-emerald-400"
                 }`}
               ></span>
@@ -4349,7 +4353,7 @@ export default function AudioLabApp() {
             {/* 通知按钮 */}
             <button
               onClick={() => setShowNotificationCenter(true)}
-              className="relative p-2 hover:bg-slate-800 rounded-lg transition"
+              className="relative p-2 hover:bg-slate-800 rounded-lg transition flex-shrink-0"
               title="通知中心"
             >
               <Bell className="text-slate-400" size={20} />
@@ -4360,34 +4364,35 @@ export default function AudioLabApp() {
               )}
             </button>
 
-            {/* 说明文档（独立 URL 占位页） */}
+            {/* 说明文档 */}
             <button
               type="button"
               onClick={() => setCurrentView("manual")}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-700/60 bg-slate-800/60 text-xs text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800 transition"
+              className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-slate-700/60 bg-slate-800/60 text-xs text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800 transition flex-shrink-0"
               title="打开用户说明书"
             >
-              <BookOpen size={14} className="text-cyan-400" />
-              {/*<span className="hidden sm:inline">说明文档</span>*/}
+              <BookOpen size={14} className="text-cyan-400 flex-shrink-0" />
             </button>
 
             {/* 给管理员建议按钮（仅专家可见） */}
             {user?.role === "expert" && (
               <button
                 onClick={() => setShowExpertMessageDialog(true)}
-                className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-700/60 bg-slate-800/60 text-xs text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800 transition"
+                className="hidden lg:inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-slate-700/60 bg-slate-800/60 text-xs text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800 transition flex-shrink-0"
                 title="向管理员发送建议"
               >
-                <MessageCircle size={14} className="text-cyan-400" />
-                {/*给管理员建议*/}
+                <MessageCircle size={14} className="text-cyan-400 flex-shrink-0" />
               </button>
             )}
 
-            <AuthPanel
-              user={user}
-              onLogout={handleLogout}
-              onClickUser={() => setShowUserProfileDialog(true)}
-            />
+            {/* 用户信息面板 */}
+            <div className="flex-shrink-0">
+              <AuthPanel
+                user={user}
+                onLogout={handleLogout}
+                onClickUser={() => setShowUserProfileDialog(true)}
+              />
+            </div>
           </div>
         </div>
       </header>
