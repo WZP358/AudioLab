@@ -296,7 +296,7 @@ async def send_verification_code(payload: dict = Body(...), db: AsyncSession = D
     # 从系统配置读取参数
     from app.utils.config_helper import get_config_value
     SEND_INTERVAL_SECONDS = await get_config_value(
-        db, "verification_send_interval_seconds", 60, "SEND_INTERVAL_SECONDS", int
+        db, "verification_send_interval_seconds", 30, "SEND_INTERVAL_SECONDS", int
     )
     MAX_PER_HOUR = await get_config_value(
         db, "verification_max_per_hour", 5, "MAX_VERIFICATIONS_PER_HOUR", int

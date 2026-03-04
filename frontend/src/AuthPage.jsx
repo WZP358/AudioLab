@@ -1,9 +1,9 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Mail, Lock, User, Upload, Loader } from "lucide-react";
 import { useToast } from "./Toast";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
-const SEND_CODE_COOLDOWN_S = 60;
+const SEND_CODE_COOLDOWN_S = 30;
 
 export default function AuthPage({ onLoginSuccess }) {
   const { showSuccess, showError } = useToast();
@@ -22,8 +22,18 @@ export default function AuthPage({ onLoginSuccess }) {
   const [loading, setLoading] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [codeAttempts, setCodeAttempts] = useState(0);
-  const [cooldownLeft, setCooldownLeft] = useState(0);
+  const [cooldownLeft, setCooldownLeft] = useState({}); // 按邮箱存储冷却时间
+  const cooldownTimersRef = useRef({}); // 存储每个邮箱的定时器
   const fileInputRef = useRef(null);
+
+  // 组件卸载时清理所有定时器
+  useEffect(() => {
+    return () => {
+      Object.values(cooldownTimersRef.current).forEach(timer => {
+        if (timer) clearInterval(timer);
+      });
+    };
+  }, []);
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
@@ -60,8 +70,10 @@ export default function AuthPage({ onLoginSuccess }) {
       showError("请填写邮箱地址。");
       return;
     }
-    if (cooldownLeft > 0) {
-      showError(`操作频繁，请在 ${cooldownLeft}s 后重试。`);
+    const email = formData.email;
+    const currentCooldown = cooldownLeft[email] || 0;
+    if (currentCooldown > 0) {
+      showError(`操作频繁，请在 ${currentCooldown}s 后重试。`);
       return;
     }
     setLoading(true);
@@ -69,7 +81,7 @@ export default function AuthPage({ onLoginSuccess }) {
       const resp = await fetch(`${API_BASE}/api/auth/send_code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formData.email }),
+        body: JSON.stringify({ email: email }),
       });
       if (!resp.ok) {
         let errorMsg = "发送失败";
@@ -84,17 +96,27 @@ export default function AuthPage({ onLoginSuccess }) {
       }
       setCodeSent(true);
       showSuccess("验证码已发送，请查收。");
-      // 简单冷却，避免频繁点导致 429
-      setCooldownLeft(SEND_CODE_COOLDOWN_S);
+      // 按邮箱设置冷却时间，避免频繁点导致 429
+      setCooldownLeft((prev) => ({ ...prev, [email]: SEND_CODE_COOLDOWN_S }));
+      // 清除该邮箱之前的定时器（如果存在）
+      if (cooldownTimersRef.current[email]) {
+        clearInterval(cooldownTimersRef.current[email]);
+      }
+      // 为该邮箱创建新的定时器
       const timer = setInterval(() => {
-        setCooldownLeft((v) => {
-          if (v <= 1) {
+        setCooldownLeft((prev) => {
+          const current = prev[email] || 0;
+          if (current <= 1) {
             clearInterval(timer);
-            return 0;
+            delete cooldownTimersRef.current[email];
+            const newState = { ...prev };
+            delete newState[email];
+            return newState;
           }
-          return v - 1;
+          return { ...prev, [email]: current - 1 };
         });
       }, 1000);
+      cooldownTimersRef.current[email] = timer;
     } catch (err) {
       const msg = `${err?.message || err}`;
       // 后端会返回 429 Too Many Requests 的 detail；这里做个友好提示
@@ -432,10 +454,10 @@ export default function AuthPage({ onLoginSuccess }) {
                 <button
                   type="button"
                   onClick={handleSendCode}
-                  disabled={loading || !formData.email || cooldownLeft > 0}
+                  disabled={loading || !formData.email || (cooldownLeft[formData.email] || 0) > 0}
                   className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg transition text-sm font-medium whitespace-nowrap"
                 >
-                  {cooldownLeft > 0 ? `${cooldownLeft}s` : (codeSent ? "重新发送" : "获取验证码")}
+                  {(cooldownLeft[formData.email] || 0) > 0 ? `${cooldownLeft[formData.email]}s` : (codeSent ? "重新发送" : "获取验证码")}
                 </button>
               </div>
               {codeAttempts > 0 && (

@@ -39,6 +39,7 @@ import {
   Clock,
   RotateCcw,
   BookOpen,
+  Users,
 } from "lucide-react";
 import {
   LineChart,
@@ -2019,6 +2020,65 @@ const LevelMeter = ({ wave, playbackState, label, theme = "emerald" }) => {
   );
 };
 
+// --- Queue Position Toast Component ---
+const QueuePositionToast = ({ position, queueLength, isProcessing, onCancel, onClose, isCancelling }) => {
+  if (position === null) return null;
+  
+  return (
+    <div className="fixed bottom-4 right-4 z-[9998] pointer-events-auto">
+      <div className="bg-slate-800 border-2 border-cyan-500/50 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.3)] rounded-lg shadow-xl min-w-[280px] max-w-[400px] p-4 backdrop-blur-sm animate-in slide-in-from-bottom-full duration-300">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 w-10 h-10 bg-cyan-500/10 rounded-full flex items-center justify-center border border-cyan-500/30">
+            <Users size={20} className="text-cyan-400" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-cyan-300 mb-1">任务排队中</div>
+            {isProcessing ? (
+              <div className="text-xs text-slate-400">
+                正在处理您的任务...
+              </div>
+            ) : position > 0 ? (
+              <div className="text-xs text-slate-400">
+                您当前排在第 <span className="text-cyan-400 font-bold text-base">{position}</span> 位
+                {queueLength > 1 && (
+                  <span className="text-slate-500">（共 {queueLength} 个任务）</span>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400">
+                任务已加入队列
+              </div>
+            )}
+            {/* 取消按钮 - 仅在排队时显示（不在处理中时） */}
+            {!isProcessing && onCancel && (
+              <button
+                onClick={onCancel}
+                disabled={isCancelling}
+                className={`mt-2 w-full px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                  isCancelling
+                    ? "bg-slate-700 text-slate-500 cursor-not-allowed"
+                    : "bg-red-500/90 hover:bg-red-500 text-white shadow-sm shadow-red-500/40"
+                }`}
+              >
+                {isCancelling ? "正在取消..." : "取消等待"}
+              </button>
+            )}
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="flex-shrink-0 hover:opacity-70 transition-opacity text-slate-400 hover:text-white"
+              aria-label="关闭"
+            >
+              <CloseIcon size={18} />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Main Application ---
 // 与后端 app.models.Algorithm 保持一致的可选算法列表
 const ALGORITHMS = [
@@ -2052,6 +2112,8 @@ export default function AudioLabApp() {
   const [progressText, setProgressText] = useState(""); // 进度文本
   const [isCancelling, setIsCancelling] = useState(false); // 是否正在取消当前任务
   const cancelSeparationRef = useRef({ requested: false }); // 取消标记，用于打断轮询
+  const [queuePosition, setQueuePosition] = useState(null); // 队列位置信息 {position, queue_length, is_processing}
+  const queuePollIntervalRef = useRef(null); // 队列位置轮询定时器
   // 历史任务导入相关状态
   const [historyIdInput, setHistoryIdInput] = useState("");
   const [historyImportLoading, setHistoryImportLoading] = useState(false);
@@ -3372,6 +3434,16 @@ export default function AudioLabApp() {
     fetchMyTaskHistory(1);
   }, [authToken, user, currentView, fetchMyTaskHistory]);
 
+  // 清理队列位置轮询定时器
+  useEffect(() => {
+    return () => {
+      if (queuePollIntervalRef.current) {
+        clearInterval(queuePollIntervalRef.current);
+        queuePollIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   const runSeparation = async (algo) => {
     setIsProcessing(true);
     setSelectedAlgo(algo);
@@ -3429,10 +3501,65 @@ export default function AudioLabApp() {
       
       setTaskId(taskIdStr);
       setProgressText("任务已创建，等待处理...");
+      setQueuePosition({ position: null, queue_length: 0, is_processing: false });
+
+      // 开始轮询队列位置
+      const pollQueuePosition = async () => {
+        try {
+          const resp = await fetch(`${API_BASE}/api/tasks/queue/${taskIdStr}/position`);
+          if (resp.ok) {
+            const positionInfo = await resp.json();
+            setQueuePosition(positionInfo);
+            return positionInfo;
+          }
+        } catch (e) {
+          console.warn("查询队列位置失败:", e);
+        }
+        return null;
+      };
+
+      // 立即查询一次队列位置
+      await pollQueuePosition();
+      
+      // 设置定时轮询队列位置（每2秒查询一次）
+      queuePollIntervalRef.current = setInterval(async () => {
+        // 检查是否请求取消
+        if (cancelSeparationRef.current.requested) {
+          if (queuePollIntervalRef.current) {
+            clearInterval(queuePollIntervalRef.current);
+            queuePollIntervalRef.current = null;
+          }
+          setQueuePosition(null);
+          return;
+        }
+        
+        const positionInfo = await pollQueuePosition();
+        // 如果任务开始处理，停止轮询队列位置
+        if (positionInfo && positionInfo.is_processing) {
+          if (queuePollIntervalRef.current) {
+            clearInterval(queuePollIntervalRef.current);
+            queuePollIntervalRef.current = null;
+          }
+          setQueuePosition(null); // 隐藏排队浮窗
+        }
+      }, 2000);
 
       // 2) 轮询任务状态直到完成/失败/被取消
       // 先等待一小段时间，确保任务已写入数据库
       await new Promise((res) => setTimeout(res, 500));
+      
+      // 检查是否在等待期间已经请求取消
+      if (cancelSeparationRef.current.requested) {
+        setProgressText("任务已取消");
+        setIsProcessing(false);
+        setIsCancelling(false);
+        if (queuePollIntervalRef.current) {
+          clearInterval(queuePollIntervalRef.current);
+          queuePollIntervalRef.current = null;
+        }
+        setQueuePosition(null);
+        return;
+      }
       
       const poll = async () => {
         const url = `${API_BASE}/api/tasks/${taskIdStr}`;
@@ -3474,9 +3601,16 @@ export default function AudioLabApp() {
       let lastStatus = null;
       
       while (t.status === "pending" || t.status === "processing") {
-        // 用户在处理中途点击了“取消”
+        // 用户在处理中途或排队时点击了"取消"
         if (cancelSeparationRef.current.requested) {
           setProgressText("正在取消任务...");
+          // 停止队列位置轮询
+          if (queuePollIntervalRef.current) {
+            clearInterval(queuePollIntervalRef.current);
+            queuePollIntervalRef.current = null;
+          }
+          setQueuePosition(null);
+          
           try {
             await fetch(`${API_BASE}/api/tasks/${taskIdStr}/cancel`, {
               method: "POST",
@@ -3495,6 +3629,12 @@ export default function AudioLabApp() {
           } else if (t.status === "processing") {
             // 不展示进度条，仅提示处理中
             setProgressText("正在处理中...");
+            // 任务开始处理，停止轮询队列位置
+            if (queuePollIntervalRef.current) {
+              clearInterval(queuePollIntervalRef.current);
+              queuePollIntervalRef.current = null;
+            }
+            setQueuePosition(null); // 隐藏排队浮窗
           }
           lastStatus = t.status;
         }
@@ -3503,13 +3643,26 @@ export default function AudioLabApp() {
         t = await poll();
       }
       
-      // 后端目前使用 FAILED + comment 标记“用户主动取消”
+      // 后端目前使用 FAILED + comment 标记"用户主动取消"
       if (t.status === "failed" && (t.comment || "").includes("任务已被用户取消")) {
         setProgressText("任务已取消");
         setIsProcessing(false);
         setIsCancelling(false);
+        // 停止轮询队列位置
+        if (queuePollIntervalRef.current) {
+          clearInterval(queuePollIntervalRef.current);
+          queuePollIntervalRef.current = null;
+        }
+        setQueuePosition(null);
         return;
       }
+
+      // 停止轮询队列位置
+      if (queuePollIntervalRef.current) {
+        clearInterval(queuePollIntervalRef.current);
+        queuePollIntervalRef.current = null;
+      }
+      setQueuePosition(null);
 
       if (t.status !== "completed") {
         setProgressText("");
@@ -6413,6 +6566,38 @@ export default function AudioLabApp() {
             setShowResourceSelector(false);
             setResourceSelectorType(null);
           }}
+        />
+      )}
+      {/* 排队位置浮窗 */}
+      {queuePosition && (
+        <QueuePositionToast
+          position={queuePosition.position}
+          queueLength={queuePosition.queue_length}
+          isProcessing={queuePosition.is_processing}
+          isCancelling={isCancelling}
+          onCancel={async () => {
+            if (!taskId || isCancelling) return;
+            cancelSeparationRef.current.requested = true;
+            setIsCancelling(true);
+            // 立即调用取消 API
+            try {
+              await fetch(`${API_BASE}/api/tasks/${taskId}/cancel`, {
+                method: "POST",
+              });
+            } catch (e) {
+              console.error("取消任务失败:", e);
+            }
+            // 停止队列位置轮询
+            if (queuePollIntervalRef.current) {
+              clearInterval(queuePollIntervalRef.current);
+              queuePollIntervalRef.current = null;
+            }
+            setQueuePosition(null);
+            setIsProcessing(false);
+            setIsCancelling(false);
+            setProgressText("任务已取消");
+          }}
+          onClose={() => setQueuePosition(null)}
         />
       )}
     </div>

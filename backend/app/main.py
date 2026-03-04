@@ -14,13 +14,21 @@ from app.database import engine
 # 配置日志：只输出 WARNING 及以上级别（过滤掉正常的 INFO/DEBUG）
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn").setLevel(logging.WARNING)
+# 保留 uvicorn.error 的 INFO 级别，用于显示启动信息
+logging.getLogger("uvicorn.error").setLevel(logging.INFO)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # startup 阶段：输出一次清晰的启动成功提示
-    logging.getLogger("uvicorn.error").info(
-        "AudioLab 后端已启动，API 地址：http://127.0.0.1:8000 ，文档：http://127.0.0.1:8000/docs"
-    )
+    # startup 阶段：输出一次清晰的启动成功提示（使用 print 确保始终显示）
+    print("\n" + "="*60)
+    print("✓ AudioLab 后端已启动")
+    print("  API 地址：http://127.0.0.1:8000")
+    print("  API 文档：http://127.0.0.1:8000/docs")
+    print("="*60 + "\n")
+    # 初始化任务队列管理器
+    from app.services.queue_manager import TaskQueueManager
+    await TaskQueueManager.get_instance()
+    print("✓ 任务队列管理器已启动\n")
     yield
     # shutdown：显式释放 SQLAlchemy AsyncEngine 的连接池，避免热重载/退出时 aiomysql 在 __del__
     # 里尝试回收连接却发现 event loop 已关闭，从而刷屏 "RuntimeError: Event loop is closed"
@@ -178,6 +186,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,  # 开发时开启热重载
-        log_level="info",
+        log_level="warning",
     )
 

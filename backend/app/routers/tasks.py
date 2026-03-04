@@ -26,6 +26,7 @@ from app.schemas import (
     PaginatedTaskListResponse,
 )
 from app.services.separation_service import process_separation
+from app.services.queue_manager import TaskQueueManager
 from app.services.analysis_service import analyze_audio_file, analysis_to_payload, _read_audio_any
 from app.services.objective_metrics import compute_bss_metrics_two_source, compute_residual_mix_minus_est
 from app.utils.log_helper import get_client_ip, get_user_agent
@@ -267,8 +268,9 @@ async def upload_audio(
             f"created_at={task.created_at}"
         )
         
-        # 后台处理分离任务
-        background_tasks.add_task(process_separation, task.id, str(file_path), algorithm)
+        # 将任务加入队列，而不是直接处理
+        queue_manager = await TaskQueueManager.get_instance()
+        await queue_manager.add_task(task.id, str(file_path), algorithm)
         
         # 确保返回的task对象使用TaskResponse序列化，将ID转为字符串
         # 直接返回task对象，FastAPI会自动使用response_model进行序列化
@@ -319,6 +321,31 @@ async def claim_anonymous_task_history(
 
     updated = int(getattr(result, "rowcount", 0) or 0)
     return {"updated": updated, "days": days}
+
+
+@router.get("/queue/{task_id}/position")
+async def get_queue_position(task_id: str):
+    """
+    获取任务在队列中的位置信息
+    
+    返回:
+    - position: 位置（从1开始，0表示正在处理）
+    - queue_length: 队列总长度（包括正在处理的任务）
+    - is_processing: 是否正在处理
+    - 如果任务不在队列中，返回 None
+    """
+    try:
+        task_id_int = int(task_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="无效的任务ID")
+    
+    queue_manager = await TaskQueueManager.get_instance()
+    position_info = await queue_manager.get_queue_position(task_id_int)
+    
+    if position_info is None:
+        raise HTTPException(status_code=404, detail="任务不在队列中（可能已完成或失败）")
+    
+    return position_info
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
@@ -630,9 +657,16 @@ async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db)):
     if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
         return task
 
-    # 使用 FAILED 状态 + 特殊 comment 表示“用户主动取消”
+    # 使用 FAILED 状态 + 特殊 comment 表示"用户主动取消"
     task.status = TaskStatus.FAILED
     task.comment = "任务已被用户取消"
+
+    # 从队列中移除任务
+    try:
+        queue_manager = await TaskQueueManager.get_instance()
+        await queue_manager.remove_task(task_id_int)
+    except Exception:
+        logger.warning("从队列移除任务失败（不影响状态持久化）: task_id=%s", task_id_int)
 
     # 标记任务需要硬中断，分离引擎会轮询并终止对应的子进程
     try:

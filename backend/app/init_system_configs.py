@@ -55,6 +55,18 @@ DEFAULT_CONFIGS = [
         "category": "email"
     },
     {
+        "key": "verification_send_interval_seconds",
+        "value": "30",
+        "description": "验证码发送间隔时间（秒），每个邮箱独立计算",
+        "category": "email"
+    },
+    {
+        "key": "verification_max_per_hour",
+        "value": "5",
+        "description": "每个邮箱每小时最多发送验证码次数",
+        "category": "email"
+    },
+    {
         "key": "email.max_retries",
         "value": "3",
         "description": "邮件发送最大重试次数",
@@ -321,13 +333,17 @@ async def init_system_configs():
                 existing = result.scalars().first()
                 
                 if existing:
-                    # 如果配置已存在，检查是否需要更新描述或分类
+                    # 如果配置已存在，检查是否需要更新描述、分类或值
                     updated = False
                     if existing.description != config_data.get("description"):
                         existing.description = config_data.get("description")
                         updated = True
                     if existing.category != config_data.get("category"):
                         existing.category = config_data.get("category")
+                        updated = True
+                    # 对于特定配置项，如果值是旧默认值，自动更新为新默认值
+                    if config_data["key"] == "verification_send_interval_seconds" and existing.value == "60":
+                        existing.value = config_data["value"]
                         updated = True
                     
                     if updated:

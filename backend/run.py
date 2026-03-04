@@ -20,6 +20,6 @@ if __name__ == "__main__":
         port=8000,
         reload=True,  # 开发时开启热重载
         reload_dirs=[str(backend_dir)],  # 只监视后端目录的变化
-        log_level="info",
+        log_level="warning",
     )
 
