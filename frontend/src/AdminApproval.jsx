@@ -559,15 +559,24 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     }
   };
 
-  const handleDeleteUser = async (userId) => {
-    showConfirm("确定要删除此用户吗？此操作不可恢复。", async () => {
+  const handleDeleteUser = async (user) => {
+    if (!user || !user.id) {
+      showError("无效的用户信息");
+      return;
+    }
+    const isExpert = user.role === "expert";
+    const targetLabel = isExpert
+      ? "此专家账号及其所有关联数据（分离任务、评分记录、音频资源、专家建议等）"
+      : "此用户";
+
+    showConfirm(`确定要删除${targetLabel}吗？此操作不可恢复。`, async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/admin/users/${userId}`, {
+        const resp = await fetch(`${API_BASE}/api/admin/users/${user.id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!resp.ok) throw new Error("删除失败");
-        showSuccess("用户已删除");
+        showSuccess(isExpert ? "专家及其关联数据已删除" : "用户已删除");
         fetchUsers();
         fetchUserStats();
       } catch (err) {
@@ -1228,7 +1237,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                                   <Edit size={16} />
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteUser(user.id)}
+                                  onClick={() => handleDeleteUser(user)}
                                   className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition"
                                   title="删除"
                                 >

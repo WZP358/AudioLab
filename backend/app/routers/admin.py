@@ -12,16 +12,38 @@ import logging
 from datetime import datetime
 
 from app.database import get_db
-from app.models import User, Role, AudioResource, OperationLog
+from app.models import (
+    User,
+    Role,
+    AudioResource,
+    OperationLog,
+    SeparationTask,
+    StemFile,
+    Score,
+    ExpertMessage,
+    Notification,
+    NotificationRead,
+)
 from app.schemas import (
-    UserListResponse, UserUpdateRequest, PaginatedUserListResponse,
-    AudioResourceResponse, AudioResourceCreate, AudioResourceUpdate
+    UserListResponse,
+    UserUpdateRequest,
+    PaginatedUserListResponse,
+    AudioResourceResponse,
+    AudioResourceCreate,
+    AudioResourceUpdate,
 )
 from app.routers.auth import get_current_user
 from app.services.analysis_service import analyze_audio_file
 from app.utils.log_helper import create_system_log, get_client_ip, get_user_agent
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+# 统一的基础目录与结果目录，用于清理分离任务产生的本地文件
+BASE_DIR = Path(__file__).resolve().parents[1]  # backend
+RESULTS_DIR = Path(os.getenv("RESULTS_DIR", "results"))
+if not RESULTS_DIR.is_absolute():
+    RESULTS_DIR = BASE_DIR / RESULTS_DIR
+
 
 # 管理员依赖函数
 async def get_current_admin(current_user: User = Depends(get_current_user)):
@@ -32,6 +54,179 @@ async def get_current_admin(current_user: User = Depends(get_current_user)):
             detail="仅管理员可访问此功能"
         )
     return current_user
+
+
+async def _cascade_delete_expert_related_data(
+    *,
+    target_user: User,
+    current_admin: User,
+    req: Optional[Request],
+    db: AsyncSession,
+):
+    """
+    级联删除与专家账号相关的业务数据：
+    - 该专家本人创建的分离任务及其 Stem、评分记录和本地结果文件
+    - 该专家提交的主观评分记录（Score.user_id）
+    - 该专家上传的音频资源及对应文件
+    - 该专家发出的专家建议 / 站内信
+    - 针对该专家的通知已读记录，以及仅针对该专家的定向通知
+
+    说明：
+    - 仅对 Role.EXPERT 生效，管理员账号仍只删除用户本身，保留审计数据。
+    - 尽量在数据库事务内完成记录删除，文件删除失败不会回滚事务，仅记录警告日志。
+    """
+    # 仅专家执行级联清理
+    if target_user.role != Role.EXPERT:
+        return
+
+    logger = logging.getLogger(__name__)
+
+    user_id_int = int(target_user.id)
+    user_id_str = str(target_user.id)
+
+    # 收集需要删除的任务 ID 与相关本地文件路径
+    file_paths: list[Path] = []
+    task_result_dirs: list[Path] = []
+
+    # 1) 查找该专家创建的所有分离任务
+    task_result = await db.execute(
+        select(SeparationTask).where(SeparationTask.user_id == user_id_str)
+    )
+    tasks = list(task_result.scalars().all())
+
+    for task in tasks:
+        # 原始上传文件
+        if task.file_path:
+            file_paths.append(Path(task.file_path))
+
+        # 结果目录（backend/results/{task_id} 以及 /app/results/{task_id}）
+        task_id_int = int(task.id)
+        local_results_dir = RESULTS_DIR / str(task_id_int)
+        docker_results_dir = Path("/app/results") / str(task_id_int)
+        task_result_dirs.append(local_results_dir)
+        task_result_dirs.append(docker_results_dir)
+
+        # 所有 stem 文件
+        stems_result = await db.execute(
+            select(StemFile).where(StemFile.task_id == task_id_int)
+        )
+        stems = list(stems_result.scalars().all())
+        for s in stems:
+            if s.file_path:
+                file_paths.append(Path(s.file_path))
+
+        # 删除该任务相关的评分记录
+        scores_result = await db.execute(
+            select(Score).where(Score.task_id == task_id_int)
+        )
+        scores = list(scores_result.scalars().all())
+        for sc in scores:
+            await db.delete(sc)
+
+        # 删除 stems
+        for s in stems:
+            await db.delete(s)
+
+        # 删除任务本身
+        await db.delete(task)
+
+    # 2) 删除该专家作为评分人的所有 Score 记录（不论任务归属谁）
+    extra_scores_result = await db.execute(
+        select(Score).where(Score.user_id == user_id_str)
+    )
+    extra_scores = list(extra_scores_result.scalars().all())
+    for sc in extra_scores:
+        await db.delete(sc)
+
+    # 3) 删除该专家上传的音频资源及对应文件
+    audio_result = await db.execute(
+        select(AudioResource).where(AudioResource.uploader_id == user_id_int)
+    )
+    audio_resources = list(audio_result.scalars().all())
+
+    from app.routers.admin import AUDIO_RESOURCE_DIR  # type: ignore  # noqa: F401
+    # 为避免循环引用问题，这里不重新导入，而是复用本模块已定义的 AUDIO_RESOURCE_DIR
+
+    # AUDIO_RESOURCE_DIR 在下方音频管理区域已定义，这里仅静态类型提示
+    try:
+        audio_base_dir = AUDIO_RESOURCE_DIR  # type: ignore[name-defined]
+    except Exception:
+        # 理论上不会发生，仅作兜底
+        audio_base_dir = Path(os.getenv("AUDIO_RESOURCE_DIR", "audio_resources"))
+        if not audio_base_dir.is_absolute():
+            audio_base_dir = BASE_DIR / audio_base_dir
+
+    for res in audio_resources:
+        # 记录文件路径
+        if res.file_path:
+            if str(res.file_path).startswith("/audio_resources/"):
+                relative_path = str(res.file_path).replace("/audio_resources/", "", 1)
+                fp = audio_base_dir / relative_path
+            else:
+                fp = Path(res.file_path)
+            file_paths.append(fp)
+        await db.delete(res)
+
+    # 4) 删除专家建议 / 站内信
+    msg_result = await db.execute(
+        select(ExpertMessage).where(ExpertMessage.expert_id == user_id_int)
+    )
+    messages = list(msg_result.scalars().all())
+    for msg in messages:
+        await db.delete(msg)
+
+    # 5) 删除通知已读记录 & 针对该专家的定向通知
+    nr_result = await db.execute(
+        select(NotificationRead).where(NotificationRead.user_id == user_id_int)
+    )
+    nr_items = list(nr_result.scalars().all())
+    for nr in nr_items:
+        await db.delete(nr)
+
+    notif_result = await db.execute(
+        select(Notification).where(
+            Notification.target_type == "specific",
+            Notification.target_id == user_id_int,
+        )
+    )
+    notifs = list(notif_result.scalars().all())
+    for n in notifs:
+        await db.delete(n)
+
+    # 提交数据库层面的所有删除
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            "级联删除专家相关数据失败（数据库层）：user_id=%s err=%s",
+            user_id_int,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"删除专家关联数据失败：{type(e).__name__}: {str(e)}",
+        )
+
+    # 提交成功后再尝试删除本地文件，失败仅记录日志
+    def _safe_remove(p: Path):
+        try:
+            if p.is_file():
+                p.unlink(missing_ok=True)  # type: ignore[call-arg]
+            elif p.is_dir():
+                for child in p.rglob("*"):
+                    if child.is_file():
+                        child.unlink(missing_ok=True)  # type: ignore[call-arg]
+                p.rmdir()
+        except Exception as e:
+            logger.warning("删除文件/目录失败: path=%s err=%s", p, e)
+
+    for fp in file_paths:
+        _safe_remove(fp)
+
+    for d in task_result_dirs:
+        _safe_remove(d)
 
 
 # ==================== 用户管理 ====================
@@ -260,7 +455,17 @@ async def delete_user(
     current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """删除用户"""
+    """删除用户
+
+    对于专家账号（Role.EXPERT）：
+    - 在删除用户本身之前，会递归清理与该专家相关的业务数据：
+      - 该专家创建的分离任务及其 Stem、评分记录和本地结果文件
+      - 该专家提交的主观评分记录
+      - 该专家上传的音频资源及对应文件
+      - 该专家发出的专家建议 / 站内信
+      - 针对该专家的通知已读记录及仅针对该专家的定向通知
+    管理员账号只删除用户记录本身，保留审计日志和其他系统数据。
+    """
     # 不能删除自己
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="不能删除自己的账户")
@@ -268,22 +473,33 @@ async def delete_user(
     query = select(User).where(User.id == user_id)
     result = await db.execute(query)
     user = result.scalars().first()
-    
+
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
-    
+
     # 检查是否是最后一个管理员
     if user.role == Role.ADMIN:
-        admin_count_query = select(func.count(User.id)).where(User.role == Role.ADMIN, User.is_active == True)
+        admin_count_query = select(func.count(User.id)).where(
+            User.role == Role.ADMIN, User.is_active == True
+        )
         admin_count_result = await db.execute(admin_count_query)
         admin_count = admin_count_result.scalar_one()
         if admin_count <= 1:
-            raise HTTPException(status_code=400, detail="不能删除最后一个活跃的管理员")
-    
+            raise HTTPException(
+                status_code=400, detail="不能删除最后一个活跃的管理员"
+            )
+
     username_before_delete = user.username
+
+    # 对专家账号执行级联清理
+    await _cascade_delete_expert_related_data(
+        target_user=user, current_admin=current_user, req=req, db=db
+    )
+
+    # 删除用户本身
     await db.delete(user)
     await db.commit()
-    
+
     # 记录系统日志
     await create_system_log(
         db=db,
@@ -308,7 +524,12 @@ async def batch_delete_users(
     current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """批量删除用户"""
+    """批量删除用户
+
+    对于其中的专家账号（Role.EXPERT）：
+    - 在删除用户本身之前，会递归清理与各自专家相关的业务数据（分离任务、评分、音频资源、专家建议、通知等）。
+    管理员账号仍只删除用户记录本身，保留审计与系统级数据。
+    """
     if not user_ids:
         raise HTTPException(status_code=400, detail="请至少选择一个用户")
     
@@ -322,32 +543,37 @@ async def batch_delete_users(
     query = select(User).where(User.id.in_(user_ids))
     result = await db.execute(query)
     users = result.scalars().all()
-    
+
     if len(users) != len(user_ids):
         raise HTTPException(status_code=404, detail="部分用户不存在")
-    
+
     # 检查是否会删除所有管理员
     admin_users = [u for u in users if u.role == Role.ADMIN and u.is_active]
     if admin_users:
         remaining_admin_query = select(func.count(User.id)).where(
             User.role == Role.ADMIN,
             User.is_active == True,
-            ~User.id.in_([u.id for u in admin_users])
+            ~User.id.in_([u.id for u in admin_users]),
         )
         remaining_admin_result = await db.execute(remaining_admin_query)
         remaining_admin_count = remaining_admin_result.scalar_one()
         if remaining_admin_count == 0:
             raise HTTPException(status_code=400, detail="不能删除所有活跃的管理员")
-    
+
     deleted_count = 0
-    deleted_usernames = []
+    deleted_usernames: list[str] = []
+
+    # 先对每个专家账号执行级联清理，再删除用户记录本身
     for user in users:
         deleted_usernames.append(user.username)
+        await _cascade_delete_expert_related_data(
+            target_user=user, current_admin=current_user, req=req, db=db
+        )
         await db.delete(user)
         deleted_count += 1
-    
+
     await db.commit()
-    
+
     # 记录系统日志
     await create_system_log(
         db=db,
