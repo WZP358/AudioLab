@@ -40,7 +40,11 @@ import {
   RotateCcw,
   BookOpen,
   Users,
+  Sun,
+  Moon,
+  Laptop,
 } from "lucide-react";
+import { useTheme } from "./ThemeContext";
 import {
   LineChart,
   Line,
@@ -87,6 +91,8 @@ const PATH_TO_VIEW = Object.fromEntries(
 
 // 1. 用户面板组件（仅用于普通用户界面，管理员不会看到）
 const AuthPanel = ({ user, onLogout, onClickUser }) => {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   if (!user) return null;
 
   const getRoleBadge = (role) => {
@@ -104,7 +110,11 @@ const AuthPanel = ({ user, onLogout, onClickUser }) => {
       <button
         type="button"
         onClick={onClickUser}
-        className="flex items-center gap-2.5 bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-700 hover:border-cyan-500/70 hover:bg-slate-800/80 transition cursor-pointer flex-shrink-0"
+        className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg border transition cursor-pointer flex-shrink-0 ${
+          isDark
+            ? "bg-slate-800 border-slate-700 hover:border-cyan-500/70 hover:bg-slate-800/80"
+            : "bg-white border-slate-300 hover:border-cyan-500/70 hover:bg-slate-50"
+        }`}
         title="点击查看和编辑个人信息"
       >
         {user.avatar_url ? (
@@ -120,7 +130,7 @@ const AuthPanel = ({ user, onLogout, onClickUser }) => {
         )}
         <div className="text-sm min-w-0 hidden md:block">
           <div className="flex items-center gap-1.5">
-            <p className="text-slate-300 font-medium truncate">{user.username}</p>
+            <p className={`font-medium truncate ${isDark ? "text-slate-300" : "text-slate-700"}`}>{user.username}</p>
             <span className={`px-2 py-0.5 text-xs rounded whitespace-nowrap flex-shrink-0 ${badge.color}`}>
               {badge.label}
             </span>
@@ -133,7 +143,9 @@ const AuthPanel = ({ user, onLogout, onClickUser }) => {
       </button>
       <button
         onClick={onLogout}
-        className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition flex-shrink-0"
+        className={`p-2 rounded-lg transition flex-shrink-0 ${
+          isDark ? "hover:bg-slate-800 text-slate-400 hover:text-white" : "hover:bg-slate-100 text-slate-600 hover:text-slate-800"
+        }`}
         title="登出"
       >
         <LogOut size={18} />
@@ -145,6 +157,8 @@ const AuthPanel = ({ user, onLogout, onClickUser }) => {
 // 1.1 用户信息编辑弹窗（点击用户框时出现）
 const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
   const { showError, showSuccess } = useToast();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [username, setUsername] = React.useState(user?.username || "");
   const [avatarPreview, setAvatarPreview] = React.useState(user?.avatar_url || null);
   const [avatarFile, setAvatarFile] = React.useState(null);
@@ -259,21 +273,21 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center pointer-events-auto">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-slate-900 rounded-2xl shadow-2xl border border-slate-700/80 max-w-lg w-full mx-4 p-6 animate-in zoom-in-95 duration-200">
+      <div className={`relative rounded-2xl shadow-2xl border max-w-lg w-full mx-4 p-6 animate-in zoom-in-95 duration-200 ${isDark ? "bg-slate-900 border-slate-700/80" : "bg-white border-slate-200"}`}>
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-cyan-500/10 border border-cyan-500/40 flex items-center justify-center">
               <User size={22} className="text-cyan-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">个人信息</h2>
-              <p className="text-xs text-slate-400">查看并更新用户名、头像和登录密码</p>
+              <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>个人信息</h2>
+              <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>查看并更新用户名、头像和登录密码</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white hover:bg-slate-800 rounded-full p-1.5 transition"
+            className={`rounded-full p-1.5 transition ${isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
           >
             <CloseIcon size={18} />
           </button>
@@ -283,7 +297,7 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
           {/* 基本信息 */}
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                 用户名
               </label>
               <div className="relative">
@@ -292,7 +306,7 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className={`w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 ${isDark ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-800"}`}
                   placeholder="请输入用户名"
                 />
               </div>
@@ -300,7 +314,7 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                   邮箱
                 </label>
                 <div className="relative">
@@ -309,15 +323,15 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
                     type="email"
                     value={user.email}
                     disabled
-                    className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-400 cursor-not-allowed"
+                    className={`w-full pl-9 pr-3 py-2 border rounded-lg text-xs cursor-not-allowed ${isDark ? "bg-slate-900 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-500"}`}
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                   角色
                 </label>
-                <div className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-300">
+                <div className={`px-3 py-2 border rounded-lg text-xs ${isDark ? "bg-slate-900 border-slate-700 text-slate-300" : "bg-slate-100 border-slate-200 text-slate-700"}`}>
                   {user.role === "admin" ? "管理员" : "专家"}
                 </div>
               </div>
@@ -326,7 +340,7 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
 
           {/* 头像 */}
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
               头像
             </label>
             <div className="flex items-center gap-4">
@@ -345,12 +359,12 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800 border border-slate-600 rounded-lg text-xs text-slate-200 hover:bg-slate-700 hover:border-cyan-500 transition"
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs transition ${isDark ? "bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 hover:border-cyan-500" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:border-cyan-500"}`}
                 >
                   <UploadIcon size={14} />
                   更换头像
                 </button>
-                <p className="text-[11px] text-slate-500">
+                <p className={`text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                   支持常见图片格式，建议使用正方形图片以获得更好显示效果。
                 </p>
               </div>
@@ -365,45 +379,45 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
           </div>
 
           {/* 修改密码 */}
-          <div className="space-y-3 border-t border-slate-700 pt-4">
-            <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className={`space-y-3 border-t pt-4 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
+            <div className={`flex items-center gap-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
               <Lock size={14} className="text-slate-500" />
               <span>如需修改密码，请同时填写以下三项</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                   旧密码
                 </label>
                 <input
                   type="password"
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 ${isDark ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-800"}`}
                   placeholder="当前登录密码"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                   新密码
                 </label>
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 ${isDark ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-800"}`}
                   placeholder="至少 6 位"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                   确认新密码
                 </label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 ${isDark ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-800"}`}
                   placeholder="再次输入新密码"
                 />
               </div>
@@ -411,14 +425,14 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
           </div>
 
           <div className="flex items-center justify-between pt-2">
-            <p className="text-[11px] text-slate-500">
+            <p className={`text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
               提示：密码仅用于本系统登录，请勿与其他网站使用相同密码。
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition"
+                className={`px-4 py-2 text-xs rounded-lg border transition ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600" : "bg-white hover:bg-slate-100 text-slate-700 border-slate-300"}`}
               >
                 取消
               </button>
@@ -456,6 +470,8 @@ const WaveformComparator = ({
   onViewRangeChange,
   playbackState = { currentTime: 0, duration: 0, playing: false, seek: null },
 }) => {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const canvasRef = useRef(null);
   const wrapperRef = useRef(null);
   const [dragging, setDragging] = useState(false);
@@ -907,7 +923,7 @@ const WaveformComparator = ({
   return (
     <div
       ref={wrapperRef}
-      className="relative w-full bg-slate-950 rounded-lg overflow-hidden border border-slate-700 shadow-inner"
+      className={`relative w-full rounded-lg overflow-hidden border shadow-inner ${isDark ? "bg-slate-950 border-slate-700" : "bg-white border-slate-200"}`}
       style={{
         height: `${Math.max(220, Number(heightPx) || 360)}px`,
         cursor: scrubbing ? "grabbing" : dragging ? "crosshair" : "pointer",
@@ -945,27 +961,27 @@ const WaveformComparator = ({
 
           return (
             <div className="absolute top-2 left-2 pointer-events-none select-none">
-              <div className="bg-slate-900/70 border border-slate-700/60 backdrop-blur-sm rounded-lg px-3 py-2 text-[11px] font-mono text-slate-200 shadow-lg">
+              <div className={`backdrop-blur-sm rounded-lg px-3 py-2 text-[11px] font-mono shadow-lg border ${isDark ? "bg-slate-900/70 border-slate-700/60 text-slate-200" : "bg-white/80 border-slate-300 text-slate-700"}`}>
                 <div className="flex items-center gap-3">
-                  <span className="text-slate-400">pos</span>
+                  <span className={isDark ? "text-slate-400" : "text-slate-600"}>pos</span>
                   <span>{(globalPos * 100).toFixed(1)}%</span>
                   {t !== null && (
                     <>
-                      <span className="text-slate-500">·</span>
-                      <span className="text-slate-300">{t.toFixed(2)}s</span>
+                      <span className={isDark ? "text-slate-500" : "text-slate-400"}>·</span>
+                      <span className={isDark ? "text-slate-300" : "text-slate-700"}>{t.toFixed(2)}s</span>
                     </>
                   )}
-                  <span className="text-slate-500">·</span>
-                  <span className="text-slate-400">th</span>
-                  <span className="text-red-300">{Number(errorThreshold).toFixed(2)}</span>
+                  <span className={isDark ? "text-slate-500" : "text-slate-400"}>·</span>
+                  <span className={isDark ? "text-slate-400" : "text-slate-600"}>th</span>
+                  <span className={isDark ? "text-red-300" : "text-red-600"}>{Number(errorThreshold).toFixed(2)}</span>
                 </div>
                 <div className="mt-1 flex items-center gap-3">
-                  <span className="text-purple-300">{showGold && gold.length ? "Gold" : "Mix"}</span>
+                  <span className={isDark ? "text-purple-300" : "text-purple-600"}>{showGold && gold.length ? "Gold" : "Mix"}</span>
                   <span>{fmt(baseVal)}</span>
-                  <span className="text-cyan-300">Alg</span>
+                  <span className={isDark ? "text-cyan-300" : "text-cyan-600"}>Alg</span>
                   <span>{fmt(sepVal)}</span>
-                  <span className="text-red-300">|diff|</span>
-                  <span className={diff > errorThreshold ? "text-red-200" : "text-slate-300"}>
+                  <span className={isDark ? "text-red-300" : "text-red-600"}>|diff|</span>
+                  <span className={diff > errorThreshold ? (isDark ? "text-red-200" : "text-red-600") : (isDark ? "text-slate-300" : "text-slate-700")}>
                     {diff.toFixed(3)}
                   </span>
                 </div>
@@ -997,6 +1013,8 @@ const FrequencyAnalysisPlot = ({
   sampleRate = 44100,
   nFreqBins = 128,
 }) => {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   // 计算频率轴数据
   const frequencyData = useMemo(() => {
     // 检查数据是否有效
@@ -1071,7 +1089,7 @@ const FrequencyAnalysisPlot = ({
 
   if (!isActive || frequencyData.length === 0) {
     return (
-      <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-900/50 rounded-lg border border-slate-700/50">
+      <div className={`h-64 flex items-center justify-center rounded-lg border ${isDark ? "text-slate-500 bg-slate-900/50 border-slate-700/50" : "text-slate-500 bg-slate-50 border-slate-200"}`}>
         <span>
           频率分析数据不可用
           {!isActive && " (未激活)"}
@@ -1082,7 +1100,7 @@ const FrequencyAnalysisPlot = ({
   }
 
   return (
-    <div className="bg-slate-900/50 rounded-lg border border-slate-700/50 p-4">
+    <div className={`rounded-lg border p-4 ${isDark ? "bg-slate-900/50 border-slate-700/50" : "bg-slate-50 border-slate-200"}`}>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={frequencyData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
@@ -1161,6 +1179,8 @@ const SpectrumComparator = ({
   viewRange,
   onViewRangeChange,
 }) => {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const originalCanvasRef = useRef(null);
   const separatedCanvasRef = useRef(null);
   const diffCanvasRef = useRef(null);
@@ -1173,7 +1193,7 @@ const SpectrumComparator = ({
 
     // fallback
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#020617"; // slate-950
+    ctx.fillStyle = isDark ? "#020617" : "#f8fafc";
     ctx.fillRect(0, 0, w, h);
 
     if (!Array.isArray(data) || data.length === 0) return;
@@ -1220,7 +1240,7 @@ const SpectrumComparator = ({
       }
     }
     ctx.putImageData(image, 0, 0);
-  }, [viewRange]);
+  }, [viewRange, isDark]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -1336,7 +1356,7 @@ const SpectrumComparator = ({
 
   if (!isActive)
     return (
-      <div className="h-40 flex items-center justify-center text-slate-500">
+      <div className={`h-40 flex items-center justify-center ${isDark ? "text-slate-500" : "text-slate-600"}`}>
         选择算法查看频谱
       </div>
     );
@@ -1796,6 +1816,8 @@ const SingleSpectrogramView = ({
   onViewRangeChange,
   playbackState = { currentTime: 0, duration: 0 },
 }) => {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const canvasRef = useRef(null);
 
   const drawSpectrogram = useCallback(
@@ -1806,7 +1828,7 @@ const SingleSpectrogramView = ({
       const h = canvas.height;
 
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "#020617";
+      ctx.fillStyle = isDark ? "#020617" : "#f8fafc";
       ctx.fillRect(0, 0, w, h);
 
       if (!Array.isArray(data) || data.length === 0) return;
@@ -1857,7 +1879,7 @@ const SingleSpectrogramView = ({
         }
       }
     },
-    [viewRange, playbackState],
+    [viewRange, playbackState, isDark],
   );
 
   useEffect(() => {
@@ -1923,7 +1945,7 @@ const SingleSpectrogramView = ({
 
   if (!Array.isArray(spectrum) || !spectrum.length) {
     return (
-      <div className="h-40 flex items-center justify-center text-slate-500 bg-slate-950 rounded border border-slate-700">
+    <div className={`h-40 flex items-center justify-center rounded border ${isDark ? "text-slate-500 bg-slate-950 border-slate-700" : "text-slate-500 bg-slate-50 border-slate-200"}`}>
         无频谱数据
       </div>
     );
@@ -1943,7 +1965,7 @@ const SingleSpectrogramView = ({
         ref={canvasRef}
         width={256}
         height={heightPx}
-        className="w-full h-full rounded border border-slate-700 bg-slate-950"
+        className={`w-full h-full rounded border ${isDark ? "border-slate-700 bg-slate-950" : "border-slate-200 bg-white"}`}
       />
     </div>
   );
@@ -1962,6 +1984,8 @@ const OverlayWaveformComparisonView = ({
   viewRange,
   playbackState = { currentTime: 0, duration: 0, seek: null },
 }) => {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const canvasRef = useRef(null);
   const wrapperRef = useRef(null);
   const [layout, setLayout] = useState({ w: 800, h: heightPx });
@@ -2031,9 +2055,9 @@ const OverlayWaveformComparisonView = ({
 
     // 背景 & 网格
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#020617";
+    ctx.fillStyle = isDark ? "#020617" : "#f8fafc";
     ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = "#1e293b";
+    ctx.strokeStyle = isDark ? "#1e293b" : "#cbd5e1";
     ctx.lineWidth = 1;
     ctx.beginPath();
     const gridX = Math.max(40, Math.floor(width / 16));
@@ -2049,7 +2073,7 @@ const OverlayWaveformComparisonView = ({
     ctx.stroke();
 
     const drawZeroLine = (y) => {
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+      ctx.strokeStyle = isDark ? "rgba(148, 163, 184, 0.35)" : "rgba(100, 116, 139, 0.45)";
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.moveTo(0, y);
@@ -2143,7 +2167,7 @@ const OverlayWaveformComparisonView = ({
       const posInView = (globalPos - vrStart) / span;
       if (posInView >= 0 && posInView <= 1) {
         const x = posInView * width;
-        ctx.strokeStyle = "#fbbf24"; // amber-400
+        ctx.strokeStyle = isDark ? "#fbbf24" : "#d97706";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(x, 0);
@@ -2165,6 +2189,7 @@ const OverlayWaveformComparisonView = ({
     layout,
     unpackWave,
     getValAt,
+    isDark,
   ]);
 
   const getNormalizedX = (event) => {
@@ -2188,7 +2213,7 @@ const OverlayWaveformComparisonView = ({
 
   return (
     <div ref={wrapperRef} className="w-full" style={{ height: heightPx }} onClick={handleClick}>
-      <canvas ref={canvasRef} className="w-full h-full rounded border border-slate-700 bg-slate-950" />
+      <canvas ref={canvasRef} className={`w-full h-full rounded border ${isDark ? "border-slate-700 bg-slate-950" : "border-slate-200 bg-white"}`} />
     </div>
   );
 };
@@ -2204,6 +2229,8 @@ const OverlaySpectrogramComparisonView = ({
   onViewRangeChange,
   playbackState = { currentTime: 0, duration: 0, seek: null },
 }) => {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const canvasRef = useRef(null);
 
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
@@ -2216,7 +2243,7 @@ const OverlaySpectrogramComparisonView = ({
     const h = canvas.height;
 
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#020617";
+    ctx.fillStyle = isDark ? "#020617" : "#f8fafc";
     ctx.fillRect(0, 0, w, h);
 
     const colorizeGold = (v01) => {
@@ -2301,7 +2328,7 @@ const OverlaySpectrogramComparisonView = ({
       const posInView = (globalPos - vrStart) / span;
       if (posInView >= 0 && posInView <= 1) {
         const x = posInView * w;
-        ctx.strokeStyle = "#fbbf24"; // amber-400
+        ctx.strokeStyle = isDark ? "#fbbf24" : "#d97706";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(x, 0);
@@ -2309,7 +2336,7 @@ const OverlaySpectrogramComparisonView = ({
         ctx.stroke();
       }
     }
-  }, [goldSpectrum, separatedSpectrum, showGold, showSeparated, viewRange, playbackState]);
+  }, [goldSpectrum, separatedSpectrum, showGold, showSeparated, viewRange, playbackState, isDark]);
 
   useEffect(() => {
     drawSpectrogram();
@@ -2398,7 +2425,7 @@ const OverlaySpectrogramComparisonView = ({
         ref={canvasRef}
         width={256}
         height={heightPx}
-        className="w-full h-full rounded border border-slate-700 bg-slate-950"
+        className={`w-full h-full rounded border ${isDark ? "border-slate-700 bg-slate-950" : "border-slate-200 bg-white"}`}
       />
     </div>
   );
@@ -2406,6 +2433,8 @@ const OverlaySpectrogramComparisonView = ({
 
 // 简单电平表（借鉴 Au）：基于当前播放位置附近的波形包络估算 RMS / Peak，做相对电平对比
 const LevelMeter = ({ wave, playbackState, label, theme = "emerald" }) => {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const themeColor = theme === "cyan" ? "#22d3ee" : theme === "purple" ? "#a855f7" : "#10b981";
 
   const { rmsDb, norm } = useMemo(() => {
@@ -2459,9 +2488,9 @@ const LevelMeter = ({ wave, playbackState, label, theme = "emerald" }) => {
   }, [wave, playbackState]);
 
   return (
-    <div className="flex items-center gap-2 text-[11px] text-slate-400">
+    <div className={`flex items-center gap-2 text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
       <span className="w-16 truncate">{label}</span>
-      <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
+      <div className={`flex-1 h-2 rounded-full overflow-hidden border ${isDark ? "bg-slate-800 border-slate-700/60" : "bg-slate-200 border-slate-300"}`}>
         <div
           className="h-full transition-all"
           style={{
@@ -2470,7 +2499,7 @@ const LevelMeter = ({ wave, playbackState, label, theme = "emerald" }) => {
           }}
         />
       </div>
-      <span className="w-12 text-right font-mono text-slate-300">
+      <span className={`w-12 text-right font-mono ${isDark ? "text-slate-300" : "text-slate-700"}`}>
         {Number.isFinite(rmsDb) ? rmsDb.toFixed(1) : "-∞"}dB
       </span>
     </div>
@@ -2552,6 +2581,7 @@ export default function AudioLabApp() {
   const location = useLocation();
   const navigate = useNavigate();
   const { showError, showSuccess, showAlert } = useToast();
+  const { resolvedTheme } = useTheme();
   const [audioUrl, setAudioUrl] = useState(null); // 存放本地播放地址（从音频资源库选择后生成的本地 URL）
   const [user, setUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
@@ -5205,6 +5235,25 @@ export default function AudioLabApp() {
     return { source: "empty", total: 0, series: [], data: [] };
   }, [algorithmComparison, selectedRadarAlgorithms, selectedRadarStem]);
 
+  const isDark = resolvedTheme === "dark";
+  const panelClass = isDark
+    ? "bg-slate-800/50 border-slate-700/50"
+    : "bg-white border-slate-200 shadow-sm";
+  const panelTitleClass = isDark
+    ? "text-sm font-bold text-slate-400 uppercase mb-4 flex items-center gap-2 cursor-pointer hover:text-slate-300 transition"
+    : "text-sm font-bold text-slate-600 uppercase mb-4 flex items-center gap-2 cursor-pointer hover:text-slate-800 transition";
+  const inputClass = isDark
+    ? "flex-1 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
+    : "flex-1 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50";
+  const libraryBtnClass = isDark
+    ? "w-full px-4 py-2 bg-slate-700/80 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500/50 text-white rounded-lg transition flex items-center justify-center gap-2 text-sm font-medium"
+    : "w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 hover:border-cyan-500/50 text-slate-800 rounded-lg transition flex items-center justify-center gap-2 text-sm font-medium";
+  const selectEnabledClass = isDark
+    ? "bg-slate-900 border-slate-700 text-slate-100 hover:border-cyan-500 hover:bg-slate-800/80 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+    : "bg-white border-slate-300 text-slate-700 hover:border-cyan-500 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20";
+  const selectDisabledClass = isDark
+    ? "bg-slate-900/50 border-slate-800 text-slate-600 cursor-not-allowed opacity-60"
+    : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-70";
 
   if (!user) {
     return <AuthPage onLoginSuccess={handleLoginSuccess} />;
@@ -5223,9 +5272,9 @@ export default function AudioLabApp() {
 
   // 普通用户（访客和专家）显示业务功能界面
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-cyan-500/30">
+    <div className={`${isDark ? "bg-slate-900 text-slate-100 selection:bg-cyan-500/30" : "bg-white text-slate-800 selection:bg-cyan-200/60"} min-h-screen font-sans`}>
       {/* Navbar */}
-      <header className="fixed top-0 w-full z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+      <header className={`fixed top-0 w-full z-50 backdrop-blur-md border-b ${isDark ? "bg-slate-900/80 border-slate-800" : "bg-white/80 border-slate-200"}`}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
           {/* 左侧 Logo 区域 */}
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -5233,13 +5282,13 @@ export default function AudioLabApp() {
             <span className="font-bold text-xl tracking-tight whitespace-nowrap">
               Audio<span className="text-cyan-400">Lab</span>
             </span>
-            <span className="ml-2 text-[10px] uppercase bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-400 whitespace-nowrap flex-shrink-0">
+            <span className={`ml-2 text-[10px] uppercase px-2 py-0.5 rounded whitespace-nowrap flex-shrink-0 ${isDark ? "bg-slate-800 border border-slate-700 text-slate-400" : "bg-slate-100 border border-slate-200 text-slate-500"}`}>
               Beta v2.1
             </span>
           </div>
 
           {/* 中间导航菜单 */}
-          <nav className="hidden lg:flex gap-1 bg-slate-800/50 p-1 rounded-lg border border-slate-700/50 flex-shrink-0">
+          <nav className={`hidden lg:flex gap-1 p-1 rounded-lg border flex-shrink-0 ${isDark ? "bg-slate-800/50 border-slate-700/50" : "bg-slate-100 border-slate-200"}`}>
             {[
               { id: "dashboard", label: "工作台", icon: Layers },
               { id: "history", label: "分离历史", icon: Clock },
@@ -5250,7 +5299,7 @@ export default function AudioLabApp() {
               <button
                 key={item.id}
                 onClick={() => navigate(VIEW_TO_PATH[item.id] || "/")}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition whitespace-nowrap ${currentView === item.id ? "bg-cyan-600 text-white shadow-lg shadow-cyan-900/20" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition whitespace-nowrap ${currentView === item.id ? "bg-cyan-600 text-white shadow-lg shadow-cyan-900/20" : (isDark ? "text-slate-400 hover:text-white hover:bg-slate-700" : "text-slate-600 hover:text-slate-900 hover:bg-slate-200")}`}
               >
                 <item.icon size={14} className="flex-shrink-0" /> <span>{item.label}</span>
               </button>
@@ -5259,10 +5308,12 @@ export default function AudioLabApp() {
 
           {/* 右侧功能区 */}
           <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+            {/* 主题切换 */}
+            <ThemeSwitcher />
             {/* 设备状态 */}
             <div
               title="当前设备模式（由管理员在系统设置中配置）"
-              className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700/50 bg-slate-800/50 text-slate-300 whitespace-nowrap"
+              className={`hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-lg border whitespace-nowrap ${isDark ? "border-slate-700/50 bg-slate-800/50 text-slate-300" : "border-slate-200 bg-white text-slate-700"}`}
             >
               <span
                 className={`w-2 h-2 rounded-full flex-shrink-0 ${
@@ -5277,10 +5328,10 @@ export default function AudioLabApp() {
             {/* 通知按钮 */}
             <button
               onClick={() => setShowNotificationCenter(true)}
-              className="relative p-2 hover:bg-slate-800 rounded-lg transition flex-shrink-0"
+              className={`relative p-2 rounded-lg transition flex-shrink-0 ${isDark ? "hover:bg-slate-800" : "hover:bg-slate-200"}`}
               title="通知中心"
             >
-              <Bell className="text-slate-400" size={20} />
+              <Bell className={`${isDark ? "text-slate-400" : "text-slate-600"}`} size={20} />
               {unreadNotificationCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                   {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
@@ -5292,7 +5343,7 @@ export default function AudioLabApp() {
             <button
               type="button"
               onClick={() => setCurrentView("manual")}
-              className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-slate-700/60 bg-slate-800/60 text-xs text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800 transition flex-shrink-0"
+              className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs transition flex-shrink-0 ${isDark ? "border-slate-700/60 bg-slate-800/60 text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800" : "border-slate-200 bg-white text-slate-700 hover:border-cyan-400/60 hover:text-slate-900 hover:bg-slate-100"}`}
               title="打开用户说明书"
             >
               <BookOpen size={14} className="text-cyan-400 flex-shrink-0" />
@@ -5302,7 +5353,11 @@ export default function AudioLabApp() {
             {user?.role === "expert" && (
               <button
                 onClick={() => setShowExpertMessageDialog(true)}
-                className="hidden lg:inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-slate-700/60 bg-slate-800/60 text-xs text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800 transition flex-shrink-0"
+                className={`hidden lg:inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs transition flex-shrink-0 ${
+                  isDark
+                    ? "border-slate-700/60 bg-slate-800/60 text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-cyan-400/60 hover:text-slate-900 hover:bg-slate-100"
+                }`}
                 title="向管理员发送建议"
               >
                 <MessageCircle size={14} className="text-cyan-400 flex-shrink-0" />
@@ -5343,11 +5398,11 @@ export default function AudioLabApp() {
             <div className="lg:col-span-4 space-y-6">
               {/* 历史记录 ID 一键导入（卡片上方的小工具栏，仅登录用户可见） */}
               {user && (
-                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <div className={`rounded-xl p-4 border ${panelClass}`}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex flex-col flex-1">
                       <span
-                        className="text-xs font-semibold text-slate-200"
+                        className={`text-xs font-semibold ${isDark ? "text-slate-200" : "text-slate-700"}`}
                         title="已完成的分离任务，可以直接通过 ID 导入结果，避免重复计算。"
                       >
                         历史记录 ID 导入
@@ -5358,14 +5413,16 @@ export default function AudioLabApp() {
                         type="text"
                         value={historyIdInput}
                         onChange={(e) => setHistoryIdInput(e.target.value)}
-                        className="flex-1 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
+                        className={inputClass}
                         placeholder="例如：177253401234567890"
                       />
                       <button
                         type="button"
                         disabled={historyImportLoading || !historyIdInput.trim()}
                         onClick={() => handleImportHistoryById()}
-                        className="px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-xs font-medium text-white transition whitespace-nowrap"
+                        className={`px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-medium text-white transition whitespace-nowrap ${
+                          isDark ? "disabled:bg-slate-700 disabled:text-slate-500" : "disabled:bg-slate-200 disabled:text-slate-400"
+                        }`}
                       >
                         {historyImportLoading ? "导入中..." : "按ID导入"}
                       </button>
@@ -5376,11 +5433,11 @@ export default function AudioLabApp() {
 
               {/* Upload Section */}
               <div
-                className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50"
+                className={`rounded-xl p-6 border ${panelClass}`}
                 title="Upload the mixture audio you want to separate and evaluate."
               >
                 <h3 
-                  className="text-sm font-bold text-slate-400 uppercase mb-4 flex items-center gap-2 cursor-pointer hover:text-slate-300 transition"
+                  className={panelTitleClass}
                   onClick={() => toggleSection('inputSource')}
                 >
                   <Upload size={14} /> 1. Input Source
@@ -5402,22 +5459,22 @@ export default function AudioLabApp() {
                         setResourceSelectorType('input');
                         setShowResourceSelector(true);
                       }}
-                      className="w-full px-4 py-2 bg-slate-700/80 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500/50 text-white rounded-lg transition flex items-center justify-center gap-2 text-sm font-medium"
+                      className={libraryBtnClass}
                     >
                       <Music size={16} />
                       从音频资源库选择
                     </button>
                   </div>
                 ) : (
-                  <div className="bg-slate-800 border border-cyan-900/30 rounded-lg p-3 flex items-center gap-3">
+                  <div className={`rounded-lg p-3 flex items-center gap-3 border ${isDark ? "bg-slate-800 border-cyan-900/30" : "bg-slate-50 border-cyan-200/70"}`}>
                     <div className="w-10 h-10 bg-cyan-900/50 rounded flex items-center justify-center text-cyan-400">
                       <Music size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate text-white">
+                      <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-slate-800"}`}>
                         {file.name}
                       </p>
-                      <p className="text-xs text-slate-500">{file.size}</p>
+                      <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>{file.size}</p>
                     </div>
                     <button
                       onClick={() => {
@@ -5436,7 +5493,7 @@ export default function AudioLabApp() {
                   </div>
                 )}
                 {audioUrl && (
-                  <div className="mt-2 overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900/60">
+                  <div className={`mt-2 overflow-hidden rounded-lg border ${isDark ? "border-slate-700/60 bg-slate-900/60" : "border-slate-200 bg-slate-50"}`}>
                     <StemPlayer
                       name="Input Source"
                       src={audioUrl}
@@ -5496,11 +5553,11 @@ export default function AudioLabApp() {
 
               {/* Ground Truth 单源上传（可选：例如"金标准鼓轨"） */}
               <div
-                className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50"
+                className={`rounded-xl p-4 border ${panelClass}`}
                 title="Upload a clean reference stem (e.g. Gold Standard drum track) to visually compare against separated results."
               >
                 <h3 
-                  className="text-sm font-bold text-slate-400 uppercase mb-4 flex items-center gap-2 cursor-pointer hover:text-slate-300 transition"
+                  className={panelTitleClass}
                   onClick={() => toggleSection('goldStandard')}
                 >
                     <Upload size={14} /> 2. Gold Standard Stem
@@ -5527,7 +5584,7 @@ export default function AudioLabApp() {
                         setResourceSelectorType('gold');
                         setShowResourceSelector(true);
                       }}
-                      className="w-full px-4 py-2 bg-slate-700/80 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500/50 text-white rounded-lg transition flex items-center justify-center gap-2 text-sm font-medium"
+                      className={libraryBtnClass}
                     >
                       <Music size={16} />
                       从音频资源库选择
@@ -5535,9 +5592,9 @@ export default function AudioLabApp() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+                    <div className={`flex items-center justify-between text-xs rounded-lg px-3 py-2 border ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200"}`}>
                       <div className="min-w-0 mr-2">
-                        <span className="truncate text-slate-200">{gtFile.name}</span>
+                        <span className={`truncate ${isDark ? "text-slate-200" : "text-slate-700"}`}>{gtFile.name}</span>
                         &nbsp;&nbsp;
                         <span className="text-slate-500 text-[11px]">
                           {gtFile.size}
@@ -5559,7 +5616,7 @@ export default function AudioLabApp() {
                     </div>
                     {/* Gold Standard 播放器 */}
                     {(gtFileRef.current || gtFile?.raw) && (
-                      <div className="overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900/60">
+                      <div className={`overflow-hidden rounded-lg border ${isDark ? "border-slate-700/60 bg-slate-900/60" : "border-slate-200 bg-slate-50"}`}>
                         <StemPlayer
                           name="Gold Standard"
                           file={gtFileRef.current || (gtFile?.raw instanceof File ? gtFile.raw : null)}
@@ -5609,11 +5666,11 @@ export default function AudioLabApp() {
 
               {/* 3. Algorithm Selection */}
               <div
-                className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50"
+                className={`rounded-xl p-6 border ${panelClass}`}
                 title="Select which separation algorithm to run on your uploaded audio."
               >
                 <h3 
-                  className="text-sm font-bold text-slate-400 uppercase mb-4 flex items-center gap-2 cursor-pointer hover:text-slate-300 transition"
+                  className={panelTitleClass}
                   onClick={() => toggleSection('algorithm')}
                 >
                   <Layers size={14} /> 3. Algorithm
@@ -5626,7 +5683,7 @@ export default function AudioLabApp() {
                 {!collapsedSections.algorithm && (
                   <>
                 {!file && (
-                  <div className="mb-4 p-3 bg-slate-900/50 border border-slate-700 rounded-lg text-xs text-slate-500">
+                  <div className={`mb-4 p-3 border rounded-lg text-xs ${isDark ? "bg-slate-900/50 border-slate-700 text-slate-500" : "bg-amber-50 border-amber-300 text-amber-800"}`}>
                     ⚠️ 请先上传音频文件
                   </div>
                 )}
@@ -5644,25 +5701,25 @@ export default function AudioLabApp() {
                       runSeparation(algo);
                     }}
                     disabled={!file || isProcessing}
-                    className={`w-full px-4 py-3 pr-10 rounded-lg border transition-all appearance-none cursor-pointer bg-slate-800 text-slate-300 text-sm font-medium focus:outline-none ${
+                    className={`w-full px-4 py-3 pr-10 rounded-lg border transition-all appearance-none cursor-pointer text-sm font-medium focus:outline-none ${
                       !file || isProcessing
-                        ? "bg-slate-900/50 border-slate-800 text-slate-600 cursor-not-allowed opacity-50"
+                        ? `${selectDisabledClass} opacity-50`
                         : selectedAlgo && selectedAlgo !== ALGO_NONE
-                          ? "border-cyan-500 bg-slate-800 hover:border-cyan-400 hover:bg-slate-700/50 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
-                          : "border-slate-700 hover:border-slate-500 hover:bg-slate-700/50 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                          ? `${selectEnabledClass} border-cyan-500`
+                          : selectEnabledClass
                     }`}
                     style={{
                       backgroundImage: "none",
                     }}
                   >
-                    <option value={ALGO_NONE} className="bg-slate-800 text-slate-300">
+                    <option value={ALGO_NONE} className={isDark ? "bg-slate-800 text-slate-300" : "bg-white text-slate-700"}>
                       无
                     </option>
                     {ALGORITHMS.map((algo) => (
                       <option
                         key={algo}
                         value={algo}
-                        className="bg-slate-800 text-slate-300"
+                        className={isDark ? "bg-slate-800 text-slate-300" : "bg-white text-slate-700"}
                       >
                         {algo}
                       </option>
@@ -5683,7 +5740,7 @@ export default function AudioLabApp() {
                   </div>
                   {/* 处理中提示（不显示进度条） */}
                   {isProcessing && (
-                    <div className="mt-4 flex flex-col gap-2 text-xs text-slate-400">
+                    <div className={`mt-4 flex flex-col gap-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                       <div className="flex items-center gap-2">
                         <div className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-cyan-400" />
                         <span className="flex items-center gap-2">
@@ -5702,7 +5759,7 @@ export default function AudioLabApp() {
                           disabled={!taskId || isCancelling}
                           className={`inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                             !taskId || isCancelling
-                              ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                              ? (isDark ? "bg-slate-800 text-slate-500 cursor-not-allowed" : "bg-slate-100 text-slate-400 cursor-not-allowed")
                               : "bg-red-500/90 hover:bg-red-500 text-white shadow-sm shadow-red-500/40"
                           }`}
                         >
@@ -5724,9 +5781,9 @@ export default function AudioLabApp() {
               </div>
 
               {/* 4. Stem 选择（下拉收起） + 当前 Stem 播放 */}
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 mt-4">
+              <div className={`rounded-xl p-4 border mt-4 ${panelClass}`}>
                 <h3 
-                  className="text-sm font-bold text-slate-400 uppercase mb-3 flex items-center gap-2 cursor-pointer hover:text-slate-300 transition"
+                  className={isDark ? "text-sm font-bold text-slate-400 uppercase mb-3 flex items-center gap-2 cursor-pointer hover:text-slate-300 transition" : "text-sm font-bold text-slate-600 uppercase mb-3 flex items-center gap-2 cursor-pointer hover:text-slate-800 transition"}
                   onClick={() => toggleSection('stemSource')}
                 >
                   <Layers size={14} /> 4. Stem Source
@@ -5751,14 +5808,14 @@ export default function AudioLabApp() {
                       disabled={stems.length === 0 || isProcessing}
                       className={`w-full px-3 py-2 pr-8 rounded-lg border text-sm font-medium appearance-none transition ${
                         stems.length === 0 || isProcessing
-                          ? "bg-slate-900/50 border-slate-800 text-slate-600 cursor-not-allowed opacity-60"
-                          : "bg-slate-900 border-slate-700 text-slate-100 hover:border-cyan-500 hover:bg-slate-800/80 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                          ? selectDisabledClass
+                          : selectEnabledClass
                       }`}
                     >
                       <option
                         value=""
                         disabled
-                        className="bg-slate-900 text-slate-200"
+                        className={isDark ? "bg-slate-900 text-slate-200" : "bg-white text-slate-700"}
                       >
                         {stems.length === 0
                           ? "请先选择算法并完成音乐分离"
@@ -6285,15 +6342,15 @@ export default function AudioLabApp() {
             {/* Center & Right Panel: Visualization & Evaluation */}
             <div className="lg:col-span-8 space-y-6">
               {/* 3. Visualization Panel */}
-              <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-2xl overflow-hidden relative">
+              <div className={`rounded-xl border shadow-2xl overflow-hidden relative ${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-slate-200/60"}`}>
                 {/* Toolbar */}
-                <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700">
+                <div className={`px-4 py-2 flex items-center justify-between border-b ${isDark ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
                   <div className="flex items-center gap-4">
-                    <h3 className="font-bold text-slate-200">可视化分析</h3>
-                    <div className="flex gap-1 bg-slate-900 rounded p-0.5">
+                    <h3 className={`font-bold ${isDark ? "text-slate-200" : "text-slate-700"}`}>可视化分析</h3>
+                    <div className={`flex gap-1 rounded p-0.5 ${isDark ? "bg-slate-900" : "bg-white border border-slate-200"}`}>
                       <button
                         onClick={handleZoomOut}
-                        className="p-1 hover:bg-slate-700 rounded text-slate-400"
+                        className={`p-1 rounded ${isDark ? "hover:bg-slate-700 text-slate-400" : "hover:bg-slate-100 text-slate-600"}`}
                       >
                         <ZoomOut size={14} />
                       </button>
@@ -6302,13 +6359,13 @@ export default function AudioLabApp() {
                       </span>
                       <button
                         onClick={handleZoomIn}
-                        className="p-1 hover:bg-slate-700 rounded text-slate-400"
+                        className={`p-1 rounded ${isDark ? "hover:bg-slate-700 text-slate-400" : "hover:bg-slate-100 text-slate-600"}`}
                       >
                         <ZoomIn size={14} />
                       </button>
                     </div>
                   </div>
-                  <div className="flex gap-2 text-xs text-slate-500">
+                  <div className={`flex gap-2 text-xs ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                     <span>
                       Sample Rate:{" "}
                       {audioMetadata.sampleRate
@@ -6328,46 +6385,46 @@ export default function AudioLabApp() {
                 <div className="p-4 space-y-6">
                   {/* Processing Overlay */}
                   {isProcessing && (
-                    <div className="absolute inset-0 bg-slate-900/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm">
+                  <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center backdrop-blur-sm ${isDark ? "bg-slate-900/80" : "bg-white/80"}`}>
                       <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
                       <p className="text-cyan-400 font-mono animate-pulse">
                         Running Neural Inference...
                       </p>
-                      <p className="text-slate-500 text-xs mt-2">
+                      <p className={`text-xs mt-2 ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                         Model: {selectedAlgo && selectedAlgo !== ALGO_NONE ? selectedAlgo : "None"}
                       </p>
                     </div>
                   )}
 
                   {/* Waveform Comparison：两个波形图放在一起（Gold/Mix vs Separated） */}
-                  <div className="space-y-3">
+                    <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">
+                      <span className={`text-xs uppercase font-bold tracking-wider ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                         波形对比 · Waveform Comparison
                       </span>
-                      <div className="flex items-center gap-3 text-[11px] leading-none text-slate-400">
+                      <div className={`flex items-center gap-3 text-[11px] leading-none ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                         {/* 显示开关：Gold / Separated */}
-                        <div className="flex items-center gap-2 pr-2 mr-1 border-r border-slate-700/60">
-                          <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                        <div className={`flex items-center gap-2 pr-2 mr-1 border-r ${isDark ? "border-slate-700/60" : "border-slate-200"}`}>
+                          <label className={`flex items-center gap-2 cursor-pointer select-none transition ${isDark ? "hover:text-slate-300" : "hover:text-slate-800"}`}>
                             <input
                               type="checkbox"
                               checked={!!showGoldInComparison}
                               onChange={(e) => setShowGoldInComparison(e.target.checked)}
                               disabled={!hasGoldWaveForViz}
-                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-fuchsia-500 focus:ring-2 focus:ring-fuchsia-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              className={`w-3.5 h-3.5 rounded text-fuchsia-500 focus:ring-2 focus:ring-fuchsia-500/20 focus:ring-offset-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? "border-slate-600 bg-slate-800 focus:ring-offset-slate-900" : "border-slate-300 bg-white focus:ring-offset-white"}`}
                             />
                             <span className="inline-flex items-center gap-1.5">
                               <span className="w-2 h-2 rounded-full bg-fuchsia-400" />
                               Gold
                             </span>
                           </label>
-                          <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                          <label className={`flex items-center gap-2 cursor-pointer select-none transition ${isDark ? "hover:text-slate-300" : "hover:text-slate-800"}`}>
                             <input
                               type="checkbox"
                               checked={!!showSeparatedInComparison}
                               onChange={(e) => setShowSeparatedInComparison(e.target.checked)}
                               disabled={!hasSeparatedWaveForViz}
-                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-2 focus:ring-cyan-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              className={`w-3.5 h-3.5 rounded text-cyan-500 focus:ring-2 focus:ring-cyan-500/20 focus:ring-offset-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? "border-slate-600 bg-slate-800 focus:ring-offset-slate-900" : "border-slate-300 bg-white focus:ring-offset-white"}`}
                             />
                             <span className="inline-flex items-center gap-1.5">
                               <span className="w-2 h-2 rounded-full bg-cyan-400" />
@@ -6376,15 +6433,15 @@ export default function AudioLabApp() {
                           </label>
                         </div>
                         {/* 显示方式：分轨 / 叠加 */}
-                        <div className="flex items-center gap-1.5 pr-2 mr-1 border-r border-slate-700/60">
-                          <span className="text-slate-500">样式</span>
+                        <div className={`flex items-center gap-1.5 pr-2 mr-1 border-r ${isDark ? "border-slate-700/60" : "border-slate-200"}`}>
+                          <span className={isDark ? "text-slate-500" : "text-slate-600"}>样式</span>
                           <button
                             type="button"
                             onClick={() => setWaveCompareMode("stacked")}
                             className={`px-2 py-1 rounded border text-[11px] transition ${
                               waveCompareMode === "stacked"
-                                ? "bg-slate-700/70 border-slate-600 text-slate-100"
-                                : "bg-slate-900/20 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                                ? (isDark ? "bg-slate-700/70 border-slate-600 text-slate-100" : "bg-cyan-50 border-cyan-300 text-slate-700")
+                                : (isDark ? "bg-slate-900/20 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800/40" : "bg-white border-slate-300 text-slate-500 hover:text-slate-700 hover:bg-slate-50")
                             }`}
                             title="上下分轨（更接近原来的波形对比样式）"
                           >
@@ -6395,25 +6452,25 @@ export default function AudioLabApp() {
                             onClick={() => setWaveCompareMode("overlay")}
                             className={`px-2 py-1 rounded border text-[11px] transition ${
                               waveCompareMode === "overlay"
-                                ? "bg-slate-700/70 border-slate-600 text-slate-100"
-                                : "bg-slate-900/20 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                                ? (isDark ? "bg-slate-700/70 border-slate-600 text-slate-100" : "bg-cyan-50 border-cyan-300 text-slate-700")
+                                : (isDark ? "bg-slate-900/20 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800/40" : "bg-white border-slate-300 text-slate-500 hover:text-slate-700 hover:bg-slate-50")
                             }`}
                             title="同一零线叠加（更强调对齐/相位差异）"
                           >
                             叠加
                           </button>
                         </div>
-                        <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                        <label className={`flex items-center gap-2 cursor-pointer select-none transition ${isDark ? "hover:text-slate-300" : "hover:text-slate-800"}`}>
                           <input
                             type="checkbox"
                             checked={waveAutoGain}
                             onChange={(e) => setWaveAutoGain(e.target.checked)}
-                            className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-2 focus:ring-cyan-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer"
+                            className={`w-3.5 h-3.5 rounded text-cyan-500 focus:ring-2 focus:ring-cyan-500/20 focus:ring-offset-0 cursor-pointer ${isDark ? "border-slate-600 bg-slate-800 focus:ring-offset-slate-900" : "border-slate-300 bg-white focus:ring-offset-white"}`}
                           />
                           <span>自动增益</span>
                         </label>
                         <div className="flex items-center gap-2">
-                          <span className="text-slate-500">Y 缩放</span>
+                          <span className={isDark ? "text-slate-500" : "text-slate-600"}>Y 缩放</span>
                           <input
                             type="range"
                             min="0.5"
@@ -6421,15 +6478,15 @@ export default function AudioLabApp() {
                             step="0.1"
                             value={waveYZoom}
                             onChange={(e) => setWaveYZoom(parseFloat(e.target.value))}
-                            className="w-32 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                            className={`w-32 h-1.5 rounded-lg appearance-none cursor-pointer accent-cyan-500 ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
                           />
-                          <span className="font-mono text-slate-300 w-10 text-right">
+                          <span className={`font-mono w-10 text-right ${isDark ? "text-slate-300" : "text-slate-600"}`}>
                             {Number(waveYZoom).toFixed(1)}x
                           </span>
                         </div>
                         <button
                           onClick={() => setWaveExpanded(true)}
-                          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700/70 text-slate-200 transition"
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded border transition ${isDark ? "bg-slate-800 hover:bg-slate-700 border-slate-700/70 text-slate-200" : "bg-white hover:bg-slate-100 border-slate-300 text-slate-700"}`}
                           title="全屏查看波形对比"
                         >
                           <Maximize2 size={13} />
@@ -6463,9 +6520,9 @@ export default function AudioLabApp() {
                     </div>
 
                     <div className="space-y-2 pt-1">
-                      <div className="flex items-center justify-between text-[11px] text-slate-400">
-                        <span className="font-mono text-slate-400">Overlay</span>
-                        <span className="text-slate-500">
+                      <div className={`flex items-center justify-between text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                        <span className={`font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}>Overlay</span>
+                        <span className={isDark ? "text-slate-500" : "text-slate-600"}>
                           {gtFileRef.current ? "Gold Standard vs Auto Separation" : "请先选择 Gold Standard Stem 以进行对比"}
                         </span>
                       </div>
@@ -6493,7 +6550,7 @@ export default function AudioLabApp() {
                             <span className="text-xs uppercase font-bold text-cyan-300 tracking-wider">
                               Waveform Comparison · 全屏对比
                             </span>
-                            <span className="text-[11px] text-slate-400">
+                            <span className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                               {gtFileRef.current ? "Gold Standard vs Auto Separation" : "请先选择 Gold Standard Stem"}
                             </span>
                           </div>
@@ -6538,11 +6595,11 @@ export default function AudioLabApp() {
                             viewRange={viewRange}
                             playbackState={playbackState}
                           />
-                          <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <div className={`flex items-center justify-between text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             <span>
                               提示：点击波形跳转播放位置；拖拽缩放视窗（按住 Ctrl 在主界面中亦可）；顶部按钮可切换分轨/叠加样式。
                             </span>
-                            <span className="font-mono text-slate-300">
+                            <span className={`font-mono ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                               {playbackState.playing ? "Playing" : "Paused"} ·{" "}
                               {Number(playbackState.currentTime || 0).toFixed(2)}s /{" "}
                               {Number(playbackState.duration || 0).toFixed(2)}s
@@ -6554,33 +6611,33 @@ export default function AudioLabApp() {
                   )}
 
                   {/* Spectrum Comparison：两个频谱瀑布图放在一起（Mix vs Separated） */}
-                  <div className="space-y-3 pt-4 border-t border-slate-800/80">
+                  <div className={`space-y-3 pt-4 border-t ${isDark ? "border-slate-800/80" : "border-slate-200"}`}>
                     <div className="flex items-baseline justify-between">
-                      <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">
+                      <span className={`text-xs uppercase font-bold tracking-wider ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                         频谱对比 · Spectrogram / 语谱图
                       </span>
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                        <div className="flex items-center gap-2 pr-2 mr-1 border-r border-slate-700/60">
-                          <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                      <div className={`flex items-center gap-3 text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                        <div className={`flex items-center gap-2 pr-2 mr-1 border-r ${isDark ? "border-slate-700/60" : "border-slate-200"}`}>
+                          <label className={`flex items-center gap-2 cursor-pointer select-none transition ${isDark ? "hover:text-slate-300" : "hover:text-slate-800"}`}>
                             <input
                               type="checkbox"
                               checked={!!showGoldInComparison}
                               onChange={(e) => setShowGoldInComparison(e.target.checked)}
                               disabled={!hasGoldSpectrumForViz}
-                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-fuchsia-500 focus:ring-2 focus:ring-fuchsia-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              className={`w-3.5 h-3.5 rounded text-fuchsia-500 focus:ring-2 focus:ring-fuchsia-500/20 focus:ring-offset-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? "border-slate-600 bg-slate-800 focus:ring-offset-slate-900" : "border-slate-300 bg-white focus:ring-offset-white"}`}
                             />
                             <span className="inline-flex items-center gap-1.5">
                               <span className="w-2 h-2 rounded-full bg-fuchsia-400" />
                               Gold
                             </span>
                           </label>
-                          <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                          <label className={`flex items-center gap-2 cursor-pointer select-none transition ${isDark ? "hover:text-slate-300" : "hover:text-slate-800"}`}>
                             <input
                               type="checkbox"
                               checked={!!showSeparatedInComparison}
                               onChange={(e) => setShowSeparatedInComparison(e.target.checked)}
                               disabled={!hasSeparatedSpectrumForViz}
-                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-2 focus:ring-cyan-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              className={`w-3.5 h-3.5 rounded text-cyan-500 focus:ring-2 focus:ring-cyan-500/20 focus:ring-offset-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? "border-slate-600 bg-slate-800 focus:ring-offset-slate-900" : "border-slate-300 bg-white focus:ring-offset-white"}`}
                             />
                             <span className="inline-flex items-center gap-1.5">
                               <span className="w-2 h-2 rounded-full bg-cyan-400" />
@@ -6589,13 +6646,13 @@ export default function AudioLabApp() {
                           </label>
                         </div>
 
-                        <label className="flex items-center gap-2 cursor-pointer select-none hover:text-slate-300 transition">
+                        <label className={`flex items-center gap-2 cursor-pointer select-none transition ${isDark ? "hover:text-slate-300" : "hover:text-slate-800"}`}>
                           <input
                             type="checkbox"
                             checked={autoZoomSpectrumOnPause}
                             onChange={(e) => setAutoZoomSpectrumOnPause(e.target.checked)}
                             disabled={!!playbackState.playing}
-                            className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            className={`w-3.5 h-3.5 rounded text-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:ring-offset-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? "border-slate-600 bg-slate-800 focus:ring-offset-slate-900" : "border-slate-300 bg-white focus:ring-offset-white"}`}
                           />
                           <span>暂停时放大当前时间带</span>
                         </label>
@@ -6603,9 +6660,9 @@ export default function AudioLabApp() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[11px] text-slate-400">
-                        <span className="font-mono text-slate-400">Overlay</span>
-                        <span className="text-slate-500">
+                      <div className={`flex items-center justify-between text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                        <span className={`font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}>Overlay</span>
+                        <span className={isDark ? "text-slate-500" : "text-slate-600"}>
                           {gtFileRef.current ? "Gold Standard vs Auto Separation" : "参考频谱需要 Gold Standard Stem"}
                         </span>
                       </div>
@@ -6619,7 +6676,7 @@ export default function AudioLabApp() {
                         onViewRangeChange={setViewRange}
                         playbackState={playbackState}
                       />
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <div className={`flex items-center justify-between text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                         <span>
                           提示：拖拽选择时间窗缩放，双击还原；开启“暂停放大”后，暂停时会自动聚焦当前时间带（播放恢复会自动还原）。
                         </span>
@@ -6630,7 +6687,7 @@ export default function AudioLabApp() {
                     </div>
 
                     <div className="flex justify-center">
-                      <div className="text-xs text-slate-400 bg-slate-800/30 px-3 py-1.5 rounded border border-slate-700/30">
+                      <div className={`text-xs px-3 py-1.5 rounded border ${isDark ? "text-slate-400 bg-slate-800/30 border-slate-700/30" : "text-slate-600 bg-slate-50 border-slate-200"}`}>
                         <span className="mr-4">点击任一波形/语谱图 → 跳转播放位置（参考与分离同步）</span>
                         <span>在频谱上拖拽选择 → 缩放时间窗，双击还原</span>
                       </div>
@@ -6638,12 +6695,12 @@ export default function AudioLabApp() {
                   </div>
 
                   {/* Frequency Analysis Plot：频率分析图对比 */}
-                  <div className="space-y-3 pt-4 border-t border-slate-800/80">
+                  <div className={`space-y-3 pt-4 border-t ${isDark ? "border-slate-800/80" : "border-slate-200"}`}>
                     <div className="flex items-baseline justify-between">
-                      <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">
+                      <span className={`text-xs uppercase font-bold tracking-wider ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                         频率分析对比 · Frequency Analysis Plot
                       </span>
-                      <div className="text-[11px] text-slate-500">
+                      <div className={`text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                         标准音频（蓝色实线）vs 分离音频（红色虚线）
                       </div>
                     </div>
@@ -6666,23 +6723,23 @@ export default function AudioLabApp() {
               {/* 4. Subjective Evaluation Panel - 仅专家可见 */}
               {user?.role === "expert" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-slate-800/30 rounded-xl p-6 border border-slate-700/50">
-                    <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                  <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800/30 border-slate-700/50" : "bg-white border-slate-200 shadow-sm"}`}>
+                    <h3 className={`font-bold mb-4 flex items-center gap-2 ${isDark ? "text-white" : "text-slate-800"}`}>
                       <Headphones size={18} className="text-purple-400" />{" "}
                       专家主观评分（按 Stem）
                     </h3>
-                    <p className="text-xs text-slate-400 mb-6">
+                    <p className={`text-xs mb-6 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                       请基于当前选中的单一声源（stem），对其清晰度、干扰抑制与伪影控制分别打分。
                     </p>
 
                     <div className="space-y-6">
-                      <div className="text-xs text-slate-400 mb-2">
+                      <div className={`text-xs mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                         当前算法：{" "}
                         <span className="font-mono text-cyan-400">
                           {selectedAlgo && selectedAlgo !== ALGO_NONE ? selectedAlgo : "无"}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-400 mb-2">
+                      <div className={`text-xs mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                         当前评估目标：{" "}
                         <span className="font-mono text-cyan-400">
                           {currentStem?.name || "未选择"}
@@ -6714,8 +6771,8 @@ export default function AudioLabApp() {
                         return metrics.map((m) => (
                           <div key={m.key}>
                             <div className="flex justify-between text-sm mb-2">
-                              <span className="text-slate-300">{m.label}</span>
-                              <span className="font-mono text-cyan-400">
+                              <span className={isDark ? "text-slate-300" : "text-slate-700"}>{m.label}</span>
+                              <span className={isDark ? "font-mono text-cyan-400" : "font-mono text-cyan-600"}>
                                 {currentScore[m.key]}
                               </span>
                             </div>
@@ -6733,7 +6790,9 @@ export default function AudioLabApp() {
                                   }));
                                 }}
                                 disabled={!results || !currentStem}
-                                className="w-7 h-7 flex items-center justify-center rounded bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`w-7 h-7 flex items-center justify-center rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                                  isDark ? "bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-200" : "bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700"
+                                }`}
                               >
                                 -
                               </button>
@@ -6753,7 +6812,9 @@ export default function AudioLabApp() {
                                   }));
                                 }}
                                 disabled={!results || !currentStem}
-                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 ${
+                                  isDark ? "bg-slate-700" : "bg-cyan-100"
+                                }`}
                               />
                               <button
                                 type="button"
@@ -6768,7 +6829,9 @@ export default function AudioLabApp() {
                                   }));
                                 }}
                                 disabled={!results || !currentStem}
-                                className="w-7 h-7 flex items-center justify-center rounded bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`w-7 h-7 flex items-center justify-center rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                                  isDark ? "bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-200" : "bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700"
+                                }`}
                               >
                                 +
                               </button>
@@ -6787,19 +6850,21 @@ export default function AudioLabApp() {
                     </div>
                   </div>
 
-                  <div className="bg-slate-800/30 rounded-xl p-6 border border-slate-700/50">
+                  <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800/30 border-slate-700/50" : "bg-white border-slate-200 shadow-sm"}`}>
                     <div className="w-full min-h-[420px] flex flex-col gap-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="text-left min-w-0">
                           <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-bold text-slate-500 uppercase">
+                            <h4 className={`text-xs font-bold uppercase ${isDark ? "text-slate-500" : "text-slate-700"}`}>
                               实时评分统计
                             </h4>
-                            <span className="text-[10px] uppercase px-2 py-0.5 rounded-full border border-slate-700/70 bg-slate-900/40 text-slate-400">
+                            <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full border ${
+                              isDark ? "border-slate-700/70 bg-slate-900/40 text-slate-400" : "border-slate-300 bg-slate-100 text-slate-600"
+                            }`}>
                               RADAR
                             </span>
                           </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                          <div className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                             <span className="inline-flex items-center gap-1.5">
                               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/80" />
                               {radarModel.source === "backend"
@@ -6807,9 +6872,9 @@ export default function AudioLabApp() {
                                 : `本地浏览器：共 ${radarModel.total} 份`}
                             </span>
                             {statsRefreshedAt && (
-                              <span className="text-slate-500/90">
+                              <span className={isDark ? "text-slate-500/90" : "text-slate-600"}>
                                 最近刷新：
-                                <span className="text-slate-300">
+                                <span className={isDark ? "text-slate-300" : "text-slate-700"}>
                                   {new Date(statsRefreshedAt).toLocaleTimeString()}
                                 </span>
                               </span>
@@ -6821,7 +6886,11 @@ export default function AudioLabApp() {
                             type="button"
                             onClick={() => fetchBackendStats({ showLoading: true })}
                             disabled={loadingStats}
-                            className="px-3 py-1.5 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-700 rounded-lg text-[11px] text-slate-100 inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0"
+                            className={`px-3 py-1.5 border rounded-lg text-[11px] inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ${
+                              isDark
+                                ? "bg-slate-900/60 hover:bg-slate-800/80 border-slate-700 text-slate-100"
+                                : "bg-white hover:bg-slate-100 border-slate-300 text-slate-700"
+                            }`}
                             title="立即刷新"
                           >
                             <RotateCcw size={12} />
@@ -6830,17 +6899,17 @@ export default function AudioLabApp() {
                         )}
                       </div>
                       {radarModel.source === "empty" && (
-                        <div className="text-xs text-slate-500">
+                        <div className={`text-xs ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                           暂无专家评分数据（提交评分后会自动显示聚合结果）
                         </div>
                       )}
                       {radarModel.source !== "empty" && (
                         <div className="flex flex-col gap-3 flex-1 min-h-0">
                           {/* Controls (above chart) */}
-                          <div className="rounded-xl border border-slate-700/50 bg-slate-900/20 p-3 text-left">
+                          <div className={`rounded-xl border p-3 text-left ${isDark ? "border-slate-700/50 bg-slate-900/20" : "border-slate-200 bg-slate-50"}`}>
                             <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-3 items-start">
                               <div>
-                                <div className="text-[10px] text-slate-400 mb-1">
+                                <div className={`text-[10px] mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                                   声源
                                 </div>
                                 <select
@@ -6848,7 +6917,9 @@ export default function AudioLabApp() {
                                   onChange={(e) =>
                                     setSelectedRadarStem(e.target.value)
                                   }
-                                  className="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                  className={`w-full border rounded-lg px-2.5 py-1.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
+                                    isDark ? "bg-slate-900/80 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-700"
+                                  }`}
                                 >
                                   {availableRadarStems.map((stem) => (
                                     <option key={stem} value={stem}>
@@ -6862,13 +6933,13 @@ export default function AudioLabApp() {
 
                               <div>
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-[10px] text-slate-400">
+                                  <span className={`text-[10px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                                     选择算法（可多选叠加）
                                   </span>
                                   <button
                                     type="button"
                                     onClick={() => setSelectedRadarAlgorithms([])}
-                                    className="text-[10px] text-slate-400 hover:text-slate-200 transition"
+                                    className={`text-[10px] transition ${isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-700"}`}
                                     title="清空算法选择（恢复默认前2名）"
                                   >
                                     清空
@@ -6927,9 +6998,13 @@ export default function AudioLabApp() {
                                           });
                                         }}
                                         className={`px-2.5 py-1 rounded-full border text-[11px] transition-colors inline-flex items-center gap-1.5 ${
-                                          isActive
-                                            ? "bg-slate-900/80 text-slate-50"
-                                            : "bg-slate-900/40 text-slate-200 hover:bg-slate-800/80"
+                                          isDark
+                                            ? (isActive
+                                              ? "bg-slate-900/80 text-slate-50"
+                                              : "bg-slate-900/40 text-slate-200 hover:bg-slate-800/80")
+                                            : (isActive
+                                              ? "bg-white text-slate-800"
+                                              : "bg-white text-slate-700 hover:bg-slate-50")
                                         }`}
                                         style={{
                                           borderColor: baseColor,
@@ -6946,7 +7021,7 @@ export default function AudioLabApp() {
                                         <span className="max-w-[180px] truncate">
                                           {name}
                                         </span>
-                                        <span className="text-slate-400">
+                                        <span className={isDark ? "text-slate-400" : "text-slate-600"}>
                                           ({count})
                                         </span>
                                       </button>
@@ -6956,9 +7031,9 @@ export default function AudioLabApp() {
                               </div>
                             </div>
 
-                            <div className="mt-2 text-[11px] text-slate-500">
+                            <div className={`mt-2 text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                               当前算法：
-                              <span className="text-slate-300">
+                              <span className={isDark ? "text-slate-300" : "text-slate-700"}>
                                 {Array.isArray(selectedRadarAlgorithms) &&
                                 selectedRadarAlgorithms.length > 0
                                   ? selectedRadarAlgorithms.join(" / ")
@@ -6968,14 +7043,18 @@ export default function AudioLabApp() {
                           </div>
 
                           {/* Chart (below '当前算法…') */}
-                          <div className="relative rounded-xl border border-slate-700/50 bg-slate-900/20 p-3">
+                          <div className={`relative rounded-xl border p-3 ${
+                            isDark ? "border-slate-700/50 bg-slate-900/20" : "border-slate-200 bg-white"
+                          }`}>
                             {loadingStats && (
-                              <div className="absolute inset-0 rounded-xl bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center text-[11px] text-slate-200 animate-pulse">
+                              <div className={`absolute inset-0 rounded-xl backdrop-blur-[1px] flex items-center justify-center text-[11px] animate-pulse ${
+                                isDark ? "bg-slate-900/40 text-slate-200" : "bg-white/75 text-slate-700"
+                              }`}>
                                 正在刷新统计…
                               </div>
                             )}
                             <div className="h-[300px] sm:h-[360px] lg:h-[400px]">
-                              <ResponsiveContainer width="100%" height="100%">
+                              <ResponsiveContainer width="100%" height="100%" className={isDark ? "" : "bg-white rounded-lg"}>
                                 <RadarChart
                                   cx="50%"
                                   cy="52%"
@@ -6983,10 +7062,10 @@ export default function AudioLabApp() {
                                   margin={{ top: 14, right: 34, bottom: 22, left: 34 }}
                                   data={radarModel.data}
                                 >
-                                  <PolarGrid stroke="#334155" />
+                                  <PolarGrid stroke={isDark ? "#334155" : "#94a3b8"} />
                                   <PolarAngleAxis
                                     dataKey="subject"
-                                    tick={{ fill: "#94a3b8", fontSize: 10 }}
+                                    tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }}
                                     tickMargin={12}
                                   />
                                   <PolarRadiusAxis
@@ -7011,12 +7090,11 @@ export default function AudioLabApp() {
                                     height={32}
                                   />
                                   <RechartsTooltip
-                                    contentStyle={{
-                                      backgroundColor: "#0f172a",
-                                      borderColor: "#334155",
-                                      color: "#fff",
-                                      borderRadius: "12px",
-                                    }}
+                                    contentStyle={
+                                      isDark
+                                        ? { backgroundColor: "#0f172a", borderColor: "#334155", color: "#fff", borderRadius: "12px" }
+                                        : { backgroundColor: "#ffffff", borderColor: "#e2e8f0", color: "#0f172a", borderRadius: "12px" }
+                                    }
                                     formatter={(value, name) => {
                                       const v = Number(value);
                                       const display = Number.isFinite(v)
@@ -7044,27 +7122,27 @@ export default function AudioLabApp() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <h2 className={`text-xl font-bold flex items-center gap-2 ${isDark ? "text-white" : "text-slate-800"}`}>
                   <Clock size={18} className="text-cyan-400" />
                   我的分离历史
                 </h2>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className={`text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                   查看和管理你过去创建的音频分离任务，可以按任务ID快速导入结果或删除历史记录。
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => fetchMyTaskHistory(1)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm text-slate-100 flex items-center gap-2"
+                className={`px-4 py-2 border rounded-lg text-sm flex items-center gap-2 ${isDark ? "bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-100" : "bg-white hover:bg-slate-100 border-slate-300 text-slate-700"}`}
               >
                 <RotateCcw size={14} />
                 刷新
               </button>
             </div>
-            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-4">
+            <div className={`rounded-xl border p-4 space-y-4 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                     按任务 ID 搜索
                   </label>
                   <input
@@ -7072,7 +7150,7 @@ export default function AudioLabApp() {
                     value={historyIdInput}
                     onChange={(e) => setHistoryIdInput(e.target.value)}
                     placeholder="精确输入任务ID，例如：177253401234567890"
-                    className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
+                    className={`w-full px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/60 ${isDark ? "bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-500" : "bg-white border-slate-300 text-slate-700 placeholder:text-slate-400"}`}
                   />
                 </div>
                 <div className="md:col-span-2 flex items-end gap-2">
@@ -7080,7 +7158,9 @@ export default function AudioLabApp() {
                     type="button"
                     disabled={historyImportLoading || !historyIdInput.trim()}
                     onClick={() => handleImportHistoryById()}
-                    className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-xs font-medium text-white transition"
+                    className={`px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-medium text-white transition ${
+                      isDark ? "disabled:bg-slate-700 disabled:text-slate-500" : "disabled:bg-slate-200 disabled:text-slate-400"
+                    }`}
                   >
                     {historyImportLoading ? "按ID导入中..." : "按ID导入任务"}
                   </button>
@@ -7090,25 +7170,25 @@ export default function AudioLabApp() {
                       setHistoryIdInput("");
                       fetchMyTaskHistory(1);
                     }}
-                    className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-medium text-slate-100"
+                    className={`px-4 py-2 rounded-lg text-xs font-medium ${isDark ? "bg-slate-700 hover:bg-slate-600 text-slate-100" : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300"}`}
                   >
                     清空条件
                   </button>
                 </div>
               </div>
             </div>
-            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+            <div className={`rounded-xl border p-4 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
               {myTaskHistoryError ? (
                 <div className="mb-4 text-xs text-red-200 bg-red-900/20 border border-red-700/40 rounded-lg px-3 py-2">
                   加载失败：{myTaskHistoryError}
                 </div>
               ) : null}
               {myTaskHistoryLoading ? (
-                <div className="text-center text-slate-400 py-8 text-sm">
+                <div className={`text-center py-8 text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                   加载中...
                 </div>
               ) : myTaskHistory.length === 0 ? (
-                <div className="text-center text-slate-400 py-10 text-sm space-y-3">
+                <div className={`text-center py-10 text-sm space-y-3 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                   <div>
                     {myTaskHistoryError
                       ? "历史记录加载失败，请稍后重试。"
@@ -7120,11 +7200,11 @@ export default function AudioLabApp() {
                         type="button"
                         disabled={claimAnonymousLoading}
                         onClick={() => handleClaimAnonymousHistory()}
-                        className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium text-slate-100"
+                        className={`px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium ${isDark ? "bg-slate-700 hover:bg-slate-600 text-slate-100" : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300"}`}
                       >
                         {claimAnonymousLoading ? "找回中..." : "找回匿名历史"}
                       </button>
-                      <div className="text-[11px] text-slate-500">
+                      <div className={`text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                         如果你之前的任务是在未携带登录 token 的情况下创建的，会被记为 anonymous，可通过此按钮找回。
                       </div>
                     </div>
@@ -7134,9 +7214,9 @@ export default function AudioLabApp() {
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
-                      <thead className="bg-slate-900">
+                      <thead className={isDark ? "bg-slate-900" : "bg-slate-100"}>
                         <tr>
-                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                          <th className={`px-3 py-2 text-left font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             任务ID
                           </th>
                           <th className="px-3 py-2 text-left text-slate-400 font-medium">
@@ -7156,16 +7236,16 @@ export default function AudioLabApp() {
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-700">
+                      <tbody className={isDark ? "divide-y divide-slate-700" : "divide-y divide-slate-200"}>
                         {myTaskHistory.map((t) => (
-                          <tr key={t.id} className="hover:bg-slate-700/40">
-                            <td className="px-3 py-2 font-mono text-slate-200">
+                          <tr key={t.id} className={isDark ? "hover:bg-slate-700/40" : "hover:bg-slate-50"}>
+                            <td className={`px-3 py-2 font-mono ${isDark ? "text-slate-200" : "text-slate-700"}`}>
                               {t.id}
                             </td>
-                            <td className="px-3 py-2 text-slate-100 max-w-xs truncate">
+                            <td className={`px-3 py-2 max-w-xs truncate ${isDark ? "text-slate-100" : "text-slate-700"}`}>
                               {t.original_filename || "(未命名音频)"}
                             </td>
-                            <td className="px-3 py-2 text-slate-300">
+                            <td className={`px-3 py-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
                               {t.algorithm || "-"}
                             </td>
                             <td className="px-3 py-2">
@@ -7181,7 +7261,7 @@ export default function AudioLabApp() {
                                 {t.status || "-"}
                               </span>
                             </td>
-                            <td className="px-3 py-2 text-slate-400">
+                            <td className={`px-3 py-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                               {t.created_at
                                 ? new Date(t.created_at).toLocaleString("zh-CN")
                                 : "-"}
@@ -7248,9 +7328,9 @@ export default function AudioLabApp() {
         {/* Statistics Page View */}
         {currentView === "stats" && (
           <div className="space-y-8 animate-in fade-in">
-            <div className="bg-slate-800 rounded-xl p-8 border border-slate-700">
+            <div className={`rounded-xl p-8 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
               <h2 className="text-2xl font-bold mb-2">全站算法评估排行榜</h2>
-              <p className="text-slate-400">
+              <p className={isDark ? "text-slate-400" : "text-slate-600"}>
                 {backendStats.length > 0 ? (
                   <>
                     基于{" "}
@@ -7278,19 +7358,19 @@ export default function AudioLabApp() {
 
             {/* 当前专家：我的评分记录（支持删除单条手滑记录） */}
             {user?.role === "expert" && (
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-white">我的评分记录（可删除单条记录）</h3>
+                  <h3 className={`font-bold ${isDark ? "text-white" : "text-slate-800"}`}>我的评分记录（可删除单条记录）</h3>
                   <button
                     onClick={() => fetchMyScores({ skip: 0, limit: 100 })}
-                    className="px-3 py-1.5 rounded border border-slate-600 text-xs text-slate-200 hover:bg-slate-700/50 transition"
+                    className={`px-3 py-1.5 rounded border text-xs transition ${isDark ? "border-slate-600 text-slate-200 hover:bg-slate-700/50" : "border-slate-300 text-slate-700 hover:bg-slate-100"}`}
                     disabled={loadingMyScores}
                     title="从后端刷新我的评分记录"
                   >
                     {loadingMyScores ? "刷新中..." : "刷新"}
                   </button>
                 </div>
-                <p className="text-xs text-slate-400 mb-4">
+                <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                   说明：这里展示的是<strong>后端数据库</strong>中的评分记录。点击“删除”会从后端移除该条评分，并尽量同步清理本地缓存。
                 </p>
                 {myScoresError ? (
@@ -7301,7 +7381,7 @@ export default function AudioLabApp() {
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-xs text-left">
                     <thead>
-                      <tr className="border-b border-slate-700 text-slate-400">
+                      <tr className={`border-b ${isDark ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-700"}`}>
                         <th className="py-2 pr-4">时间</th>
                         <th className="py-2 pr-4">Algorithm</th>
                         <th className="py-2 pr-4">Stem</th>
@@ -7315,13 +7395,13 @@ export default function AudioLabApp() {
                     <tbody>
                       {loadingMyScores && myScoreRecords.length === 0 ? (
                         <tr>
-                          <td className="py-4 text-center text-slate-500" colSpan={8}>
+                          <td className={`py-4 text-center ${isDark ? "text-slate-500" : "text-slate-600"}`} colSpan={8}>
                             正在加载...
                           </td>
                         </tr>
                       ) : myScoreRecords.length === 0 ? (
                         <tr>
-                          <td className="py-4 text-center text-slate-500" colSpan={8}>
+                          <td className={`py-4 text-center ${isDark ? "text-slate-500" : "text-slate-600"}`} colSpan={8}>
                             暂无评分记录（你提交主观评分后会出现在这里）
                           </td>
                         </tr>
@@ -7329,21 +7409,25 @@ export default function AudioLabApp() {
                         myScoreRecords.map((row, idx) => (
                           <tr
                             key={String(row?.id || idx)}
-                            className="border-b border-slate-800 hover:bg-slate-900/60 transition"
+                            className={`border-b transition ${isDark ? "border-slate-800 hover:bg-slate-900/60" : "border-slate-200 hover:bg-slate-50"}`}
                           >
-                            <td className="py-2 pr-4 text-slate-300 font-mono">
+                            <td className={`py-2 pr-4 font-mono ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                               {row?.created_at ? String(row.created_at).replace("T", " ").slice(0, 19) : "-"}
                             </td>
-                            <td className="py-2 pr-4 text-slate-200">{row?.algorithm || "-"}</td>
-                            <td className="py-2 pr-4 text-slate-300">{row?.stem_name || "ALL"}</td>
+                            <td className={`py-2 pr-4 ${isDark ? "text-slate-200" : "text-slate-800"}`}>{row?.algorithm || "-"}</td>
+                            <td className={`py-2 pr-4 ${isDark ? "text-slate-300" : "text-slate-700"}`}>{row?.stem_name || "ALL"}</td>
                             <td className="py-2 pr-4 text-right text-emerald-400 font-mono">{row?.quality ?? "-"}</td>
                             <td className="py-2 pr-4 text-right text-cyan-400 font-mono">{row?.interference ?? "-"}</td>
                             <td className="py-2 pr-4 text-right text-orange-400 font-mono">{row?.artifacts ?? "-"}</td>
-                            <td className="py-2 pr-4 text-slate-500 font-mono">{row?.task_id ?? "-"}</td>
+                            <td className={`py-2 pr-4 font-mono ${isDark ? "text-slate-500" : "text-slate-700"}`}>{row?.task_id ?? "-"}</td>
                             <td className="py-2 pr-4 text-right">
                               <button
                                 onClick={() => deleteMyScoreRecord(row)}
-                                className="px-2 py-1 rounded border border-red-700/50 text-red-300 hover:bg-red-900/20 transition"
+                                className={`px-2 py-1 rounded border transition ${
+                                  isDark
+                                    ? "border-red-700/50 text-red-300 hover:bg-red-900/20"
+                                    : "border-red-300 text-red-500 hover:bg-red-50"
+                                }`}
                                 title="删除该条评分记录"
                               >
                                 删除
@@ -7359,16 +7443,16 @@ export default function AudioLabApp() {
             )}
 
             {/* 按算法 + Stem 的主观评分统计 - 使用后端数据 */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-              <h3 className="font-bold text-white mb-4">按 Stem 维度的主观评分统计（社区数据）</h3>
-              <p className="text-xs text-slate-400 mb-4">
+            <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
+              <h3 className={`font-bold mb-4 ${isDark ? "text-white" : "text-slate-800"}`}>按 Stem 维度的主观评分统计（社区数据）</h3>
+              <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 这里按「算法 + 单一声源（stem）」分别统计了 Quality / Interference /
                 Artifacts 的平均得分，便于对比不同源上的表现差异。数据来自所有专家的集体评估。
               </p>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-xs text-left">
                   <thead>
-                    <tr className="border-b border-slate-700 text-slate-400">
+                    <tr className={`border-b ${isDark ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-700"}`}>
                       <th className="py-2 pr-4">Algorithm</th>
                       <th className="py-2 pr-4">Stem</th>
                       <th className="py-2 pr-4 text-right">Quality</th>
@@ -7382,7 +7466,7 @@ export default function AudioLabApp() {
                     {backendStats.length === 0 ? (
                       <tr>
                         <td
-                          className="py-4 text-center text-slate-500"
+                          className={`py-4 text-center ${isDark ? "text-slate-500" : "text-slate-600"}`}
                           colSpan={7}
                         >
                           {loadingStats ? "正在加载数据..." : "暂无评分数据，请在工作台中对不同 stem 提交评估。"}
@@ -7392,12 +7476,12 @@ export default function AudioLabApp() {
                       backendStats.map((row) => (
                         <tr
                           key={`${row.algorithm}-${row.stem_name || row.stemName}`}
-                          className="border-b border-slate-800 hover:bg-slate-900/60 transition"
+                          className={`border-b transition ${isDark ? "border-slate-800 hover:bg-slate-900/60" : "border-slate-200 hover:bg-slate-50"}`}
                         >
-                          <td className="py-1 pr-4 text-slate-200">
+                          <td className={`py-1 pr-4 ${isDark ? "text-slate-200" : "text-slate-700"}`}>
                             {row.algorithm}
                           </td>
-                          <td className="py-1 pr-4 text-slate-300">
+                          <td className={`py-1 pr-4 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                             {row.stem_name || row.stemName || "ALL"}
                           </td>
                           <td className="py-1 pr-4 text-right text-emerald-400 font-mono">
@@ -7409,7 +7493,7 @@ export default function AudioLabApp() {
                           <td className="py-1 pr-4 text-right text-orange-400 font-mono">
                             {((row.avg_artifacts ?? row.avgArtifacts) ?? 0).toFixed(1)}
                           </td>
-                          <td className="py-1 pr-4 text-right text-slate-400 font-mono">
+                          <td className={`py-1 pr-4 text-right font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             {row.total_scores || row.count || 0}
                           </td>
                           <td className="py-1 pr-4 text-right text-purple-400 font-mono">
@@ -7424,17 +7508,17 @@ export default function AudioLabApp() {
             </div>
 
             {/* 按 Stem 聚合的客观指标统计（SDR / SIR / SAR） */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
               <div className="flex items-center justify-between mb-4 gap-3">
-                <h3 className="font-bold text-white">按 Stem 维度的客观指标统计（SDR / SIR / SAR）</h3>
+                <h3 className={`font-bold ${isDark ? "text-white" : "text-slate-800"}`}>按 Stem 维度的客观指标统计（SDR / SIR / SAR）</h3>
                 <button
                   onClick={downloadObjectiveStatsCsv}
-                  className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-700 text-xs transition"
+                  className={`px-3 py-1.5 rounded-lg border text-xs transition ${isDark ? "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-700" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"}`}
                 >
                   导出客观指标 CSV
                 </button>
               </div>
-              <p className="text-xs text-slate-400 mb-4">
+              <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 基于联合样本点（主观评分 + 任务级 SDR/SIR/SAR），按 Vocals / Drums / Bass / Other 聚合得到各声源的平均客观指标。
                 用于从客观角度观察不同声源在分离任务中的难度与算法表现。
               </p>
@@ -7444,7 +7528,7 @@ export default function AudioLabApp() {
                   subjectiveObjectivePoints.length > 0;
                 if (!hasPoints) {
                   return (
-                    <div className="text-xs text-slate-500 py-4">
+                    <div className={`text-xs py-4 ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                       暂无可用于客观指标统计的样本（需要任务级 SDR/SIR/SAR 才能计算）。
                     </div>
                   );
@@ -7491,7 +7575,7 @@ export default function AudioLabApp() {
 
                 if (!hasAnyValue) {
                   return (
-                    <div className="text-xs text-slate-500 py-4">
+                    <div className={`text-xs py-4 ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                       已获取联合样本点，但其中缺少有效的 SDR/SIR/SAR 数值，暂无法绘制图表。
                     </div>
                   );
@@ -7516,7 +7600,7 @@ export default function AudioLabApp() {
                 return (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
                     <div className="lg:col-span-2">
-                      <div className="h-64 bg-slate-900/40 rounded-lg border border-slate-700/70 px-4 py-3">
+                      <div className={`h-64 rounded-lg border px-4 py-3 ${isDark ? "bg-slate-900/40 border-slate-700/70" : "bg-slate-50 border-slate-200"}`}>
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={safeData}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -7581,7 +7665,7 @@ export default function AudioLabApp() {
                         </ResponsiveContainer>
                       </div>
                     </div>
-                    <div className="text-xs text-slate-400 space-y-2">
+                    <div className={`text-xs space-y-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                       <p>
                         这里的数值是按 stem 聚合的平均客观指标：
                         SDR 代表整体失真程度，SIR 代表干扰抑制能力，SAR 代表伪影控制能力（均为 dB，越高越好）。
@@ -7594,10 +7678,10 @@ export default function AudioLabApp() {
                         {safeData.map((d) => (
                           <div
                             key={d.stem}
-                            className="flex justify-between items-center bg-slate-900/40 border border-slate-700/60 rounded px-2 py-1.5"
+                            className={`flex justify-between items-center rounded px-2 py-1.5 border ${isDark ? "bg-slate-900/40 border-slate-700/60" : "bg-white border-slate-200"}`}
                           >
-                            <span className="text-slate-300">{d.stem}</span>
-                            <span className="font-mono text-[11px] text-slate-400">
+                            <span className={isDark ? "text-slate-300" : "text-slate-700"}>{d.stem}</span>
+                            <span className={`font-mono text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                               SDR:{" "}
                               {d.avg_sdr != null ? `${d.avg_sdr.toFixed(2)} dB` : "N/A"}
                               {" · "}
@@ -7619,13 +7703,13 @@ export default function AudioLabApp() {
             </div>
 
             {/* 客观指标显著性检验（Wilcoxon） */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
               <div className="flex items-center justify-between mb-4 gap-3">
-                <h3 className="font-bold text-white">客观指标显著性检验（Wilcoxon）</h3>
+                <h3 className={`font-bold ${isDark ? "text-white" : "text-slate-800"}`}>客观指标显著性检验（Wilcoxon）</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={downloadSignificanceCsv}
-                    className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-700 text-xs transition"
+                    className={`px-3 py-1.5 rounded-lg border text-xs transition ${isDark ? "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-700" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"}`}
                   >
                     导出检验结果 CSV
                   </button>
@@ -7637,16 +7721,16 @@ export default function AudioLabApp() {
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-slate-400 mb-4">
+              <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 对同一批歌曲的两种算法做配对检验，判断性能差异是否具有统计显著性（默认阈值 p &lt; 0.05）。
               </p>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">算法 A</label>
+                  <label className={`text-xs mb-1 block ${isDark ? "text-slate-400" : "text-slate-600"}`}>算法 A</label>
                   <select
                     value={sigAlgoA}
                     onChange={(e) => setSigAlgoA(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${isDark ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-300 bg-white text-slate-700"}`}
                   >
                     {ALGORITHMS.map((algo) => (
                       <option key={`sig-a-${algo}`} value={algo}>
@@ -7656,11 +7740,11 @@ export default function AudioLabApp() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">算法 B</label>
+                  <label className={`text-xs mb-1 block ${isDark ? "text-slate-400" : "text-slate-600"}`}>算法 B</label>
                   <select
                     value={sigAlgoB}
                     onChange={(e) => setSigAlgoB(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${isDark ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-300 bg-white text-slate-700"}`}
                   >
                     {ALGORITHMS.map((algo) => (
                       <option key={`sig-b-${algo}`} value={algo}>
@@ -7670,11 +7754,11 @@ export default function AudioLabApp() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">指标</label>
+                  <label className={`text-xs mb-1 block ${isDark ? "text-slate-400" : "text-slate-600"}`}>指标</label>
                   <select
                     value={sigMetric}
                     onChange={(e) => setSigMetric(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${isDark ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-300 bg-white text-slate-700"}`}
                   >
                     <option value="si_sdr">SI-SDR</option>
                     <option value="sdr">SDR</option>
@@ -7701,9 +7785,9 @@ export default function AudioLabApp() {
 
               {sigResult ? (
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-3">
-                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
-                    <div className="text-[11px] text-slate-400">样本对数</div>
-                    <div className="text-sm text-white font-mono">{sigResult.n_pairs ?? "-"}</div>
+                  <div className={`border rounded-lg px-3 py-2 ${isDark ? "bg-slate-900/50 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+                    <div className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>样本对数</div>
+                    <div className={`text-sm font-mono ${isDark ? "text-white" : "text-slate-800"}`}>{sigResult.n_pairs ?? "-"}</div>
                   </div>
                   <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
                     <div className="text-[11px] text-slate-400">W 统计量</div>
@@ -7741,9 +7825,9 @@ export default function AudioLabApp() {
 
             {/* 算法在四个Stem上的表现对比图表 */}
             {algorithmComparison.length > 0 && (
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                <h3 className="font-bold text-white mb-4">算法在不同 Stem 上的表现对比</h3>
-                <p className="text-xs text-slate-400 mb-6">
+              <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
+                <h3 className={`font-bold mb-4 ${isDark ? "text-white" : "text-slate-800"}`}>算法在不同 Stem 上的表现对比</h3>
+                <p className={`text-xs mb-6 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                   展示各算法在 Vocals、Drums、Bass、Other 四个声源上的平均质量评分
                 </p>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -7769,15 +7853,15 @@ export default function AudioLabApp() {
                     };
 
                     return (
-                      <div key={algo.algorithm} className="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
-                        <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                      <div key={algo.algorithm} className={`rounded-lg p-4 border ${isDark ? "bg-slate-900/50 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+                        <h4 className={`text-sm font-bold mb-2 flex items-center gap-2 ${isDark ? "text-white" : "text-slate-800"}`}>
                           <span
                             className="w-3 h-3 rounded-full"
                             style={{ backgroundColor: colors[algo.algorithm] || "#06b6d4" }}
                           />
                           {algo.algorithm}
                         </h4>
-                        <p className="text-xs text-slate-400 mb-4">
+                        <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                           总体评分: Quality {(algo.overall_avg_quality ?? 0).toFixed(1)} | 
                           Interference {(algo.overall_avg_interference ?? 0).toFixed(1)} | 
                           Artifacts {(algo.overall_avg_artifacts ?? 0).toFixed(1)}
@@ -7818,24 +7902,24 @@ export default function AudioLabApp() {
 
         {currentView === "comments" && (
           <div className="space-y-8 animate-in fade-in">
-            <div className="bg-slate-800 rounded-xl p-8 border border-slate-700">
+            <div className={`rounded-xl p-8 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
               <h2 className="text-2xl font-bold mb-2">社区评论板块</h2>
-              <p className="text-slate-400">
+              <p className={isDark ? "text-slate-400" : "text-slate-600"}>
                 专家们对不同算法在四个 Stem 上的打分效果进行讨论和交流
               </p>
             </div>
 
             {/* 算法和Stem选择器 */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-              <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+            <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
+              <h3 className={`font-bold mb-4 flex items-center gap-2 ${isDark ? "text-white" : "text-slate-800"}`}>
                 <MessageCircle size={18} />
                 筛选讨论
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-slate-400 mb-2 block">算法</label>
+                  <label className={`text-xs mb-2 block ${isDark ? "text-slate-400" : "text-slate-600"}`}>算法</label>
                   <select
-                    className="w-full px-4 py-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    className={`w-full px-4 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${isDark ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-300 bg-white text-slate-700"}`}
                     value={commentsAlgorithmFilter}
                     onChange={(e) => setCommentsAlgorithmFilter(e.target.value)}
                   >
@@ -7848,9 +7932,9 @@ export default function AudioLabApp() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 mb-2 block">Stem</label>
+                  <label className={`text-xs mb-2 block ${isDark ? "text-slate-400" : "text-slate-600"}`}>Stem</label>
                   <select
-                    className="w-full px-4 py-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    className={`w-full px-4 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${isDark ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-300 bg-white text-slate-700"}`}
                     value={commentsStemFilter}
                     onChange={(e) => setCommentsStemFilter(e.target.value)}
                   >
@@ -7879,9 +7963,9 @@ export default function AudioLabApp() {
                   return (
                     <div
                       key={algo}
-                      className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-cyan-500/50 transition"
+                      className={`rounded-xl p-4 border transition ${isDark ? "bg-slate-800 border-slate-700 hover:border-cyan-500/50" : "bg-white border-slate-200 hover:border-cyan-400/60 shadow-sm"}`}
                     >
-                      <h4 className="text-sm font-bold text-slate-300 mb-2 truncate">{algo}</h4>
+                      <h4 className={`text-sm font-bold mb-2 truncate ${isDark ? "text-slate-300" : "text-slate-700"}`}>{algo}</h4>
                       <div className="space-y-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-slate-500">平均质量</span>
@@ -7899,8 +7983,8 @@ export default function AudioLabApp() {
             )}
 
             {/* 评论列表 */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-              <h3 className="font-bold text-white mb-4">专家讨论</h3>
+            <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
+              <h3 className={`font-bold mb-4 ${isDark ? "text-white" : "text-slate-800"}`}>专家讨论</h3>
               <div className="space-y-4">
                 {backendStats.length === 0 ? (
                   <div className="text-center py-12 text-slate-500">
@@ -7913,29 +7997,29 @@ export default function AudioLabApp() {
                     {filteredAlgorithmComparison.map((algo) => (
                       <div
                         key={algo.algorithm}
-                        className="bg-slate-900/50 rounded-lg p-4 border border-slate-700"
+                        className={`rounded-lg p-4 border ${isDark ? "bg-slate-900/50 border-slate-700" : "bg-slate-50 border-slate-200"}`}
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div>
-                            <h4 className="font-bold text-white flex items-center gap-2">
+                            <h4 className={`font-bold flex items-center gap-2 ${isDark ? "text-white" : "text-slate-800"}`}>
                               <span className="w-2 h-2 rounded-full bg-cyan-400" />
                               {algo.algorithm}
                             </h4>
-                            <p className="text-xs text-slate-400 mt-1">
+                            <p className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                               总体评分: {(algo.overall_avg_quality ?? 0).toFixed(1)} / 100 | 
                               共 {algo.total_scores} 份评分
                             </p>
                           </div>
                         </div>
                         <div className="mt-4 space-y-2">
-                          <p className="text-xs text-slate-400 font-bold mb-2">各 Stem 表现：</p>
+                          <p className={`text-xs font-bold mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>各 Stem 表现：</p>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                             {algo.stem_breakdown.map((stem) => (
                               <div
                                 key={stem.stem_name}
-                                className="bg-slate-800 rounded p-2 border border-slate-700"
+                                className={`rounded p-2 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}
                               >
-                                <div className="text-xs font-bold text-slate-300 mb-1">
+                                <div className={`text-xs font-bold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                                   {stem.stem_name}
                                 </div>
                                 <div className="space-y-0.5">
@@ -7967,9 +8051,9 @@ export default function AudioLabApp() {
             </div>
 
             {/* 数据说明 */}
-            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-              <p className="text-xs text-slate-400 leading-relaxed">
-                <strong className="text-slate-300">说明：</strong>
+            <div className={`rounded-xl p-4 border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+              <p className={`text-xs leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                <strong className={isDark ? "text-slate-300" : "text-slate-700"}>说明：</strong>
                 本页面展示的是所有专家对不同算法在四个 Stem（Vocals、Drums、Bass、Other）上的打分统计结果。
                 数据实时更新，每30秒自动刷新。您可以在工作台提交自己的评分，参与社区评估。
               </p>
@@ -8046,6 +8130,65 @@ export default function AudioLabApp() {
           }}
           onClose={() => setQueuePosition(null)}
         />
+      )}
+    </div>
+  );
+}
+
+function ThemeSwitcher() {
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  const [open, setOpen] = React.useState(false);
+
+  const options = [
+    { key: "system", label: "系统", icon: Laptop },
+    { key: "light", label: "浅色", icon: Sun },
+    { key: "dark", label: "深色", icon: Moon },
+  ];
+
+  const ActiveIcon = resolvedTheme === "dark" ? Moon : resolvedTheme === "light" ? Sun : Laptop;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs transition ${
+          resolvedTheme === "dark"
+            ? "border-slate-700/60 bg-slate-800/60 text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800"
+            : "border-slate-200 bg-white text-slate-700 hover:border-cyan-400/60 hover:text-slate-900 hover:bg-slate-100"
+        }`}
+        title="切换外观主题"
+      >
+        <ActiveIcon size={14} className="text-cyan-400" />
+        <span className="hidden xl:inline">
+          {theme === "system" ? "系统" : theme === "light" ? "浅色" : "深色"}
+        </span>
+      </button>
+      {open && (
+        <div
+          className={`absolute right-0 mt-2 w-36 rounded-lg border shadow-lg overflow-hidden ${
+            resolvedTheme === "dark" ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200"
+          }`}
+        >
+          {options.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setTheme(key);
+                setOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 ${
+                resolvedTheme === "dark"
+                  ? "hover:bg-slate-800 text-slate-200"
+                  : "hover:bg-slate-100 text-slate-700"
+              }`}
+            >
+              <Icon size={14} className="text-cyan-400" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

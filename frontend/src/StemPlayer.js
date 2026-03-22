@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useMemo } from "react";
 import { Play, Pause, Download } from "lucide-react";
 import { useGlobalPlayback } from "./GlobalPlaybackContext";
+import { useTheme } from "./ThemeContext";
 
 // 控制是否输出调试日志：需要排查问题时改为 true
 const DEBUG_STEM_PLAYER = false;
@@ -54,6 +55,8 @@ export default function StemPlayer({
   onPlaybackRateChange,
   showDownload = true,
 }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const audioRef = useRef(null);
   const { requestPlay } = useGlobalPlayback();
   const [playing, setPlaying] = useState(false);
@@ -355,7 +358,7 @@ export default function StemPlayer({
 
   return (
     <div
-      className="flex items-center gap-3 rounded-lg bg-slate-800 border border-slate-700 p-3 shadow-md min-w-0"
+      className={`flex items-center gap-3 rounded-lg p-3 shadow-md min-w-0 ${isDark ? "bg-slate-800 border border-slate-700" : "bg-white border border-slate-200 shadow-slate-200/60"}`}
       onClick={onSelect}
     >
       {url ? (
@@ -414,19 +417,19 @@ export default function StemPlayer({
         value={progress}
         onChange={handleProgressChange}
         onClick={(e) => e.stopPropagation()}
-        className={`flex-1 min-w-0 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer ${colors.accent}`}
+        className={`flex-1 min-w-0 h-1.5 rounded-lg appearance-none cursor-pointer ${isDark ? "bg-slate-700" : "bg-slate-200"} ${colors.accent}`}
       />
-      <div className="flex items-center gap-3 text-xs text-slate-400 flex-shrink-0">
+      <div className={`flex items-center gap-3 text-xs flex-shrink-0 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
         <span>
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
-        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900/70 border border-slate-700">
-          <span className="text-[11px] text-slate-500">倍速</span>
+        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${isDark ? "bg-slate-900/70 border-slate-700" : "bg-slate-100 border-slate-300"}`}>
+          <span className={`text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>倍速</span>
           <select
             value={String(playbackRate)}
             onChange={handleRateChange}
             onClick={(e) => e.stopPropagation()}
-            className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+            className={`bg-transparent text-xs focus:outline-none cursor-pointer ${isDark ? "text-slate-200" : "text-slate-700"}`}
           >
             <option value="0.5">0.5x</option>
             <option value="0.75">0.75x</option>
@@ -443,7 +446,7 @@ export default function StemPlayer({
             e.stopPropagation();
             download();
           }}
-          className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 transition flex-shrink-0"
+          className={`p-2 rounded-full transition flex-shrink-0 ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-400" : "bg-slate-100 hover:bg-slate-200 text-slate-600"}`}
         >
           <Download size={16} />
         </button>

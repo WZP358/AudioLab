@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Music, Search, Filter, X, Check, Grid, List, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "./Toast";
+import { useTheme } from "./ThemeContext";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
@@ -14,6 +15,8 @@ export default function AudioResourceSelector({
   bundleId = null,
 }) {
   const { showError } = useToast();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const isInputMode = type === "input";
   const isGoldMode = type === "gold";
   const [resources, setResources] = useState([]);
@@ -355,24 +358,24 @@ export default function AudioResourceSelector({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-6xl max-h-[90vh] flex flex-col">
+      <div className={`rounded-xl border w-full max-w-6xl max-h-[90vh] flex flex-col ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200"}`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+        <div className={`flex items-center justify-between p-6 border-b ${isDark ? "border-slate-700" : "border-slate-200"}`}>
           <div className="flex items-center gap-3">
             <Music size={24} className="text-cyan-400" />
-            <h3 className="text-xl font-bold text-white">{title}</h3>
+            <h3 className={`text-xl font-bold ${isDark ? "text-white" : "text-slate-800"}`}>{title}</h3>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 transition"
+              className={`p-2 rounded-lg transition ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-100" : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300"}`}
               title={viewMode === "grid" ? "列表视图" : "卡片视图"}
             >
               {viewMode === "grid" ? <List size={18} /> : <Grid size={18} />}
             </button>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"
+              className={`p-2 rounded-lg transition ${isDark ? "hover:bg-slate-800 text-slate-400 hover:text-white" : "hover:bg-slate-100 text-slate-600 hover:text-slate-800"}`}
             >
               <X size={20} />
             </button>
@@ -381,23 +384,23 @@ export default function AudioResourceSelector({
 
 
         {/* 筛选器 */}
-        <div className="p-6 border-b border-slate-700 space-y-3">
+        <div className={`p-6 border-b space-y-3 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
           {isInputMode && (
-            <div className="text-[11px] text-slate-400">
+            <div className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
               这里只展示 <span className="text-cyan-300 font-medium">Mixture（输入混合音）</span>，用于后续分离与对比。
             </div>
           )}
 
           <div className={`grid grid-cols-1 ${isInputMode ? "md:grid-cols-2" : "md:grid-cols-3"} gap-4`}>
             <div>
-              <label className="block text-xs text-slate-400 mb-2 flex items-center gap-2">
+              <label className={`block text-xs mb-2 flex items-center gap-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 <Filter size={14} />
                 分类
               </label>
               <select
                 value={filters.category}
                 onChange={(e) => setFilters({ ...filters, category: e.target.value, page: 1 })}
-                className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${isDark ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-800"}`}
               >
                 <option value="">全部分类</option>
                 {categories.map((cat) => (
@@ -417,7 +420,7 @@ export default function AudioResourceSelector({
                 value={filters.search}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
                 placeholder={isInputMode ? "搜索 Mixture 标题..." : "按标题、描述关键词搜索..."}
-                className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${isDark ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-800"}`}
               />
             </div>
             {!isInputMode && (
@@ -431,7 +434,7 @@ export default function AudioResourceSelector({
                   value={filters.uploader}
                   onChange={(e) => setFilters({ ...filters, uploader: e.target.value, page: 1 })}
                   placeholder="按上传者用户名搜索..."
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${isDark ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-800"}`}
                 />
               </div>
             )}
@@ -439,13 +442,13 @@ export default function AudioResourceSelector({
 
           {!isInputMode && (
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 text-[11px] text-slate-500">
+              <div className={`flex items-center gap-3 text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
                 <span>可以同时按分类、标题和上传者组合筛选。</span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className="flex items-center gap-1.5 text-[11px] text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded hover:bg-slate-800 transition"
+                className={`flex items-center gap-1.5 text-[11px] px-2 py-1 rounded transition ${isDark ? "text-cyan-400 hover:text-cyan-300 hover:bg-slate-800" : "text-cyan-600 hover:text-cyan-700 hover:bg-slate-100"}`}
               >
                 {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 高级筛选
@@ -454,14 +457,14 @@ export default function AudioResourceSelector({
           )}
 
           {!isInputMode && showAdvancedFilters && (
-            <div className="pt-3 border-t border-slate-700/60 space-y-3">
+            <div className={`pt-3 border-t space-y-3 ${isDark ? "border-slate-700/60" : "border-slate-200"}`}>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1.5">文件格式</label>
+                  <label className={`block text-xs mb-1.5 ${isDark ? "text-slate-400" : "text-slate-600"}`}>文件格式</label>
                   <select
                     value={filters.file_format}
                     onChange={(e) => setFilters({ ...filters, file_format: e.target.value, page: 1 })}
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${isDark ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-800"}`}
                   >
                     <option value="">全部格式</option>
                     {formats.map((fmt) => (
@@ -586,12 +589,12 @@ export default function AudioResourceSelector({
         {/* 资源列表 */}
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
-            <div className="text-center text-slate-400 py-12">
+            <div className={`text-center py-12 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
               <p className="mt-4">加载中...</p>
             </div>
           ) : groupedList.length === 0 ? (
-            <div className="text-center text-slate-400 py-12">
+            <div className={`text-center py-12 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
               <Music size={48} className="mx-auto mb-4 opacity-50" />
               <p>暂无音频资源</p>
             </div>
@@ -608,22 +611,22 @@ export default function AudioResourceSelector({
                   return (
                     <div
                       key={bundleIdLabel || `single-${bundleResources[0].id}`}
-                      className="bg-slate-800 rounded-xl border border-slate-700 p-4"
+                      className={`rounded-xl border p-4 ${isDark ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"}`}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-white">
+                            <h3 className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>
                               {bundleIdLabel ? `成组音频：${baseTitle}` : baseTitle || "未命名音频"}
                             </h3>
                             {bundleIdLabel && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDark ? "bg-slate-700 text-slate-300" : "bg-slate-200 text-slate-700"}`}>
                                 bundle: {bundleIdLabel.slice(0, 8)}…
                               </span>
                             )}
                           </div>
                           {type === "gold" && bundleId && (
-                            <p className="text-[11px] text-slate-400 mt-1">
+                            <p className={`text-[11px] mt-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                               已根据当前选择的 Mixture 自动筛选到同一组的 Gold Standard 音轨。
                             </p>
                           )}
@@ -646,9 +649,13 @@ export default function AudioResourceSelector({
                                 key={resource.id}
                                 onClick={() => setSelectedResource(resource.id)}
                                 className={`rounded-lg p-4 border transition cursor-pointer group ${
-                                  isSelected
-                                    ? "border-cyan-500 bg-slate-800/80"
-                                    : "border-slate-700 hover:border-cyan-500/50 bg-slate-900/40"
+                                  isDark
+                                    ? isSelected
+                                      ? "border-cyan-500 bg-slate-800/80"
+                                      : "border-slate-700 hover:border-cyan-500/50 bg-slate-900/40"
+                                    : isSelected
+                                      ? "border-cyan-500 bg-white shadow-sm"
+                                      : "border-slate-300 hover:border-cyan-500/50 bg-white hover:shadow-sm"
                                 }`}
                               >
                                 <div className="flex items-start justify-between mb-3">
@@ -656,9 +663,13 @@ export default function AudioResourceSelector({
                                     <div className="flex items-center gap-2 mb-1">
                                       <h4
                                         className={`text-sm font-semibold truncate transition ${
-                                          isSelected
-                                            ? "text-cyan-400"
-                                            : "text-white group-hover:text-cyan-400"
+                                          isDark
+                                            ? isSelected
+                                              ? "text-cyan-400"
+                                              : "text-white group-hover:text-cyan-400"
+                                            : isSelected
+                                              ? "text-cyan-700"
+                                              : "text-slate-800 group-hover:text-cyan-700"
                                         }`}
                                       >
                                         {resource.title}
@@ -666,13 +677,15 @@ export default function AudioResourceSelector({
                                       {isSelected && <Check size={16} className="text-cyan-400" />}
                                     </div>
                                     {resource.description && (
-                                      <p className="text-xs text-slate-400 line-clamp-2">
+                                      <p className={`text-xs line-clamp-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                                         {resource.description}
                                       </p>
                                     )}
                                   </div>
                                   {roleLabel && (
-                                    <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] bg-slate-700 text-slate-200">
+                                    <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] ${
+                                      isDark ? "bg-slate-700 text-slate-200" : "bg-slate-200 text-slate-700"
+                                    }`}>
                                       {roleLabel}
                                     </span>
                                   )}
@@ -680,20 +693,20 @@ export default function AudioResourceSelector({
 
                                 <div className="space-y-1.5 mb-2">
                                   <div className="flex items-center justify-between text-[11px]">
-                                    <span className="text-slate-500">格式</span>
-                                    <span className="text-slate-200 font-medium">
+                                    <span className={isDark ? "text-slate-500" : "text-slate-600"}>格式</span>
+                                    <span className={isDark ? "text-slate-200 font-medium" : "text-slate-700 font-medium"}>
                                       {resource.file_format || "未知"}
                                     </span>
                                   </div>
                                   <div className="flex items-center justify-between text-[11px]">
-                                    <span className="text-slate-500">大小</span>
-                                    <span className="text-slate-200 font-medium">
+                                    <span className={isDark ? "text-slate-500" : "text-slate-600"}>大小</span>
+                                    <span className={isDark ? "text-slate-200 font-medium" : "text-slate-700 font-medium"}>
                                       {formatFileSize(resource.file_size)}
                                     </span>
                                   </div>
                                   <div className="flex items-center justify-between text-[11px]">
-                                    <span className="text-slate-500">时长</span>
-                                    <span className="text-slate-200 font-medium">
+                                    <span className={isDark ? "text-slate-500" : "text-slate-600"}>时长</span>
+                                    <span className={isDark ? "text-slate-200 font-medium" : "text-slate-700 font-medium"}>
                                       {formatDuration(resource.duration)}
                                     </span>
                                   </div>
@@ -701,7 +714,9 @@ export default function AudioResourceSelector({
 
                                 {resource.category && (
                                   <div className="mt-1">
-                                    <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded text-[10px]">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] ${
+                                      isDark ? "bg-cyan-500/20 text-cyan-300" : "bg-cyan-100 text-cyan-700"
+                                    }`}>
                                       {resource.category}
                                     </span>
                                   </div>
@@ -726,38 +741,42 @@ export default function AudioResourceSelector({
                                 key={resource.id}
                                 onClick={() => setSelectedResource(resource.id)}
                                 className={`rounded-lg p-4 border transition cursor-pointer flex items-center gap-4 ${
-                                  isSelected
-                                    ? "border-cyan-500 bg-slate-800/80"
-                                    : "border-slate-700 hover:border-cyan-500/50 bg-slate-900/40"
+                                  isDark
+                                    ? isSelected
+                                      ? "border-cyan-500 bg-slate-800/80"
+                                      : "border-slate-700 hover:border-cyan-500/50 bg-slate-900/40"
+                                    : isSelected
+                                      ? "border-cyan-500 bg-white shadow-sm"
+                                      : "border-slate-300 hover:border-cyan-500/50 bg-white hover:shadow-sm"
                                 }`}
                               >
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1">
                                     <h4
                                       className={`text-sm font-semibold truncate transition ${
-                                        isSelected ? "text-cyan-400" : "text-white"
+                                        isDark ? (isSelected ? "text-cyan-400" : "text-white") : (isSelected ? "text-cyan-700" : "text-slate-800")
                                       }`}
                                     >
                                       {resource.title}
                                     </h4>
                                     {isSelected && <Check size={16} className="text-cyan-400" />}
                                     {roleLabel && (
-                                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-700 text-slate-200">
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] ${isDark ? "bg-slate-700 text-slate-200" : "bg-slate-200 text-slate-700"}`}>
                                         {roleLabel}
                                       </span>
                                     )}
                                   </div>
                                   {resource.description && (
-                                    <p className="text-xs text-slate-400 line-clamp-1">
+                                    <p className={`text-xs line-clamp-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                                       {resource.description}
                                     </p>
                                   )}
-                                  <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-slate-400">
+                                  <div className={`flex flex-wrap gap-3 mt-2 text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                                     <span>{resource.file_format || "未知"}</span>
                                     <span>{formatFileSize(resource.file_size)}</span>
                                     <span>{formatDuration(resource.duration)}</span>
                                     {resource.category && (
-                                      <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded text-[10px]">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] ${isDark ? "bg-cyan-500/20 text-cyan-300" : "bg-cyan-100 text-cyan-700"}`}>
                                         {resource.category}
                                       </span>
                                     )}
@@ -812,10 +831,10 @@ export default function AudioResourceSelector({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-700">
+        <div className={`flex items-center justify-end gap-3 p-6 border-t ${isDark ? "border-slate-700" : "border-slate-200"}`}>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
+            className={`px-4 py-2 rounded-lg transition ${isDark ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300"}`}
           >
             取消
           </button>

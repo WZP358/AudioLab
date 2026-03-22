@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Music, Search, Download, Filter, Play, Pause, Upload, X, ChevronDown, ChevronUp, Grid, List, Clock, TrendingUp, FileAudio } from "lucide-react";
 import { useToast } from "./Toast";
+import { useTheme } from "./ThemeContext";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
 export default function AudioResources({ token }) {
   const { showSuccess, showError, showAlert } = useToast();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [resources, setResources] = useState([]);
   const [categories, setCategories] = useState([]);
   const [tags, setTags] = useState([]);
@@ -512,19 +515,24 @@ export default function AudioResources({ token }) {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const pagePanelClass = isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm";
+  const inputBaseClass = isDark
+    ? "bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+    : "bg-white border-slate-300 text-slate-700 placeholder:text-slate-400";
+
   return (
     <div className="space-y-6 animate-in fade-in">
       {/* Header */}
-      <div className="bg-slate-800 rounded-xl p-8 border border-slate-700">
+      <div className={`rounded-xl p-8 border ${pagePanelClass}`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
             <Music size={32} className="text-cyan-400" />
-            <h2 className="text-2xl font-bold text-white">音频资源库</h2>
+            <h2 className={`text-2xl font-bold ${isDark ? "text-white" : "text-slate-800"}`}>音频资源库</h2>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-              className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition"
+              className={`p-2 rounded-lg transition ${isDark ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300"}`}
               title={viewMode === "grid" ? "列表视图" : "网格视图"}
             >
               {viewMode === "grid" ? <List size={20} /> : <Grid size={20} />}
@@ -540,16 +548,16 @@ export default function AudioResources({ token }) {
             )}
           </div>
         </div>
-        <p className="text-slate-400">
+        <p className={isDark ? "text-slate-400" : "text-slate-600"}>
           浏览和下载音频资源，支持高级搜索、筛选和排序功能
         </p>
       </div>
 
 
       {/* 快捷筛选标签 */}
-      <div className="bg-slate-800 rounded-xl p-3 border border-slate-700">
+      <div className={`rounded-xl p-3 border ${pagePanelClass}`}>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-slate-400 font-medium">快捷筛选：</span>
+          <span className={`text-xs font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}>快捷筛选：</span>
           <button
             onClick={() => applyQuickFilter("hot")}
             className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
@@ -590,18 +598,18 @@ export default function AudioResources({ token }) {
       </div>
 
       {/* 筛选器 */}
-      <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+      <div className={`rounded-xl p-4 border ${pagePanelClass}`}>
         <div className="space-y-3">
           {/* 第一行：分类、上传者和搜索 */}
           <div className="flex flex-col sm:flex-row gap-3">
             {/* 分类 - 更紧凑的设计 */}
             <div className="flex-shrink-0 sm:w-40">
               <div className="relative">
-                <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <Filter size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-slate-400" : "text-slate-600"}`} />
                 <select
                   value={filters.category}
                   onChange={(e) => setFilters({ ...filters, category: e.target.value, page: 1 })}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
+                  className={`w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer ${inputBaseClass}`}
                 >
                   <option value="">全部分类</option>
                   {categories.map((cat) => (
@@ -615,20 +623,20 @@ export default function AudioResources({ token }) {
             {/* 上传者搜索 */}
             <div className="flex-shrink-0 sm:w-36">
               <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-slate-400" : "text-slate-600"}`} />
                 <input
                   type="text"
                   value={filters.uploader}
                   onChange={(e) => setFilters({ ...filters, uploader: e.target.value, page: 1 })}
                   placeholder="上传者"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
+                  className={`w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 ${inputBaseClass}`}
                 />
               </div>
             </div>
             {/* 搜索框 */}
             <div className="flex-1">
               <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <Search size={16} className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-slate-400" : "text-slate-600"}`} />
                 <input
                   type="text"
                   value={filters.search}
@@ -638,7 +646,7 @@ export default function AudioResources({ token }) {
                     debouncedSearch(value);
                   }}
                   placeholder="按标题搜索"
-                  className="w-full pl-10 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 ${inputBaseClass}`}
                 />
               </div>
             </div>
@@ -646,12 +654,12 @@ export default function AudioResources({ token }) {
 
           {/* 第二行：排序 - 更紧凑的内联设计 */}
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-xs text-slate-400 whitespace-nowrap">排序：</span>
+            <span className={`text-xs whitespace-nowrap ${isDark ? "text-slate-400" : "text-slate-600"}`}>排序：</span>
             <div className="flex items-center gap-2">
               <select
                 value={filters.sort_by}
                 onChange={(e) => setFilters({ ...filters, sort_by: e.target.value, page: 1 })}
-                className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
+                className={`px-3 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer ${inputBaseClass}`}
               >
                 <option value="created_at">上传时间</option>
                 <option value="download_count">下载次数</option>
@@ -662,7 +670,7 @@ export default function AudioResources({ token }) {
               <select
                 value={filters.sort_order}
                 onChange={(e) => setFilters({ ...filters, sort_order: e.target.value, page: 1 })}
-                className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
+                className={`px-3 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer ${inputBaseClass}`}
               >
                 <option value="desc">降序</option>
                 <option value="asc">升序</option>
@@ -785,17 +793,17 @@ export default function AudioResources({ token }) {
               {resources.map((resource) => (
                 <div
                   key={resource.id}
-                  className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-cyan-500/50 transition group"
+                  className={`rounded-xl p-6 border transition group ${isDark ? "bg-slate-800 border-slate-700 hover:border-cyan-500/50" : "bg-white border-slate-200 hover:border-cyan-400/60 shadow-sm"}`}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <h3
-                        className="text-lg font-bold text-white mb-1 group-hover:text-cyan-400 transition"
+                        className={`text-lg font-bold mb-1 transition ${isDark ? "text-white group-hover:text-cyan-400" : "text-slate-800 group-hover:text-cyan-600"}`}
                         dangerouslySetInnerHTML={{ __html: highlightText(resource.title, filters.search) }}
                       />
                       {resource.description && (
                         <p
-                          className="text-sm text-slate-400 line-clamp-2"
+                          className={`text-sm line-clamp-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}
                           dangerouslySetInnerHTML={{ __html: highlightText(resource.description, filters.search) }}
                         />
                       )}
@@ -848,7 +856,7 @@ export default function AudioResources({ token }) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => handlePlay(resource.id, resource.file_path)}
-                      className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition flex items-center justify-center gap-2"
+                      className={`flex-1 px-4 py-2 rounded-lg transition flex items-center justify-center gap-2 ${isDark ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300"}`}
                     >
                       {playingId === resource.id ? (
                         <>
@@ -878,23 +886,23 @@ export default function AudioResources({ token }) {
               {resources.map((resource) => (
                 <div
                   key={resource.id}
-                  className="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-cyan-500/50 transition"
+                  className={`rounded-xl p-6 border transition ${isDark ? "bg-slate-800 border-slate-700 hover:border-cyan-500/50" : "bg-white border-slate-200 hover:border-cyan-400/60 shadow-sm"}`}
                 >
                   <div className="flex items-center gap-6">
                     <button
                       onClick={() => handlePlay(resource.id, resource.file_path)}
-                      className="p-3 rounded-lg bg-slate-700 hover:bg-cyan-600 text-white transition"
+                      className={`p-3 rounded-lg transition ${isDark ? "bg-slate-700 hover:bg-cyan-600 text-white" : "bg-slate-100 hover:bg-cyan-600 text-slate-700 hover:text-white border border-slate-300"}`}
                     >
                       {playingId === resource.id ? <Pause size={20} /> : <Play size={20} />}
                     </button>
                     <div className="flex-1">
                       <h3
-                        className="text-lg font-bold text-white mb-1"
+                        className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-slate-800"}`}
                         dangerouslySetInnerHTML={{ __html: highlightText(resource.title, filters.search) }}
                       />
                       {resource.description && (
                         <p
-                          className="text-sm text-slate-400 line-clamp-1"
+                          className={`text-sm line-clamp-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
                           dangerouslySetInnerHTML={{ __html: highlightText(resource.description, filters.search) }}
                         />
                       )}
@@ -933,8 +941,8 @@ export default function AudioResources({ token }) {
 
           {/* 分页 */}
           {total > filters.page_size && (
-            <div className="flex items-center justify-between px-6 py-4 bg-slate-800 rounded-lg border border-slate-700">
-              <div className="text-sm text-slate-400">
+            <div className={`flex items-center justify-between px-6 py-4 rounded-lg border ${pagePanelClass}`}>
+              <div className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 共 {total} 条资源，第 {filters.page} / {Math.ceil(total / filters.page_size)} 页
               </div>
               <div className="flex gap-2">
@@ -962,49 +970,49 @@ export default function AudioResources({ token }) {
 
       {/* 上传模态框 */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className={`fixed inset-0 flex items-center justify-center z-50 p-4 ${isDark ? "bg-black/50" : "bg-slate-900/20"}`}>
+          <div className={`rounded-xl p-6 border max-w-2xl w-full max-h-[90vh] overflow-y-auto ${pagePanelClass}`}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">上传音频</h3>
+              <h3 className={`text-xl font-bold ${isDark ? "text-white" : "text-slate-800"}`}>上传音频</h3>
               <button
                 onClick={() => setShowUploadModal(false)}
-                className="text-slate-400 hover:text-white transition"
+                className={`transition ${isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-800"}`}
               >
                 <X size={24} />
               </button>
             </div>
             <div className="space-y-4">
               <div className="space-y-3">
-                <label className="block text-sm text-slate-400">
+                <label className={`block text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                   输入 Mixture 与对应 4 个 Gold Standard Stem（必须一次性全部上传）
                 </label>
-                <div className="rounded-lg border border-cyan-500/40 bg-cyan-500/5 px-4 py-3 text-xs text-slate-200">
-                  <div className="font-medium text-cyan-300 mb-1">
+                <div className={`rounded-lg border px-4 py-3 text-xs ${isDark ? "border-cyan-500/40 bg-cyan-500/5 text-slate-200" : "border-cyan-300 bg-cyan-50 text-slate-700"}`}>
+                  <div className={`font-medium mb-1 ${isDark ? "text-cyan-300" : "text-cyan-700"}`}>
                     播放兼容性提示
                   </div>
                   <p className="leading-relaxed">
                     为保证在「音频资源库」可直接播放，建议优先上传{" "}
-                    <span className="font-semibold text-cyan-200">MP3 / WAV / OGG</span>。
+                    <span className={`font-semibold ${isDark ? "text-cyan-200" : "text-cyan-700"}`}>MP3 / WAV / OGG</span>。
                   </p>
-                  <p className="leading-relaxed mt-1 text-slate-300">
+                  <p className={`leading-relaxed mt-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
                     上传 FLAC / M4A / AAC 等格式时，可能需要下载后在本地播放器收听。
                   </p>
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm text-slate-400 mb-2">Mixture（混合音） *</label>
+                    <label className={`block text-sm mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>Mixture（混合音） *</label>
                     <input
                       type="file"
                       accept=".mp3,.wav,.flac,.ogg,.m4a,.aac"
                       onChange={(e) =>
                         setUploadForm({ ...uploadForm, mixtureFile: e.target.files[0] || null })
                       }
-                      className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                      className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${inputBaseClass}`}
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">
+                      <label className={`block text-sm mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                         Gold Standard Vocals *
                       </label>
                       <input
@@ -1013,11 +1021,11 @@ export default function AudioResources({ token }) {
                         onChange={(e) =>
                           setUploadForm({ ...uploadForm, vocalsFile: e.target.files[0] || null })
                         }
-                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                        className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${inputBaseClass}`}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">
+                      <label className={`block text-sm mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                         Gold Standard Drums *
                       </label>
                       <input
@@ -1026,11 +1034,11 @@ export default function AudioResources({ token }) {
                         onChange={(e) =>
                           setUploadForm({ ...uploadForm, drumsFile: e.target.files[0] || null })
                         }
-                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                        className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${inputBaseClass}`}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">
+                      <label className={`block text-sm mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                         Gold Standard Bass *
                       </label>
                       <input
@@ -1039,11 +1047,11 @@ export default function AudioResources({ token }) {
                         onChange={(e) =>
                           setUploadForm({ ...uploadForm, bassFile: e.target.files[0] || null })
                         }
-                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                        className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${inputBaseClass}`}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">
+                      <label className={`block text-sm mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                         Gold Standard Other *
                       </label>
                       <input
@@ -1052,41 +1060,41 @@ export default function AudioResources({ token }) {
                         onChange={(e) =>
                           setUploadForm({ ...uploadForm, otherFile: e.target.files[0] || null })
                         }
-                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                        className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${inputBaseClass}`}
                       />
                     </div>
                   </div>
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-2">标题 *</label>
+                <label className={`block text-sm mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>标题 *</label>
                 <input
                   type="text"
                   value={uploadForm.title}
                   onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
                   placeholder="请输入音频标题"
-                  className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${inputBaseClass}`}
                 />
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-2">描述</label>
+                <label className={`block text-sm mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>描述</label>
                 <textarea
                   value={uploadForm.description}
                   onChange={(e) => setUploadForm({ ...uploadForm, description: e.target.value })}
                   placeholder="请输入音频描述"
                   rows={3}
-                  className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${inputBaseClass}`}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-slate-400 mb-2">分类</label>
+                  <label className={`block text-sm mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>分类</label>
                   <input
                     type="text"
                     value={uploadForm.category}
                     onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value })}
                     placeholder="例如：音乐、音效"
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 ${inputBaseClass}`}
                   />
                 </div>
                 <div>
@@ -1105,13 +1113,13 @@ export default function AudioResources({ token }) {
                     !uploadForm.otherFile ||
                     !uploadForm.title.trim()
                   }
-                  className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed ${!isDark ? "disabled:bg-slate-200 disabled:text-slate-400" : ""}`}
                 >
                   {uploading ? "上传中..." : "上传"}
                 </button>
                 <button
                   onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
+                  className={`px-4 py-2 rounded-lg transition ${isDark ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300"}`}
                 >
                   取消
                 </button>
