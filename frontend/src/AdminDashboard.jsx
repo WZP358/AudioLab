@@ -62,20 +62,12 @@ export default function AdminDashboard({ user, authToken, onLogout }) {
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3 bg-slate-700 p-2 rounded-lg">
-              {user.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.username}
-                  className="w-8 h-8 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-red-500 to-pink-600 flex items-center justify-center font-bold text-white text-xs">
-                  {user.username.slice(0, 2).toUpperCase()}
-                </div>
-              )}
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-red-500 to-pink-600 flex items-center justify-center font-bold text-white text-[10px]">
+                管理
+              </div>
               <div className="text-sm">
                 <p className="text-slate-300 font-medium">{user.username}</p>
-                <p className="text-xs text-red-300">管理员</p>
+                <p className="text-xs text-red-300">管理</p>
               </div>
             </div>
             <button

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Mail, Lock, User, Upload, Loader } from "lucide-react";
+import { Mail, Lock, User, Loader } from "lucide-react";
 import { useToast } from "./Toast";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
@@ -15,17 +15,12 @@ export default function AuthPage({ onLoginSuccess }) {
     code: "",
     // 仅支持专家 / 管理员两种身份，默认专家
     role: "expert",
-    avatar_url: "",
   });
-  const [avatar, setAvatar] = useState(null);
-  const [avatarPreview, setAvatarPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [codeAttempts, setCodeAttempts] = useState(0);
   const [cooldownLeft, setCooldownLeft] = useState({}); // 按邮箱存储冷却时间
   const cooldownTimersRef = useRef({}); // 存储每个邮箱的定时器
-  const fileInputRef = useRef(null);
-
   // 组件卸载时清理所有定时器
   useEffect(() => {
     return () => {
@@ -34,36 +29,6 @@ export default function AuthPage({ onLoginSuccess }) {
       });
     };
   }, []);
-
-  const handleAvatarChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAvatar(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const uploadAvatar = async () => {
-    if (!avatar) return null;
-    try {
-      const formData = new FormData();
-      formData.append("file", avatar);
-      const resp = await fetch(`${API_BASE}/api/auth/upload_avatar`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!resp.ok) throw new Error("头像上传失败");
-      const data = await resp.json();
-      return data.avatar_url;
-    } catch (err) {
-      console.error("头像上传错误:", err);
-      return null;
-    }
-  };
 
   const handleSendCode = async () => {
     if (!formData.email) {
@@ -145,19 +110,10 @@ export default function AuthPage({ onLoginSuccess }) {
 
     setLoading(true);
     try {
-      // 先上传头像（如果有）
-      let avatarUrl = formData.avatar_url;
-      if (avatar) {
-        avatarUrl = await uploadAvatar();
-      }
-
       const resp = await fetch(`${API_BASE}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          avatar_url: avatarUrl,
-        }),
+        body: JSON.stringify(formData),
       });
 
       if (!resp.ok) {
@@ -178,7 +134,7 @@ export default function AuthPage({ onLoginSuccess }) {
         showSuccess("申请已提交，等待管理员审核。");
         setTimeout(() => {
           setMode("login");
-          setFormData({ email: "", password: "", username: "", code: "", role: "expert", avatar_url: "" });
+          setFormData({ email: "", password: "", username: "", code: "", role: "expert" });
           setCodeSent(false);
         }, 2000);
       } else {
@@ -364,36 +320,6 @@ export default function AuthPage({ onLoginSuccess }) {
                 </p>
               </div>
 
-              {/* Avatar Upload */}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  头像（可选）
-                </label>
-                <div className="flex items-center gap-4">
-                  {avatarPreview && (
-                    <img
-                      src={avatarPreview}
-                      alt="Avatar Preview"
-                      className="w-16 h-16 rounded-full object-cover border-2 border-cyan-500"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition text-sm"
-                  >
-                    <Upload size={16} />
-                    选择头像
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                    className="hidden"
-                  />
-                </div>
-              </div>
             </>
           )}
 

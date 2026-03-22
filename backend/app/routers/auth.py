@@ -11,8 +11,8 @@ import ssl
 from email.message import EmailMessage
 
 from app.database import get_db
-from fastapi import UploadFile, File, Request
-import pathlib, time, re
+from fastapi import Request
+import re
 from app.models import User, EmailVerification, Role, OutboxEmail, OperationLog
 from sqlalchemy import text
 from sqlalchemy import create_engine
@@ -624,7 +624,6 @@ async def register(req: Request, request: RegisterRequest, db: AsyncSession = De
             email=request.email,
             password_hash=hash_password(request.password),
             role=Role(role_val),
-            avatar_url=request.avatar_url,
         )
         db.add(pending)
         try:
@@ -664,7 +663,6 @@ async def register(req: Request, request: RegisterRequest, db: AsyncSession = De
             username=pending.username,
             email=pending.email,
             role=pending.role.value if hasattr(pending.role, 'value') else str(pending.role),
-            avatar_url=pending.avatar_url,
             message="application_submitted",
             created_at=pending.created_at,
         )
@@ -803,7 +801,7 @@ async def update_current_user_info(
 ):
     """
     当前登录用户自助更新资料：
-    - 可修改 username、avatar_url
+    - 可修改 username
     - 可通过 old_password + new_password 修改密码
     """
     update_dict = {}
@@ -832,10 +830,6 @@ async def update_current_user_info(
             raise HTTPException(status_code=400, detail="用户名已被使用，请选择其他用户名")
 
         update_dict["username"] = new_username
-
-    # 更新头像（如提供）
-    if payload.avatar_url is not None:
-        update_dict["avatar_url"] = payload.avatar_url
 
     # 修改密码：要求同时提供 old_password 与 new_password
     if payload.new_password is not None or payload.old_password is not None:
@@ -930,7 +924,6 @@ async def approve_application(app_id: int, req: Request, current_user: User = De
         email=app_entry.email,
         password_hash=app_entry.password_hash,
         role=app_entry.role,
-        avatar_url=app_entry.avatar_url,
         is_active=True,
         is_approved=True,
     )
@@ -1030,26 +1023,6 @@ async def reject_user(req: Request, user_id: int, background: BackgroundTasks, r
     body += "\n\n如需再次申请，请使用相同邮箱重新注册。\n\n此邮件由系统自动发送。"
     background.add_task(send_simple_email, u.email, subject, body)
     return {"message": "rejected"}
-
-
-@router.post("/upload_avatar")
-async def upload_avatar(file: UploadFile = File(...)):
-    """Accept avatar upload and save to backend/download/avatar; returns avatar_url path"""
-    # sanitize filename
-    name = file.filename or "avatar"
-    # keep only safe chars
-    name = re.sub(r"[^A-Za-z0-9._-]", "_", name)
-    fname = f"{int(time.time())}_{name}"
-    # target directory relative to project backend folder
-    base_dir = pathlib.Path(__file__).resolve().parents[1]  # backend/app -> backend
-    target_dir = base_dir / "download" / "avatar"
-    target_dir.mkdir(parents=True, exist_ok=True)
-    dest = target_dir / fname
-    content = await file.read()
-    with open(dest, "wb") as f:
-        f.write(content)
-    # return relative URL path (frontend can fetch from backend static route if configured)
-    return {"avatar_url": f"/download/avatar/{fname}"}
 
 
 @router.get("/pending", response_model=list[PendingUserResponse])

@@ -309,12 +309,6 @@ DEFAULT_CONFIGS = [
         "description": "新用户默认角色：expert, admin",
         "category": "user"
     },
-    {
-        "key": "user.max_avatar_size_kb",
-        "value": "500",
-        "description": "用户头像最大大小（KB）",
-        "category": "user"
-    },
 ]
 
 

@@ -34,7 +34,6 @@ import {
   Bell,
   Mail,
   Lock,
-  Upload as UploadIcon,
   X as CloseIcon,
   Clock,
   RotateCcw,
@@ -117,17 +116,9 @@ const AuthPanel = ({ user, onLogout, onClickUser }) => {
         }`}
         title="点击查看和编辑个人信息"
       >
-        {user.avatar_url ? (
-          <img
-            src={user.avatar_url}
-            alt={user.username}
-            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-          />
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white text-xs flex-shrink-0">
-            {user.username.slice(0, 2).toUpperCase()}
-          </div>
-        )}
+        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white text-[10px] flex-shrink-0">
+          {user.role === "admin" ? "管理" : "专家"}
+        </div>
         <div className="text-sm min-w-0 hidden md:block">
           <div className="flex items-center gap-1.5">
             <p className={`font-medium truncate ${isDark ? "text-slate-300" : "text-slate-700"}`}>{user.username}</p>
@@ -160,40 +151,10 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const [username, setUsername] = React.useState(user?.username || "");
-  const [avatarPreview, setAvatarPreview] = React.useState(user?.avatar_url || null);
-  const [avatarFile, setAvatarFile] = React.useState(null);
   const [oldPassword, setOldPassword] = React.useState("");
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
-  const fileInputRef = React.useRef(null);
-
-  const handleAvatarChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setAvatarFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setAvatarPreview(reader.result);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const uploadAvatar = async () => {
-    if (!avatarFile) return user?.avatar_url || null;
-    const formData = new FormData();
-    formData.append("file", avatarFile);
-    const resp = await fetch(`${API_BASE}/api/auth/upload_avatar`, {
-      method: "POST",
-      body: formData,
-    });
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(text || "头像上传失败");
-    }
-    const data = await resp.json();
-    return data.avatar_url;
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -214,14 +175,8 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
 
     setSubmitting(true);
     try {
-      let avatarUrl = user?.avatar_url || null;
-      if (avatarFile) {
-        avatarUrl = await uploadAvatar();
-      }
-
       const body = {
         username: username.trim() !== user.username ? username.trim() : undefined,
-        avatar_url: avatarUrl !== user.avatar_url ? avatarUrl : undefined,
       };
 
       if (newPassword || oldPassword || confirmPassword) {
@@ -281,7 +236,7 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
             </div>
             <div>
               <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>个人信息</h2>
-              <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>查看并更新用户名、头像和登录密码</p>
+              <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>查看并更新用户名和登录密码</p>
             </div>
           </div>
           <button
@@ -335,46 +290,6 @@ const UserProfileDialog = ({ user, token, onClose, onUserUpdated }) => {
                   {user.role === "admin" ? "管理员" : "专家"}
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* 头像 */}
-          <div>
-            <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-              头像
-            </label>
-            <div className="flex items-center gap-4">
-              {avatarPreview ? (
-                <img
-                  src={avatarPreview}
-                  alt="avatar"
-                  className="w-14 h-14 rounded-full object-cover border-2 border-cyan-500/70"
-                />
-              ) : (
-                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white text-sm">
-                  {username.slice(0, 2).toUpperCase()}
-                </div>
-              )}
-              <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs transition ${isDark ? "bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 hover:border-cyan-500" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:border-cyan-500"}`}
-                >
-                  <UploadIcon size={14} />
-                  更换头像
-                </button>
-                <p className={`text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
-                  支持常见图片格式，建议使用正方形图片以获得更好显示效果。
-                </p>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarChange}
-                className="hidden"
-              />
             </div>
           </div>
 

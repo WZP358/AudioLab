@@ -25,6 +25,25 @@ async def lifespan(_app: FastAPI):
         async with engine.begin() as conn:
             await conn.execute(text("ALTER TABLE separation_tasks ADD COLUMN metadata_json TEXT NULL"))
             print("✓ 已自动补齐字段 separation_tasks.metadata_json")
+            # 清理头像相关字段（如果存在）
+            try:
+                await conn.execute(text("ALTER TABLE users DROP COLUMN avatar_url"))
+                print("✓ 已移除 users.avatar_url")
+            except Exception as e:
+                msg = str(e).lower()
+                if "no such column" in msg or "check that column/key exists" in msg or "unknown column" in msg or "does not exist" in msg:
+                    pass
+                else:
+                    logging.warning("删除 users.avatar_url 失败（可忽略或手动迁移）: %s", e)
+            try:
+                await conn.execute(text("ALTER TABLE pending_users DROP COLUMN avatar_url"))
+                print("✓ 已移除 pending_users.avatar_url")
+            except Exception as e:
+                msg = str(e).lower()
+                if "no such column" in msg or "check that column/key exists" in msg or "unknown column" in msg or "does not exist" in msg:
+                    pass
+                else:
+                    logging.warning("删除 pending_users.avatar_url 失败（可忽略或手动迁移）: %s", e)
     except Exception as e:
         # 已存在等情况属于正常，继续启动
         msg = str(e).lower()

@@ -296,7 +296,6 @@ class RegisterRequest(BaseModel):
     code: str
     # 系统仅支持 expert / admin 两种角色，默认注册为 expert
     role: str = "expert"
-    avatar_url: Optional[str] = None
 
 
 class SendVerificationResponse(BaseModel):
@@ -324,7 +323,6 @@ class UserResponse(BaseModel):
     username: str
     email: str
     role: str
-    avatar_url: Optional[str] = None
     is_active: bool
     is_approved: bool
     created_at: datetime
@@ -344,7 +342,6 @@ class SelfUserUpdateRequest(BaseModel):
     # 修改密码时必须同时提供 old_password 和 new_password
     old_password: Optional[str] = None
     new_password: Optional[str] = None
-    avatar_url: Optional[str] = None
 
 
 class RegisterResponse(BaseModel):
@@ -353,7 +350,6 @@ class RegisterResponse(BaseModel):
     username: str
     email: str
     role: str
-    avatar_url: Optional[str] = None
     is_active: Optional[bool] = None
     is_approved: Optional[bool] = None
     created_at: Optional[datetime] = None
@@ -415,7 +411,6 @@ class UserUpdateRequest(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
     is_approved: Optional[bool] = None
-    avatar_url: Optional[str] = None
 
 
 class UserListResponse(BaseModel):
@@ -423,7 +418,6 @@ class UserListResponse(BaseModel):
     username: str
     email: str
     role: str
-    avatar_url: Optional[str] = None
     is_active: bool
     is_approved: bool
     created_at: datetime

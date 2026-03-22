@@ -48,7 +48,6 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     # 默认角色调整为 EXPERT，系统仅保留“管理员 / 专家”两种身份
     role = Column(SQLEnum(Role), default=Role.EXPERT, nullable=False)
-    avatar_url = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     is_approved = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -66,7 +65,6 @@ class PendingUser(Base):
     email = Column(String(255), index=True, nullable=False)  # 移除unique=True，改为联合唯一约束
     password_hash = Column(String(255), nullable=False)
     role = Column(SQLEnum(Role), nullable=False)
-    avatar_url = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
