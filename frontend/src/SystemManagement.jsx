@@ -239,6 +239,7 @@ function TaskHistoryAdmin({ token }) {
                     <th className="px-3 py-2 text-left text-slate-400 font-medium">用户ID</th>
                     <th className="px-3 py-2 text-left text-slate-400 font-medium">文件名</th>
                     <th className="px-3 py-2 text-left text-slate-400 font-medium">算法</th>
+                    <th className="px-3 py-2 text-left text-slate-400 font-medium">模型版本</th>
                     <th className="px-3 py-2 text-left text-slate-400 font-medium">状态</th>
                     <th className="px-3 py-2 text-left text-slate-400 font-medium">创建时间</th>
                     <th className="px-3 py-2 text-left text-slate-400 font-medium">完成时间</th>
@@ -253,6 +254,7 @@ function TaskHistoryAdmin({ token }) {
                         {t.original_filename || "(未命名)"}
                       </td>
                       <td className="px-3 py-2 text-slate-300">{t.algorithm || "-"}</td>
+                      <td className="px-3 py-2 text-slate-300">{t.model_version || "-"}</td>
                       <td className="px-3 py-2">
                         <span
                           className={`px-2 py-1 rounded-full text-[11px] ${
@@ -744,6 +746,13 @@ function SystemSettings({ token }) {
   const [savingStorageMode, setSavingStorageMode] = useState(false);
   const [computeMode, setComputeMode] = useState("gpu");
   const [savingComputeMode, setSavingComputeMode] = useState(false);
+  const [modelVersions, setModelVersions] = useState({
+    MDX23C: "",
+    Demucs4HT: "",
+    "Band Split RoFormer": "",
+    SCNet: "",
+  });
+  const [savingModelVersions, setSavingModelVersions] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [testingEmail, setTestingEmail] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -773,6 +782,23 @@ function SystemSettings({ token }) {
         const raw = (computeConfig.value || "gpu").toString().toLowerCase();
         setComputeMode(raw === "cpu" ? "cpu" : "gpu");
       }
+
+      // 加载各算法模型版本（管理员配置）
+      const versionMap = {
+        MDX23C: "",
+        Demucs4HT: "",
+        "Band Split RoFormer": "",
+        SCNet: "",
+      };
+      (allData.items || []).forEach((cfg) => {
+        const key = (cfg?.key || "").toString();
+        if (!key.startsWith("algorithm_version.")) return;
+        const algo = key.replace("algorithm_version.", "");
+        if (Object.prototype.hasOwnProperty.call(versionMap, algo)) {
+          versionMap[algo] = (cfg?.value || "").toString();
+        }
+      });
+      setModelVersions(versionMap);
       
       // 如果指定了分类，则筛选
       if (category) {
@@ -924,6 +950,38 @@ function SystemSettings({ token }) {
       showError(err.message);
     } finally {
       setSavingComputeMode(false);
+    }
+  };
+
+  const handleSaveModelVersions = async () => {
+    if (savingModelVersions) return;
+    setSavingModelVersions(true);
+    try {
+      const entries = Object.entries(modelVersions || {});
+      for (const [algo, version] of entries) {
+        const resp = await fetch(`${API_BASE}/api/admin/system/configs/${encodeURIComponent(`algorithm_version.${algo}`)}`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            value: (version || "").toString().trim(),
+            description: `算法 ${algo} 的模型版本号（用于任务记录与论文追踪）`,
+            category: "separation",
+          }),
+        });
+        if (!resp.ok) {
+          const errBody = await resp.json().catch(() => ({}));
+          throw new Error(errBody.detail || `保存 ${algo} 版本失败`);
+        }
+      }
+      showSuccess("模型版本配置已保存");
+      fetchConfigs(selectedCategory || null);
+    } catch (err) {
+      showError(err.message || "保存模型版本失败");
+    } finally {
+      setSavingModelVersions(false);
     }
   };
 
@@ -1156,6 +1214,43 @@ function SystemSettings({ token }) {
         {savingComputeMode && (
           <div className="mt-4 text-sm text-slate-400">正在保存运行模式...</div>
         )}
+      </div>
+
+      {/* 模型版本配置（论文追踪） */}
+      <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-white mb-2">算法模型版本配置</h3>
+            <p className="text-sm text-slate-400">
+              由管理员维护每个算法当前使用的模型版本号。新建分离任务时会自动记录该版本信息，便于论文复现与对比追踪。
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Object.keys(modelVersions || {}).map((algo) => (
+            <div key={algo}>
+              <label className="block text-xs text-slate-400 mb-1.5">{algo} 版本</label>
+              <input
+                type="text"
+                value={modelVersions[algo] || ""}
+                onChange={(e) =>
+                  setModelVersions((prev) => ({ ...(prev || {}), [algo]: e.target.value }))
+                }
+                placeholder="例如：v1.0.3 / 2026-03-22"
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="mt-4">
+          <button
+            onClick={handleSaveModelVersions}
+            disabled={savingModelVersions}
+            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {savingModelVersions ? "保存中..." : "保存模型版本"}
+          </button>
+        </div>
       </div>
 
       {/* 邮箱测试 */}

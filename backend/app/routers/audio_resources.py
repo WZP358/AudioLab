@@ -242,11 +242,53 @@ async def get_public_audio_resource(
     )
     result = await db.execute(query)
     resource = result.scalars().first()
-    
+
     if not resource:
         raise HTTPException(status_code=404, detail="音频资源不存在或未公开")
-    
+
     return AudioResourceResponse.from_orm(resource)
+
+
+@router.get("/resources/bundle/gold-stems", response_model=dict)
+async def get_gold_stems_by_bundle(
+    bundle_title: str = Query(..., description="成组音频的基础标题（例如 SongName）"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    根据mixture的bundle_title获取所有对应的gold标准音源
+
+    返回格式：
+    {
+        "vocals": AudioResourceResponse | null,
+        "drums": AudioResourceResponse | null,
+        "bass": AudioResourceResponse | null,
+        "other": AudioResourceResponse | null
+    }
+    """
+    bt = bundle_title.strip()
+    if not bt:
+        raise HTTPException(status_code=400, detail="bundle_title不能为空")
+
+    # 构建4个gold stem的标题
+    gold_titles = {
+        "vocals": f"{bt} [Gold Vocals]",
+        "drums": f"{bt} [Gold Drums]",
+        "bass": f"{bt} [Gold Bass]",
+        "other": f"{bt} [Gold Other]",
+    }
+
+    # 查询所有gold stems
+    result = {}
+    for stem_key, title in gold_titles.items():
+        query = select(AudioResource).where(
+            AudioResource.title == title,
+            AudioResource.is_public == True
+        )
+        db_result = await db.execute(query)
+        resource = db_result.scalars().first()
+        result[stem_key] = AudioResourceResponse.from_orm(resource) if resource else None
+
+    return result
 
 
 async def _save_audio_resource(

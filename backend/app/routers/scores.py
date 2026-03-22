@@ -2,11 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, distinct
 from typing import List, Dict, Optional
+import json
 
 from app.database import get_db
 from app.models import Score, Algorithm, Role, User, SeparationTask
 from app.schemas import (
     ScoreCreate,
+    ScoreCreateBatch,
+    StemScoreData,
     ScoreUpdate,
     ScoreResponse,
     StatsResponse,
@@ -38,13 +41,112 @@ def _to_0_100(value: Optional[float]) -> float:
     return v
 
 
+def _extract_si_sdr(metadata_json: Optional[str], comment: Optional[str]) -> Optional[float]:
+    for raw in (metadata_json, comment):
+        if not raw:
+            continue
+        try:
+            data = json.loads(str(raw))
+            if isinstance(data, dict) and data.get("si_sdr") is not None:
+                return float(data.get("si_sdr"))
+        except Exception:
+            continue
+    return None
+
+
+@router.post("/batch", response_model=List[ScoreResponse])
+async def create_score_batch(
+    score_data: ScoreCreateBatch,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    批量提交主观评分（一次性提交所有4个源的评分）
+
+    要求：
+    - 仅专家可用
+    - 必须同时提交 Vocals, Drums, Bass, Other 四个源的评分
+    - 每个源的评分维度：quality, interference, artifacts（0-100）
+
+    优点：
+    - 确保评分完整性，避免遗漏
+    - 减少网络请求次数
+    - 保证数据一致性（同一时间戳）
+    """
+    # 检查用户是否为专家
+    if current_user.role != Role.EXPERT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅专家用户可提交主观评分"
+        )
+
+    # 验证任务是否存在
+    task = await db.get(SeparationTask, score_data.task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {score_data.task_id} 不存在"
+        )
+
+    # 验证算法是否匹配
+    if task.algorithm != score_data.algorithm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"任务算法为 {task.algorithm.value}，但提交的评分算法为 {score_data.algorithm.value}"
+        )
+
+    # 检查是否已经提交过评分（避免重复提交）
+    existing_scores = await db.execute(
+        select(Score).where(
+            (Score.user_id == str(current_user.id))
+            & (Score.task_id == score_data.task_id)
+            & (Score.algorithm == score_data.algorithm)
+        )
+    )
+    existing_list = existing_scores.scalars().all()
+
+    if existing_list:
+        existing_stems = {s.stem_name for s in existing_list}
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"您已经为该任务提交过评分（已评分的源: {', '.join(sorted(existing_stems))}）。如需修改，请先删除旧评分。"
+        )
+
+    # 批量创建评分记录
+    created_scores = []
+    for stem_score in score_data.scores:
+        score = Score(
+            user_id=str(current_user.id),
+            task_id=score_data.task_id,
+            algorithm=score_data.algorithm,
+            stem_name=stem_score.stem_name,
+            quality=stem_score.quality,
+            interference=stem_score.interference,
+            artifacts=stem_score.artifacts,
+        )
+        db.add(score)
+        created_scores.append(score)
+
+    await db.commit()
+
+    # 刷新所有记录以获取生成的 ID 和时间戳
+    for score in created_scores:
+        await db.refresh(score)
+
+    return created_scores
+
+
 @router.post("", response_model=ScoreResponse)
 async def create_score(
     score_data: ScoreCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """提交主观评分（仅专家可用）"""
+    """
+    提交单个源的主观评分（已弃用，建议使用 /batch 接口）
+
+    保留此接口用于向后兼容，但推荐使用批量提交接口确保评分完整性。
+    """
     # 检查用户是否为专家
     if current_user.role != Role.EXPERT:
         raise HTTPException(
@@ -60,7 +162,7 @@ async def create_score(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"{field} 评分应在 0~100 之间",
             )
-    
+
     score = Score(
         user_id=str(current_user.id),
         task_id=score_data.task_id,
@@ -392,6 +494,8 @@ async def get_subjective_objective_points(
             SeparationTask.sdr,
             SeparationTask.sir,
             SeparationTask.sar,
+            SeparationTask.metadata_json,
+            SeparationTask.comment,
         )
         .join(
             SeparationTask,
@@ -424,6 +528,7 @@ async def get_subjective_objective_points(
                 sdr=float(row.sdr) if row.sdr is not None else None,
                 sir=float(row.sir) if row.sir is not None else None,
                 sar=float(row.sar) if row.sar is not None else None,
+                si_sdr=_extract_si_sdr(row.metadata_json, row.comment),
             )
         )
 

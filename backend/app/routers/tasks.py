@@ -5,14 +5,19 @@ from typing import List, Optional
 import os
 import uuid
 import logging
+import json
+import math
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+import csv
+import io
+import zipfile
 
 import numpy as np
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.models import SeparationTask, StemFile, TaskStatus, Algorithm, User, Role, Score
+from app.models import SeparationTask, StemFile, TaskStatus, Algorithm, User, Role, Score, SystemConfig
 from app.routers.auth import get_current_user
 from app.services.separation_engine import mark_task_cancelled
 from app.schemas import (
@@ -24,17 +29,173 @@ from app.schemas import (
     ObjectiveAlgorithmDistribution,
     AudioAnalysisPayload,
     PaginatedTaskListResponse,
+    ObjectiveSignificanceRequest,
+    ObjectiveSignificanceResponse,
 )
 from app.services.separation_service import process_separation
 from app.services.queue_manager import TaskQueueManager
 from app.services.analysis_service import analyze_audio_file, analysis_to_payload, _read_audio_any
 from app.services.objective_metrics import compute_bss_metrics_two_source, compute_residual_mix_minus_est
+from app.services.objective_metrics_multisource import compute_bss_metrics_multisource
 from app.utils.log_helper import get_client_ip, get_user_agent
 import logging
 import tempfile
 import soundfile as sf
+from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_task_comment_meta(comment: Optional[str]) -> dict:
+    """
+    从 comment 中提取 JSON 元数据。
+    兼容历史纯文本 comment：解析失败时返回空 dict。
+    """
+    if not comment:
+        return {}
+    text = str(comment).strip()
+    if not text:
+        return {}
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        return {}
+    return {}
+
+
+def _merge_task_comment_meta(comment: Optional[str], **kwargs) -> str:
+    """
+    将键值对合并到 comment JSON 元数据中并返回新字符串。
+    """
+    data = _parse_task_comment_meta(comment)
+    for k, v in kwargs.items():
+        if v is not None:
+            data[k] = v
+    return json.dumps(data, ensure_ascii=False)
+
+
+def _parse_task_metadata(task: SeparationTask) -> dict:
+    """
+    优先读取 metadata_json；若为空则回退解析 comment（兼容历史数据）。
+    """
+    raw = getattr(task, "metadata_json", None)
+    if raw:
+        try:
+            data = json.loads(str(raw))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+    return _parse_task_comment_meta(getattr(task, "comment", None))
+
+
+def _merge_task_metadata(task: SeparationTask, **kwargs) -> None:
+    """
+    合并写入 task.metadata_json，不改动原 comment 文本。
+    """
+    data = _parse_task_metadata(task)
+    for k, v in kwargs.items():
+        if v is not None:
+            data[k] = v
+    task.metadata_json = json.dumps(data, ensure_ascii=False)
+
+
+def _get_task_si_sdr(task: SeparationTask) -> Optional[float]:
+    meta = _parse_task_metadata(task)
+    value = meta.get("si_sdr")
+    try:
+        return float(value) if value is not None else None
+    except Exception:
+        return None
+
+
+def _get_task_model_version(task: SeparationTask) -> Optional[str]:
+    meta = _parse_task_metadata(task)
+    v = meta.get("model_version")
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s or None
+
+
+def _attach_task_runtime_fields(task: SeparationTask) -> SeparationTask:
+    """
+    给 ORM 对象附加响应期字段（不落库），用于 TaskResponse 序列化输出。
+    """
+    setattr(task, "si_sdr", _get_task_si_sdr(task))
+    setattr(task, "model_version", _get_task_model_version(task))
+    return task
+
+
+def _norm_cdf(z: float) -> float:
+    return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+
+
+def _wilcoxon_signed_rank(diffs: list[float]) -> tuple[float, float, float, float]:
+    """
+    Wilcoxon signed-rank（双侧）近似实现：
+    返回 (w_stat, z_score, p_value, rank_biserial_effect_size)
+    """
+    non_zero = [d for d in diffs if abs(d) > 1e-12]
+    n = len(non_zero)
+    if n == 0:
+        return 0.0, 0.0, 1.0, 0.0
+
+    abs_vals = np.array([abs(d) for d in non_zero], dtype=np.float64)
+    signs = np.array([1.0 if d > 0 else -1.0 for d in non_zero], dtype=np.float64)
+    order = np.argsort(abs_vals)
+    ranks = np.zeros(n, dtype=np.float64)
+
+    # 平均秩处理 ties
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and abs(abs_vals[order[j + 1]] - abs_vals[order[i]]) < 1e-12:
+            j += 1
+        avg_rank = (i + 1 + j + 1) / 2.0
+        ranks[order[i : j + 1]] = avg_rank
+        i = j + 1
+
+    w_plus = float(np.sum(ranks[signs > 0]))
+    w_minus = float(np.sum(ranks[signs < 0]))
+    w_stat = min(w_plus, w_minus)
+
+    # 正态近似（含 tie 修正）
+    mean_w = n * (n + 1) / 4.0
+    _, counts = np.unique(abs_vals, return_counts=True)
+    tie_correction = float(np.sum(counts**3 - counts))
+    var_w = (n * (n + 1) * (2 * n + 1) - tie_correction) / 24.0
+    if var_w <= 1e-12:
+        z = 0.0
+        p = 1.0
+    else:
+        z = (w_stat - mean_w) / math.sqrt(var_w)
+        p = 2.0 * (1.0 - _norm_cdf(abs(z)))
+        p = min(max(p, 0.0), 1.0)
+
+    denom = w_plus + w_minus
+    effect_rbc = (w_plus - w_minus) / denom if denom > 1e-12 else 0.0
+    return float(w_stat), float(z), float(p), float(effect_rbc)
+
+
+def _get_metric_value_from_task(task: SeparationTask, metric: str) -> Optional[float]:
+    m = (metric or "").strip().lower()
+    if m == "sdr":
+        v = task.sdr
+    elif m == "sir":
+        v = task.sir
+    elif m == "sar":
+        v = task.sar
+    elif m == "si_sdr":
+        v = _get_task_si_sdr(task)
+    else:
+        return None
+    try:
+        return float(v) if v is not None else None
+    except Exception:
+        return None
 
 
 class MixRequest(BaseModel):
@@ -89,9 +250,9 @@ async def mix_stems_for_task(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    根据用户选择的 stems 生成混合音频（可作为“自定义残差”或“自定义伴奏”使用）：
+    根据用户选择的 stems 生成混合音频（可作为"自定义残差"或"自定义伴奏"使用）：
     - mode == "keep": 只用这些 stem 相加做混音
-    - mode == "remove": 从所有 stem 中排除这些，再把剩余 stem 相加（等价于“消除这些声源”）
+    - mode == "remove": 从所有 stem 中排除这些，再把剩余 stem 相加（等价于"消除这些声源"）
     """
     try:
         task_id_int = int(task_id)
@@ -233,12 +394,24 @@ async def upload_audio(
     
     # 创建任务记录
     try:
+        model_version = None
+        try:
+            cfg_key = f"algorithm_version.{algorithm.value}"
+            cfg_q = select(SystemConfig).where(SystemConfig.key == cfg_key)
+            cfg_r = await db.execute(cfg_q)
+            cfg = cfg_r.scalars().first()
+            if cfg and cfg.value:
+                model_version = str(cfg.value).strip() or None
+        except Exception:
+            model_version = None
+
         task = SeparationTask(
             user_id=user_id,
             original_filename=file.filename,
             file_path=str(file_path),
             algorithm=algorithm,
             status=TaskStatus.PENDING,
+            metadata_json=json.dumps({"model_version": model_version}, ensure_ascii=False) if model_version else None,
         )
         db.add(task)
         await db.commit()
@@ -278,7 +451,7 @@ async def upload_audio(
             f"返回任务响应: task_id={task.id} (类型: {type(task.id).__name__}), "
             f"将序列化为字符串: {str(task.id)}"
         )
-        return task
+        return _attach_task_runtime_fields(task)
     except Exception as e:
         logger.error(f"创建任务时发生错误: {str(e)}", exc_info=True)
         await db.rollback()
@@ -298,7 +471,7 @@ async def claim_anonymous_task_history(
     current_user: User = Depends(get_current_user),
 ):
     """
-    将历史上以 user_id='anonymous' 创建的任务“找回”到当前账号名下（仅限本地/单用户场景）。
+    将历史上以 user_id='anonymous' 创建的任务"找回"到当前账号名下（仅限本地/单用户场景）。
 
     - 这是一个显式操作，避免自动归属带来的潜在数据串号风险；
     - 默认只处理最近 `days` 天的匿名任务。
@@ -406,7 +579,7 @@ async def get_task(task_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="任务不存在或已被删除")
     
     logger.info(f"任务查询成功: task_id={task.id}, status={task.status}")
-    return task
+    return _attach_task_runtime_fields(task)
 
 
 @router.get("/history/me", response_model=PaginatedTaskListResponse)
@@ -422,7 +595,7 @@ async def get_my_task_history(
     """
     当前登录用户的分离任务历史记录（分页）。
     
-    - 用于“分离历史”页面展示“我的历史记录”；
+    - 用于"分离历史"页面展示"我的历史记录"；
     - 仅返回当前用户自己的任务，避免泄露其他用户信息。
     """
 
@@ -461,7 +634,7 @@ async def get_my_task_history(
     tasks = result.scalars().all()
 
     return PaginatedTaskListResponse(
-        items=[TaskResponse.model_validate(t) for t in tasks],
+        items=[TaskResponse.model_validate(_attach_task_runtime_fields(t)) for t in tasks],
         total=total,
         page=page,
         page_size=page_size,
@@ -524,7 +697,7 @@ async def get_all_task_history(
     tasks = result.scalars().all()
 
     return PaginatedTaskListResponse(
-        items=[TaskResponse.model_validate(t) for t in tasks],
+        items=[TaskResponse.model_validate(_attach_task_runtime_fields(t)) for t in tasks],
         total=total,
         page=page,
         page_size=page_size,
@@ -640,9 +813,9 @@ async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db)):
     取消一个正在排队或处理中的分离任务。
 
     说明：
-    - 该接口为“软取消”：如果后端分离引擎已经在运行，可能无法立刻中断计算；
-      但会将任务状态标记为 FAILED，并在 comment 中写入“任务已被用户取消”，
-      前端可以据此识别为“用户主动取消”，而不是普通失败。
+    - 该接口为"软取消"：如果后端分离引擎已经在运行，可能无法立刻中断计算；
+      但会将任务状态标记为 FAILED，并在 comment 中写入"任务已被用户取消"，
+      前端可以据此识别为"用户主动取消"，而不是普通失败。
     """
     try:
         task_id_int = int(task_id)
@@ -707,7 +880,7 @@ async def get_objective_stats(db: AsyncSession = Depends(get_db)):
     按算法聚合任务级客观指标（SDR/SIR/SAR）。
 
     用途：
-    - 为前端的“客观指标雷达图”“算法排行榜”等提供数据支撑；
+    - 为前端的"客观指标雷达图""算法排行榜"等提供数据支撑；
     - 只统计 sdr 非空的任务（即分离引擎或外部服务确实返回了客观指标）。
     """
     result = await db.execute(
@@ -723,6 +896,30 @@ async def get_objective_stats(db: AsyncSession = Depends(get_db)):
     )
 
     rows = result.all()
+
+    # 额外聚合 SI-SDR（当前存储在 comment JSON 元数据里）
+    si_map: dict[Algorithm, list[float]] = {}
+    si_rows = await db.execute(
+        select(SeparationTask.algorithm, SeparationTask.metadata_json, SeparationTask.comment)
+        .where((SeparationTask.metadata_json.isnot(None)) | (SeparationTask.comment.isnot(None)))
+    )
+    for algo, metadata_json, comment in si_rows.all():
+        meta = {}
+        if metadata_json:
+            try:
+                meta = json.loads(str(metadata_json))
+                if not isinstance(meta, dict):
+                    meta = {}
+            except Exception:
+                meta = {}
+        if not meta and comment:
+            meta = _parse_task_comment_meta(comment)
+        val = meta.get("si_sdr")
+        try:
+            f = float(val)
+        except Exception:
+            continue
+        si_map.setdefault(algo, []).append(f)
     stats: List[ObjectiveAlgorithmStats] = []
     for row in rows:
         stats.append(
@@ -732,6 +929,7 @@ async def get_objective_stats(db: AsyncSession = Depends(get_db)):
                 avg_sdr=float(row.avg_sdr) if row.avg_sdr is not None else None,
                 avg_sir=float(row.avg_sir) if row.avg_sir is not None else None,
                 avg_sar=float(row.avg_sar) if row.avg_sar is not None else None,
+                avg_si_sdr=float(np.mean(si_map[row.algorithm])) if row.algorithm in si_map and si_map[row.algorithm] else None,
             )
         )
 
@@ -743,7 +941,7 @@ async def get_objective_distribution(db: AsyncSession = Depends(get_db)):
     """
     返回每个算法对应的 SDR 样本分布（仅包含 sdr 非空的任务）。
 
-    前端可以基于该分布绘制箱线图/蜂群散点等“分布型”可视化，
+    前端可以基于该分布绘制箱线图/蜂群散点等"分布型"可视化，
     以展示同一算法在多首歌曲上的性能波动情况。
     """
     result = await db.execute(
@@ -777,6 +975,278 @@ async def get_objective_distribution(db: AsyncSession = Depends(get_db)):
         )
 
     return out
+
+
+@router.get("/stats/objective/export")
+async def export_objective_stats_csv(db: AsyncSession = Depends(get_db)):
+    """
+    导出按算法聚合的客观指标统计（CSV）。
+    字段：algorithm,count_tasks,avg_sdr,avg_sir,avg_sar,avg_si_sdr
+    """
+    stats = await get_objective_stats(db)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["algorithm", "count_tasks", "avg_sdr", "avg_sir", "avg_sar", "avg_si_sdr"])
+    for row in stats:
+        writer.writerow(
+            [
+                row.algorithm.value if hasattr(row.algorithm, "value") else str(row.algorithm),
+                row.count_tasks,
+                row.avg_sdr,
+                row.avg_sir,
+                row.avg_sar,
+                row.avg_si_sdr,
+            ]
+        )
+
+    output.seek(0)
+    filename = f"objective_stats_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.post("/stats/significance", response_model=ObjectiveSignificanceResponse)
+async def get_objective_significance(
+    body: ObjectiveSignificanceRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    两算法客观指标的配对显著性检验（Wilcoxon signed-rank, 双侧）。
+
+    配对口径：
+    - 按 original_filename 对齐同一首歌曲；
+    - 同一算法同一歌曲若有多条记录，先求均值再参与配对。
+    """
+    if body.algorithm_a == body.algorithm_b:
+        raise HTTPException(status_code=400, detail="algorithm_a 与 algorithm_b 不能相同")
+
+    result = await db.execute(
+        select(
+            SeparationTask.original_filename,
+            SeparationTask.algorithm,
+            SeparationTask.sdr,
+            SeparationTask.sir,
+            SeparationTask.sar,
+            SeparationTask.metadata_json,
+            SeparationTask.comment,
+        ).where(SeparationTask.algorithm.in_([body.algorithm_a, body.algorithm_b]))
+    )
+    rows = result.all()
+
+    # filename -> {algo: [values]}
+    bucket: dict[str, dict[Algorithm, list[float]]] = {}
+    for filename, algo, sdr, sir, sar, metadata_json, comment in rows:
+        if not filename:
+            continue
+        fake_task = SeparationTask(
+            original_filename=filename,
+            algorithm=algo,
+            sdr=sdr,
+            sir=sir,
+            sar=sar,
+            metadata_json=metadata_json,
+            comment=comment,
+        )
+        value = _get_metric_value_from_task(fake_task, body.metric)
+        if value is None or not math.isfinite(value):
+            continue
+        d = bucket.setdefault(str(filename), {})
+        d.setdefault(algo, []).append(float(value))
+
+    a_values = {}
+    b_values = {}
+    for fn, per_algo in bucket.items():
+        if body.algorithm_a in per_algo:
+            a_values[fn] = float(np.mean(per_algo[body.algorithm_a]))
+        if body.algorithm_b in per_algo:
+            b_values[fn] = float(np.mean(per_algo[body.algorithm_b]))
+
+    common = sorted(set(a_values.keys()) & set(b_values.keys()))
+    if len(common) < 5:
+        raise HTTPException(
+            status_code=400,
+            detail=f"可配对样本不足（当前 {len(common)} 对，至少需要 5 对）",
+        )
+
+    diffs = [a_values[k] - b_values[k] for k in common]
+    w_stat, z_score, p_value, effect_rbc = _wilcoxon_signed_rank(diffs)
+
+    return ObjectiveSignificanceResponse(
+        algorithm_a=body.algorithm_a,
+        algorithm_b=body.algorithm_b,
+        metric=body.metric,
+        n_pairs=len(common),
+        w_stat=w_stat,
+        z_score=z_score,
+        p_value=p_value,
+        effect_size_rbc=effect_rbc,
+        significant=bool(p_value < 0.05),
+    )
+
+
+@router.get("/stats/significance/export")
+async def export_objective_significance_csv(
+    algorithm_a: Algorithm,
+    algorithm_b: Algorithm,
+    metric: str = "si_sdr",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    导出两算法显著性检验结果（CSV）。
+    """
+    body = ObjectiveSignificanceRequest(
+        algorithm_a=algorithm_a,
+        algorithm_b=algorithm_b,
+        metric=metric,
+    )
+    result = await get_objective_significance(body=body, db=db)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "algorithm_a",
+            "algorithm_b",
+            "metric",
+            "n_pairs",
+            "w_stat",
+            "z_score",
+            "p_value",
+            "effect_size_rbc",
+            "significant",
+        ]
+    )
+    writer.writerow(
+        [
+            result.algorithm_a.value if hasattr(result.algorithm_a, "value") else str(result.algorithm_a),
+            result.algorithm_b.value if hasattr(result.algorithm_b, "value") else str(result.algorithm_b),
+            result.metric,
+            result.n_pairs,
+            result.w_stat,
+            result.z_score,
+            result.p_value,
+            result.effect_size_rbc,
+            result.significant,
+        ]
+    )
+
+    output.seek(0)
+    filename = (
+        f"significance_{(algorithm_a.value if hasattr(algorithm_a, 'value') else algorithm_a)}"
+        f"_vs_{(algorithm_b.value if hasattr(algorithm_b, 'value') else algorithm_b)}"
+        f"_{metric}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    )
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/stats/export-package")
+async def export_paper_package(
+    algorithm_a: Algorithm = Algorithm.SCNET,
+    algorithm_b: Algorithm = Algorithm.MDX23C,
+    metric: str = "si_sdr",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    论文导出包（ZIP）：
+    - objective_stats.csv（按算法客观指标汇总）
+    - significance.csv（指定算法对比的 Wilcoxon 结果）
+    - model_versions.csv（管理员配置的算法版本快照）
+    """
+    # 1) objective_stats.csv
+    objective_stats = await get_objective_stats(db)
+    objective_buf = io.StringIO()
+    objective_writer = csv.writer(objective_buf)
+    objective_writer.writerow(["algorithm", "count_tasks", "avg_sdr", "avg_sir", "avg_sar", "avg_si_sdr"])
+    for row in objective_stats:
+        objective_writer.writerow(
+            [
+                row.algorithm.value if hasattr(row.algorithm, "value") else str(row.algorithm),
+                row.count_tasks,
+                row.avg_sdr,
+                row.avg_sir,
+                row.avg_sar,
+                row.avg_si_sdr,
+            ]
+        )
+
+    # 2) significance.csv
+    sig_body = ObjectiveSignificanceRequest(
+        algorithm_a=algorithm_a,
+        algorithm_b=algorithm_b,
+        metric=metric,
+    )
+    sig_result = await get_objective_significance(body=sig_body, db=db)
+    sig_buf = io.StringIO()
+    sig_writer = csv.writer(sig_buf)
+    sig_writer.writerow(
+        [
+            "algorithm_a",
+            "algorithm_b",
+            "metric",
+            "n_pairs",
+            "w_stat",
+            "z_score",
+            "p_value",
+            "effect_size_rbc",
+            "significant",
+        ]
+    )
+    sig_writer.writerow(
+        [
+            sig_result.algorithm_a.value if hasattr(sig_result.algorithm_a, "value") else str(sig_result.algorithm_a),
+            sig_result.algorithm_b.value if hasattr(sig_result.algorithm_b, "value") else str(sig_result.algorithm_b),
+            sig_result.metric,
+            sig_result.n_pairs,
+            sig_result.w_stat,
+            sig_result.z_score,
+            sig_result.p_value,
+            sig_result.effect_size_rbc,
+            sig_result.significant,
+        ]
+    )
+
+    # 3) model_versions.csv（系统配置快照）
+    cfg_result = await db.execute(
+        select(SystemConfig.key, SystemConfig.value, SystemConfig.updated_at)
+        .where(SystemConfig.key.like("algorithm_version.%"))
+        .order_by(SystemConfig.key.asc())
+    )
+    cfg_rows = cfg_result.all()
+    version_buf = io.StringIO()
+    version_writer = csv.writer(version_buf)
+    version_writer.writerow(["algorithm", "model_version", "updated_at"])
+    for key, value, updated_at in cfg_rows:
+        algo = str(key).replace("algorithm_version.", "", 1)
+        version_writer.writerow(
+            [
+                algo,
+                value if value is not None else "",
+                updated_at.isoformat() if updated_at else "",
+            ]
+        )
+
+    # ZIP in-memory
+    zip_bytes = io.BytesIO()
+    with zipfile.ZipFile(zip_bytes, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("objective_stats.csv", objective_buf.getvalue())
+        zf.writestr("significance.csv", sig_buf.getvalue())
+        zf.writestr("model_versions.csv", version_buf.getvalue())
+
+    zip_bytes.seek(0)
+    filename = f"paper_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.zip"
+    return StreamingResponse(
+        iter([zip_bytes.getvalue()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @router.get("/{task_id}/stems/{stem_id}/download")
@@ -983,7 +1453,7 @@ async def compute_objective_metrics(
     计算客观指标（SDR/SIR/SAR）。
 
     说明：
-    - 需要你上传该 stem 的“金标准参考音轨”(reference)
+    - 需要你上传该 stem 的"金标准参考音轨"(reference)
     - 使用两源假设：mixture = target + interference（干扰参考由 mixture - target 得到）
     """
     # 确保 task_id 是有效的整数（支持大整数）
@@ -1056,6 +1526,7 @@ async def compute_objective_metrics(
         task.sdr = float(m.sdr)
         task.sir = float(m.sir)
         task.sar = float(m.sar)
+        _merge_task_metadata(task, si_sdr=float(m.si_sdr) if m.si_sdr is not None else None)
         await db.commit()
         await db.refresh(task)
     except Exception as e:
@@ -1073,8 +1544,143 @@ async def compute_objective_metrics(
         sdr=float(m.sdr),
         sir=float(m.sir),
         sar=float(m.sar),
-        comment="已基于你上传的金标准参考 stem 计算 SDR/SIR/SAR（两源假设），并已写入任务记录。",
+        si_sdr=float(m.si_sdr) if m.si_sdr is not None else None,
+        comment="已基于你上传的金标准参考 stem 计算 SDR/SIR/SAR/SI-SDR（两源假设），并已写入任务记录。",
     )
+
+
+@router.post("/{task_id}/objective-metrics-batch")
+async def compute_objective_metrics_batch(
+    task_id: str,
+    vocals_ref: UploadFile = File(None),
+    drums_ref: UploadFile = File(None),
+    bass_ref: UploadFile = File(None),
+    other_ref: UploadFile = File(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    批量计算多源分离的客观指标（完整 BSS Eval）
+
+    说明：
+    - 上传所有源的金标准参考（至少2个）
+    - 使用完整的多源分离指标公式，考虑源间干扰
+    - 返回每个源的 SDR/SIR/SAR/ISR 以及平均值
+
+    适用场景：
+    - 有完整数据集（如 MUSDB18）
+    - 需要同时评估所有源的分离质量
+    """
+    try:
+        task_id_int = int(task_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="无效的任务ID")
+
+    task = await db.get(SeparationTask, task_id_int)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    # 收集上传的参考文件
+    ref_files = {
+        "Vocals": vocals_ref,
+        "Drums": drums_ref,
+        "Bass": bass_ref,
+        "Other": other_ref,
+    }
+    ref_files = {k: v for k, v in ref_files.items() if v is not None}
+
+    if len(ref_files) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="至少需要上传2个源的金标准参考（多源分离需要多个参考源）"
+        )
+
+    # 获取任务的所有 stems
+    from sqlalchemy import select
+    result = await db.execute(
+        select(StemFile).where(StemFile.task_id == task_id_int)
+    )
+    stems = result.scalars().all()
+    stem_dict = {s.stem_name: s for s in stems}
+
+    # 验证所有上传的参考都有对应的估计
+    missing_stems = [name for name in ref_files.keys() if name not in stem_dict]
+    if missing_stems:
+        raise HTTPException(
+            status_code=400,
+            detail=f"任务中缺少以下 stems 的分离结果: {', '.join(missing_stems)}"
+        )
+
+    # 保存参考文件到临时目录
+    import tempfile
+    tmp_dir = Path(tempfile.gettempdir()) / "audiolab_multisource" / str(task_id_int)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    references = {}
+    estimates = {}
+
+    try:
+        for stem_name, ref_file in ref_files.items():
+            # 保存参考文件
+            ref_bytes = await ref_file.read()
+            if not ref_bytes:
+                raise HTTPException(status_code=400, detail=f"{stem_name} 参考文件为空")
+
+            safe_name = Path(ref_file.filename or f"{stem_name}_ref").name
+            ref_path = tmp_dir / f"ref_{stem_name}_{safe_name}"
+            ref_path.write_bytes(ref_bytes)
+            references[stem_name] = ref_path
+
+            # 获取估计文件路径
+            estimates[stem_name] = Path(stem_dict[stem_name].file_path)
+
+        # 计算多源指标
+        mixture_path = Path(task.file_path)
+        if not mixture_path.exists():
+            raise HTTPException(status_code=404, detail="原始混合音频不存在")
+
+        metrics = compute_bss_metrics_multisource(
+            mixture_path=mixture_path,
+            estimates=estimates,
+            references=references,
+        )
+
+        # 更新任务记录（使用平均 SDR）
+        avg_sdr = metrics.get_average_sdr()
+        task.sdr = float(avg_sdr)
+        # SIR/SAR 也可以计算平均值
+        avg_sir = float(np.mean([m["sir"] for m in metrics.metrics_by_source.values()]))
+        avg_sar = float(np.mean([m["sar"] for m in metrics.metrics_by_source.values()]))
+        avg_si_sdr = float(np.mean([m["si_sdr"] for m in metrics.metrics_by_source.values() if "si_sdr" in m]))
+        task.sir = float(avg_sir)
+        task.sar = float(avg_sar)
+        _merge_task_metadata(task, si_sdr=avg_si_sdr)
+        await db.commit()
+
+        return {
+            "task_id": task_id_int,
+            "metrics_by_source": metrics.metrics_by_source,
+            "average": {
+                "sdr": avg_sdr,
+                "sir": avg_sir,
+                "sar": avg_sar,
+                "si_sdr": avg_si_sdr,
+            },
+            "comment": f"已计算 {len(ref_files)} 个源的多源分离指标（完整 BSS Eval）",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "批量计算客观指标失败: task_id=%s err=%s",
+            task_id_int,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"计算失败: {type(e).__name__}: {str(e)}",
+        )
 
 
 @router.get("/{task_id}/residual")
@@ -1087,7 +1693,7 @@ async def get_residual_audio(
     残差播放器音频：
 
     - 计算 r(t) = mixture(t) - estimate(t)
-    - 用于听“剩余干扰 + 伪影”：如果还能听到大量人声，说明算法漏分离；
+    - 用于听"剩余干扰 + 伪影"：如果还能听到大量人声，说明算法漏分离；
       如果主要是鼓/贝斯等，则说明目标声部分离较干净。
     """
     try:

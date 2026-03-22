@@ -2672,6 +2672,13 @@ export default function AudioLabApp() {
   const [, setObjectiveStats] = useState([]);
   // 单条“主观 + 客观”联合样本点，用于相关性散点图
   const [subjectiveObjectivePoints, setSubjectiveObjectivePoints] = useState([]);
+  // 客观指标显著性检验（Wilcoxon）
+  const [sigMetric, setSigMetric] = useState("si_sdr");
+  const [sigAlgoA, setSigAlgoA] = useState("SCNet");
+  const [sigAlgoB, setSigAlgoB] = useState("MDX23C");
+  const [sigLoading, setSigLoading] = useState(false);
+  const [sigResult, setSigResult] = useState(null);
+  const [sigError, setSigError] = useState("");
   // 按算法的 SDR 样本分布（用于近似箱线/蜂群散点）
   const [, setObjectiveDistribution] = useState([]);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -2705,6 +2712,20 @@ export default function AudioLabApp() {
   const gtFileRef = useRef(null); // 使用 ref 保存文件对象，避免状态更新时丢失
   // 记录当前 Gold Standard 对应的声部类型（例如 "Vocals" / "Drums" / "Bass" / "Other"），用于与 4. Stem Source 联动
   const [goldStemTargetName, setGoldStemTargetName] = useState(null);
+  // 存储所有gold stems的资源信息（根据mixture自动加载）
+  const [goldStems, setGoldStems] = useState({
+    vocals: null,
+    drums: null,
+    bass: null,
+    other: null
+  });
+  // 存储所有gold stems的文件对象
+  const goldStemFilesRef = useRef({
+    vocals: null,
+    drums: null,
+    bass: null,
+    other: null
+  });
   // 音频元数据：采样率和位深度
   const [audioMetadata, setAudioMetadata] = useState({
     sampleRate: null,
@@ -3318,6 +3339,7 @@ export default function AudioLabApp() {
         sdr: taskData.sdr,
         sir: taskData.sir,
         sar: taskData.sar,
+        si_sdr: taskData.si_sdr,
         comment: taskData.comment,
       });
 
@@ -3779,6 +3801,101 @@ export default function AudioLabApp() {
     return () => clearInterval(interval);
   }, [user, fetchBackendStats]);
 
+  const runObjectiveSignificance = useCallback(async () => {
+    if (!sigAlgoA || !sigAlgoB) {
+      setSigError("请先选择两个要比较的算法");
+      return;
+    }
+    if (sigAlgoA === sigAlgoB) {
+      setSigError("对比算法不能相同");
+      return;
+    }
+    setSigLoading(true);
+    setSigError("");
+    try {
+      const resp = await fetch(`${API_BASE}/api/tasks/stats/significance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          algorithm_a: sigAlgoA,
+          algorithm_b: sigAlgoB,
+          metric: sigMetric,
+        }),
+      });
+      const text = await resp.text();
+      if (!resp.ok) throw new Error(text || `HTTP ${resp.status}`);
+      const data = JSON.parse(text);
+      setSigResult(data);
+    } catch (e) {
+      const msg = e?.message || String(e);
+      setSigError(msg);
+      setSigResult(null);
+    } finally {
+      setSigLoading(false);
+    }
+  }, [sigAlgoA, sigAlgoB, sigMetric]);
+
+  const downloadObjectiveStatsCsv = useCallback(async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/tasks/stats/objective/export`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "objective_stats.csv";
+      a.click();
+      window.URL.revokeObjectURL(url);
+      showSuccess("客观指标 CSV 导出成功");
+    } catch (e) {
+      showError(`导出失败：${e?.message || String(e)}`);
+    }
+  }, [showError, showSuccess]);
+
+  const downloadSignificanceCsv = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        algorithm_a: sigAlgoA,
+        algorithm_b: sigAlgoB,
+        metric: sigMetric,
+      });
+      const resp = await fetch(`${API_BASE}/api/tasks/stats/significance/export?${params.toString()}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "significance.csv";
+      a.click();
+      window.URL.revokeObjectURL(url);
+      showSuccess("显著性检验 CSV 导出成功");
+    } catch (e) {
+      showError(`导出失败：${e?.message || String(e)}`);
+    }
+  }, [sigAlgoA, sigAlgoB, sigMetric, showError, showSuccess]);
+
+  const downloadPaperPackage = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        algorithm_a: sigAlgoA,
+        algorithm_b: sigAlgoB,
+        metric: sigMetric,
+      });
+      const resp = await fetch(`${API_BASE}/api/tasks/stats/export-package?${params.toString()}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "paper_export.zip";
+      a.click();
+      window.URL.revokeObjectURL(url);
+      showSuccess("论文导出包下载成功");
+    } catch (e) {
+      showError(`导出失败：${e?.message || String(e)}`);
+    }
+  }, [sigAlgoA, sigAlgoB, sigMetric, showError, showSuccess]);
+
   // Fetch Compute Mode from Backend (poll + tab focus)
   useEffect(() => {
     let cancelled = false;
@@ -3943,6 +4060,36 @@ export default function AudioLabApp() {
     [],
   );
 
+  const handleStemChange = async (stemName) => {
+    const stem = stems.find((s) => s.name === stemName);
+    if (!stem) return;
+
+    setCurrentStem(stem);
+
+    // 自动切换对应的gold音源
+    const stemKeyMap = {
+      'Vocals': 'vocals',
+      'Drums': 'drums',
+      'Bass': 'bass',
+      'Other': 'other'
+    };
+
+    const stemKey = stemKeyMap[stemName];
+    if (stemKey && goldStemFilesRef.current[stemKey]) {
+      const goldFile = goldStemFilesRef.current[stemKey];
+      gtFileRef.current = goldFile;
+      setGtFile({
+        name: goldFile.name,
+        size: (goldFile.size / 1024 / 1024).toFixed(2) + " MB",
+        raw: goldFile,
+      });
+      setGoldStemTargetName(stemName);
+
+      // 触发后端分析用于可视化
+      analyzeGoldForVisualization(goldFile);
+    }
+  };
+
   const handleResourceSelect = async (file, resource) => {
     if (resourceSelectorType === "input") {
       // 强约束：Input Source 只能选择 Mixture
@@ -3963,7 +4110,7 @@ export default function AudioLabApp() {
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
 
-      // 基于资源标题推断“成组音频”的基础标题，并用于后续 Gold Standard 联动
+      // 基于资源标题推断”成组音频”的基础标题，并用于后续 Gold Standard 联动
       // 规则：上传成组资源时，Mixture 命名为 `${title} [Mixture]`
       let bundleId = null;
       if (title) {
@@ -3973,6 +4120,51 @@ export default function AudioLabApp() {
         }
       }
       setCurrentBundleId(bundleId);
+
+      // 自动加载所有对应的gold stems
+      if (bundleId) {
+        try {
+          const resp = await fetch(
+            `${API_BASE}/api/audio/resources/bundle/gold-stems?bundle_title=${encodeURIComponent(bundleId)}`,
+            {
+              headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+            }
+          );
+          if (resp.ok) {
+            const goldStemsData = await resp.json();
+            setGoldStems(goldStemsData);
+
+            // 下载所有可用的gold stem文件
+            const stemKeys = ['vocals', 'drums', 'bass', 'other'];
+            for (const stemKey of stemKeys) {
+              const goldResource = goldStemsData[stemKey];
+              if (goldResource && goldResource.id) {
+                try {
+                  const downloadUrl = `${API_BASE}/api/audio/resources/${goldResource.id}/download`;
+                  const downloadResp = await fetch(downloadUrl, {
+                    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+                    redirect: 'follow',
+                  });
+                  if (downloadResp.ok) {
+                    const blob = await downloadResp.blob();
+                    const goldFile = new File([blob], goldResource.title || `gold_${stemKey}.wav`, {
+                      type: blob.type || 'audio/wav'
+                    });
+                    goldStemFilesRef.current[stemKey] = goldFile;
+                  }
+                } catch (err) {
+                  console.warn(`下载 gold ${stemKey} 失败:`, err);
+                }
+              }
+            }
+
+            showSuccess(`已自动加载 ${Object.values(goldStemsData).filter(s => s !== null).length} 个配套的Gold Standard音源`);
+          }
+        } catch (err) {
+          console.warn("加载gold stems失败:", err);
+          // 不阻塞主流程，只是警告
+        }
+      }
     } else if (resourceSelectorType === "gold") {
       // 兜底保护：仅要求 1. Input Source 中已选择任意音频（无须强制成组 Mixture）
       if (!rawFile && !audioUrl) {
@@ -4453,6 +4645,7 @@ export default function AudioLabApp() {
         sdr: t.sdr,
         sir: t.sir,
         sar: t.sar,
+        si_sdr: t.si_sdr,
         comment: t.comment,
       });
 
@@ -4756,6 +4949,7 @@ export default function AudioLabApp() {
         sdr: typeof data?.sdr === "number" ? data.sdr : null,
         sir: typeof data?.sir === "number" ? data.sir : null,
         sar: typeof data?.sar === "number" ? data.sar : null,
+        si_sdr: typeof data?.si_sdr === "number" ? data.si_sdr : null,
         comment: data?.comment || "",
         target_stem: data?.target_stem || stemName,
         // 可选：SDR/SIR/SAR 的时间曲线（由后端返回），用于 SDR vs Time 可视化
@@ -4800,7 +4994,7 @@ export default function AudioLabApp() {
       key && objectiveByStem && Object.prototype.hasOwnProperty.call(objectiveByStem, key)
         ? objectiveByStem[key]
         : null;
-    if (cached && (cached.sdr != null || cached.sir != null || cached.sar != null)) {
+    if (cached && (cached.sdr != null || cached.sir != null || cached.sar != null || cached.si_sdr != null)) {
       return;
     }
 
@@ -5552,8 +5746,7 @@ export default function AudioLabApp() {
                       value={currentStem?.name || ""}
                       onChange={(e) => {
                         const name = e.target.value;
-                        const stem = stems.find((s) => s.name === name);
-                        if (stem) setCurrentStem(stem);
+                        if (name) handleStemChange(name);
                       }}
                       disabled={stems.length === 0 || isProcessing}
                       className={`w-full px-3 py-2 pr-8 rounded-lg border text-sm font-medium appearance-none transition ${
@@ -5885,6 +6078,7 @@ export default function AudioLabApp() {
                         const sdrNorm = clamp01((m.sdr || 0) / 15);
                         const sirNorm = clamp01((m.sir || 0) / 20);
                         const sarNorm = clamp01((m.sar || 0) / 20);
+                        const sisdrNorm = clamp01((m.si_sdr || 0) / 20);
 
                         // SDR vs Time：如果后端返回 sdr_curve，则构造按时间采样的折线数据
                         let sdrCurveData = null;
@@ -5965,6 +6159,26 @@ export default function AudioLabApp() {
                                 <span>
                                   SAR：伪影控制能力（越高说明“水声”“机械噪声”等越少）
                                 </span>
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="flex justify-between text-xs mb-1 mt-3">
+                                <span className="text-slate-400">
+                                  SI-SDR (Scale-Invariant SDR)
+                                </span>
+                                <span className="text-fuchsia-300 font-mono">
+                                  {fmtDb(m.si_sdr)} dB
+                                </span>
+                              </div>
+                              <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-fuchsia-400 transition-all"
+                                  style={{ width: `${sisdrNorm * 100}%` }}
+                                ></div>
+                              </div>
+                              <div className="mt-1 text-[11px] text-slate-500">
+                                SI-SDR：去除整体增益影响的重建质量指标，更适合跨模型比较。
                               </div>
                             </div>
 
@@ -7211,7 +7425,15 @@ export default function AudioLabApp() {
 
             {/* 按 Stem 聚合的客观指标统计（SDR / SIR / SAR） */}
             <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-              <h3 className="font-bold text-white mb-4">按 Stem 维度的客观指标统计（SDR / SIR / SAR）</h3>
+              <div className="flex items-center justify-between mb-4 gap-3">
+                <h3 className="font-bold text-white">按 Stem 维度的客观指标统计（SDR / SIR / SAR）</h3>
+                <button
+                  onClick={downloadObjectiveStatsCsv}
+                  className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-700 text-xs transition"
+                >
+                  导出客观指标 CSV
+                </button>
+              </div>
               <p className="text-xs text-slate-400 mb-4">
                 基于联合样本点（主观评分 + 任务级 SDR/SIR/SAR），按 Vocals / Drums / Bass / Other 聚合得到各声源的平均客观指标。
                 用于从客观角度观察不同声源在分离任务中的难度与算法表现。
@@ -7394,6 +7616,127 @@ export default function AudioLabApp() {
                   </div>
                 );
               })()}
+            </div>
+
+            {/* 客观指标显著性检验（Wilcoxon） */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="flex items-center justify-between mb-4 gap-3">
+                <h3 className="font-bold text-white">客观指标显著性检验（Wilcoxon）</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={downloadSignificanceCsv}
+                    className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-700 text-xs transition"
+                  >
+                    导出检验结果 CSV
+                  </button>
+                  <button
+                    onClick={downloadPaperPackage}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-700/90 border border-cyan-600/60 text-white hover:bg-cyan-600 text-xs transition"
+                  >
+                    一键导出论文包 ZIP
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 mb-4">
+                对同一批歌曲的两种算法做配对检验，判断性能差异是否具有统计显著性（默认阈值 p &lt; 0.05）。
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">算法 A</label>
+                  <select
+                    value={sigAlgoA}
+                    onChange={(e) => setSigAlgoA(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  >
+                    {ALGORITHMS.map((algo) => (
+                      <option key={`sig-a-${algo}`} value={algo}>
+                        {algo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">算法 B</label>
+                  <select
+                    value={sigAlgoB}
+                    onChange={(e) => setSigAlgoB(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  >
+                    {ALGORITHMS.map((algo) => (
+                      <option key={`sig-b-${algo}`} value={algo}>
+                        {algo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">指标</label>
+                  <select
+                    value={sigMetric}
+                    onChange={(e) => setSigMetric(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  >
+                    <option value="si_sdr">SI-SDR</option>
+                    <option value="sdr">SDR</option>
+                    <option value="sir">SIR</option>
+                    <option value="sar">SAR</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={runObjectiveSignificance}
+                    disabled={sigLoading}
+                    className="w-full px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium transition"
+                  >
+                    {sigLoading ? "检验中..." : "开始检验"}
+                  </button>
+                </div>
+              </div>
+
+              {sigError ? (
+                <div className="text-xs text-red-300 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
+                  {sigError}
+                </div>
+              ) : null}
+
+              {sigResult ? (
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-3">
+                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
+                    <div className="text-[11px] text-slate-400">样本对数</div>
+                    <div className="text-sm text-white font-mono">{sigResult.n_pairs ?? "-"}</div>
+                  </div>
+                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
+                    <div className="text-[11px] text-slate-400">W 统计量</div>
+                    <div className="text-sm text-white font-mono">
+                      {typeof sigResult.w_stat === "number" ? sigResult.w_stat.toFixed(3) : "-"}
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
+                    <div className="text-[11px] text-slate-400">Z 分数</div>
+                    <div className="text-sm text-white font-mono">
+                      {typeof sigResult.z_score === "number" ? sigResult.z_score.toFixed(3) : "-"}
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
+                    <div className="text-[11px] text-slate-400">p 值</div>
+                    <div className="text-sm text-white font-mono">
+                      {typeof sigResult.p_value === "number" ? sigResult.p_value.toExponential(3) : "-"}
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
+                    <div className="text-[11px] text-slate-400">效果量 (RBC)</div>
+                    <div className="text-sm text-white font-mono">
+                      {typeof sigResult.effect_size_rbc === "number" ? sigResult.effect_size_rbc.toFixed(3) : "-"}
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
+                    <div className="text-[11px] text-slate-400">显著性</div>
+                    <div className={`text-sm font-semibold ${sigResult.significant ? "text-emerald-400" : "text-amber-300"}`}>
+                      {sigResult.significant ? "显著 (p<0.05)" : "不显著"}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {/* 算法在四个Stem上的表现对比图表 */}

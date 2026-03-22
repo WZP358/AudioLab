@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_serializer
+from pydantic import BaseModel, EmailStr, field_serializer, field_validator
 from typing import Optional, List
 from datetime import datetime
 from app.models import TaskStatus, Algorithm, Role, ExpertMessageStatus
@@ -20,6 +20,8 @@ class TaskResponse(BaseModel):
     sdr: Optional[float] = None
     sir: Optional[float] = None
     sar: Optional[float] = None
+    si_sdr: Optional[float] = None
+    model_version: Optional[str] = None
     comment: Optional[str] = None
 
     class Config:
@@ -90,10 +92,53 @@ class ObjectiveMetricsResponse(BaseModel):
     sdr: float
     sir: float
     sar: float
+    si_sdr: Optional[float] = None
     comment: Optional[str] = None
 
 
+class StemScoreData(BaseModel):
+    """单个源的评分数据"""
+    stem_name: str  # Vocals, Drums, Bass, Other
+    quality: int  # 0-100
+    interference: int  # 0-100
+    artifacts: int  # 0-100
+
+    @field_validator('quality', 'interference', 'artifacts')
+    @classmethod
+    def validate_score_range(cls, v: int) -> int:
+        if not (0 <= v <= 100):
+            raise ValueError('评分必须在 0-100 之间')
+        return v
+
+
+class ScoreCreateBatch(BaseModel):
+    """批量提交主观评分（一次性提交所有源）"""
+    task_id: int
+    algorithm: Algorithm
+    scores: List[StemScoreData]  # 必须包含所有4个源的评分
+
+    @field_validator('scores')
+    @classmethod
+    def validate_all_stems_present(cls, v: List[StemScoreData]) -> List[StemScoreData]:
+        """验证是否包含所有必需的源"""
+        required_stems = {"Vocals", "Drums", "Bass", "Other"}
+        provided_stems = {score.stem_name for score in v}
+
+        if provided_stems != required_stems:
+            missing = required_stems - provided_stems
+            extra = provided_stems - required_stems
+            error_msg = []
+            if missing:
+                error_msg.append(f"缺少以下源的评分: {', '.join(sorted(missing))}")
+            if extra:
+                error_msg.append(f"包含未知的源: {', '.join(sorted(extra))}")
+            raise ValueError('; '.join(error_msg))
+
+        return v
+
+
 class ScoreCreate(BaseModel):
+    """单个源的评分提交（保留用于兼容性）"""
     task_id: int
     algorithm: Algorithm
     stem_name: str
@@ -174,6 +219,7 @@ class ObjectiveAlgorithmStats(BaseModel):
     avg_sdr: Optional[float] = None
     avg_sir: Optional[float] = None
     avg_sar: Optional[float] = None
+    avg_si_sdr: Optional[float] = None
 
 
 class SubjectiveObjectivePoint(BaseModel):
@@ -192,6 +238,7 @@ class SubjectiveObjectivePoint(BaseModel):
     sdr: Optional[float] = None
     sir: Optional[float] = None
     sar: Optional[float] = None
+    si_sdr: Optional[float] = None
 
     @field_serializer("task_id")
     def serialize_task_id(self, value: int, _info) -> str:
@@ -207,6 +254,38 @@ class ObjectiveAlgorithmDistribution(BaseModel):
 
     algorithm: Algorithm
     sdr_values: List[float]
+
+
+class ObjectiveSignificanceRequest(BaseModel):
+    """
+    配对显著性检验请求：
+    - algorithm_a / algorithm_b：待比较算法
+    - metric：比较指标（sdr/sir/sar/si_sdr）
+    """
+    algorithm_a: Algorithm
+    algorithm_b: Algorithm
+    metric: str = "si_sdr"
+
+    @field_validator("metric")
+    @classmethod
+    def validate_metric(cls, v: str) -> str:
+        allowed = {"sdr", "sir", "sar", "si_sdr"}
+        vv = (v or "").strip().lower()
+        if vv not in allowed:
+            raise ValueError(f"metric 必须是 {', '.join(sorted(allowed))}")
+        return vv
+
+
+class ObjectiveSignificanceResponse(BaseModel):
+    algorithm_a: Algorithm
+    algorithm_b: Algorithm
+    metric: str
+    n_pairs: int
+    w_stat: float
+    z_score: Optional[float] = None
+    p_value: float
+    effect_size_rbc: Optional[float] = None
+    significant: bool
 
 
 # Authentication Schemas

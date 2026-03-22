@@ -10,6 +10,7 @@ from pathlib import Path
 import traceback
 from contextlib import asynccontextmanager
 from app.database import engine
+from sqlalchemy import text
 
 # 配置日志：只输出 WARNING 及以上级别（过滤掉正常的 INFO/DEBUG）
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
@@ -19,6 +20,17 @@ logging.getLogger("uvicorn.error").setLevel(logging.INFO)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # 启动时做轻量 schema 自愈，避免新版本字段未迁移导致接口直接报 500
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE separation_tasks ADD COLUMN metadata_json TEXT NULL"))
+            print("✓ 已自动补齐字段 separation_tasks.metadata_json")
+    except Exception as e:
+        # 已存在等情况属于正常，继续启动
+        msg = str(e).lower()
+        if "duplicate column name" not in msg and "already exists" not in msg:
+            logging.warning("自动补齐 metadata_json 字段失败（可手动执行迁移）: %s", e)
+
     # startup 阶段：输出一次清晰的启动成功提示（使用 print 确保始终显示）
     print("\n" + "="*60)
     print("✓ AudioLab 后端已启动")

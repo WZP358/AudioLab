@@ -16,6 +16,7 @@ class ObjectiveMetrics:
     sdr: float
     sir: float
     sar: float
+    si_sdr: float | None = None
 
 
 def _ffmpeg_to_wav_mono_44k(input_path: Path, out_wav_path: Path) -> None:
@@ -146,5 +147,15 @@ def compute_bss_metrics_two_source(
     sir = 10.0 * float(np.log10(p_target / p_interf))
     sar = 10.0 * float(np.log10((p_target + p_interf) / p_artif))
 
-    return ObjectiveMetrics(sdr=sdr, sir=sir, sar=sar)
+    # SI-SDR（Scale-Invariant SDR）
+    # alpha = <est, ref> / ||ref||^2
+    ref_energy = float(np.sum(ref**2)) + eps
+    alpha = float(np.dot(est, ref)) / ref_energy
+    target_scaled = alpha * ref
+    noise = est - target_scaled
+    p_target_scaled = float(np.sum(target_scaled**2)) + eps
+    p_noise = float(np.sum(noise**2)) + eps
+    si_sdr = 10.0 * float(np.log10(p_target_scaled / p_noise))
+
+    return ObjectiveMetrics(sdr=sdr, sir=sir, sar=sar, si_sdr=si_sdr)
 

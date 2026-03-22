@@ -11,6 +11,7 @@ import csv
 import io
 import re
 import logging
+import json
 from fastapi.responses import StreamingResponse, FileResponse
 
 from app.database import get_db
@@ -30,6 +31,18 @@ from fastapi import Request
 from pathlib import Path
 
 router = APIRouter(prefix="/api/admin/system", tags=["system"])
+def _extract_task_meta(metadata_json: Optional[str], comment: Optional[str]) -> dict:
+    for raw in (metadata_json, comment):
+        if not raw:
+            continue
+        try:
+            data = json.loads(str(raw))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            continue
+    return {}
+
 
 # 公共配置端点（不需要管理员权限）
 public_router = APIRouter(prefix="/api/system", tags=["system"])
@@ -705,7 +718,9 @@ async def update_system_config(
             )
             db.add(config)
             message = "配置创建成功"
+            old_value = None
         else:
+            old_value = config.value
             config.value = value
             if description is not None:
                 config.description = description.strip()
@@ -718,13 +733,24 @@ async def update_system_config(
         await db.refresh(config)
         
         # 记录系统日志
+        if key.startswith("algorithm_version."):
+            algo_name = key.replace("algorithm_version.", "")
+            old_v = (old_value or "").strip() if old_value is not None else ""
+            new_v = (value or "").strip()
+            op_desc = (
+                f"管理员 {current_user.username} 更新算法版本配置：{algo_name} "
+                f"'{old_v or '未设置'}' -> '{new_v or '未设置'}'"
+            )
+        else:
+            op_desc = f"管理员 {current_user.username} {message}：{key} = {value[:100] if len(value) > 100 else value}"
+
         await create_system_log(
             db=db,
             operation_type=OperationLog.SYSTEM_CONFIG_UPDATE.value,
             user_id=current_user.id,
             username=current_user.username,
             resource_type="config",
-            description=f"管理员 {current_user.username} {message}：{key} = {value[:100] if len(value) > 100 else value}",
+            description=op_desc,
             status="success",
             ip_address=get_client_ip(req),
             user_agent=get_user_agent(req),
@@ -1577,12 +1603,14 @@ async def get_all_task_history_admin(
 
     items = []
     for t in tasks:
+        meta = _extract_task_meta(getattr(t, "metadata_json", None), getattr(t, "comment", None))
         items.append(
             {
                 "id": str(t.id),
                 "user_id": str(t.user_id) if t.user_id is not None else None,
                 "original_filename": t.original_filename,
                 "algorithm": t.algorithm.value if getattr(t, "algorithm", None) else None,
+                "model_version": meta.get("model_version"),
                 "status": t.status.value if getattr(t, "status", None) else None,
                 "created_at": t.created_at.isoformat() if t.created_at else None,
                 "completed_at": t.completed_at.isoformat() if t.completed_at else None,

@@ -118,6 +118,8 @@ class SeparationTask(Base):
     sdr = Column(Float, nullable=True)
     sir = Column(Float, nullable=True)
     sar = Column(Float, nullable=True)
+    # 结构化任务元数据（JSON字符串）：例如 model_version / si_sdr 等
+    metadata_json = Column(Text, nullable=True)
     comment = Column(Text, nullable=True)
 
 
