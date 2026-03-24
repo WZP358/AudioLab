@@ -248,7 +248,7 @@ export default function AuthPage({ onLoginSuccess }) {
           <h1 className="text-4xl font-bold text-white tracking-tight">
             Audio<span className="text-cyan-400">Lab</span>
           </h1>
-          <p className="text-slate-400 mt-2">音乐源分离评估平台</p>
+          <p className="text-slate-300 mt-2">音乐源分离评估平台</p>
         </div>
 
 

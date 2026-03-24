@@ -2435,18 +2435,18 @@ const QueuePositionToast = ({ position, queueLength, isProcessing, onCancel, onC
           <div className="flex-1">
             <div className="text-sm font-semibold text-cyan-300 mb-1">任务排队中</div>
             {isProcessing ? (
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-slate-300">
                 正在处理您的任务...
               </div>
             ) : position > 0 ? (
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-slate-300">
                 您当前排在第 <span className="text-cyan-400 font-bold text-base">{position}</span> 位
                 {queueLength > 1 && (
                   <span className="text-slate-500">（共 {queueLength} 个任务）</span>
                 )}
               </div>
             ) : (
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-slate-300">
                 任务已加入队列
               </div>
             )}
@@ -2468,7 +2468,7 @@ const QueuePositionToast = ({ position, queueLength, isProcessing, onCancel, onC
           {onClose && (
             <button
               onClick={onClose}
-              className="flex-shrink-0 hover:opacity-70 transition-opacity text-slate-400 hover:text-white"
+              className="flex-shrink-0 hover:opacity-70 transition-opacity text-slate-300 hover:text-white"
               aria-label="关闭"
             >
               <CloseIcon size={18} />
@@ -5851,7 +5851,7 @@ export default function AudioLabApp() {
                         {/* 自定义残差 / 混合播放器 */}
                         {stems && stems.length > 0 && (
                           <div className="mt-4 space-y-2 bg-slate-900/60 border border-slate-700/60 rounded-lg p-3">
-                            <div className="flex items-center justify-between text-[11px] text-slate-400">
+                            <div className="flex items-center justify-between text-[11px] text-slate-300">
                               <div>
                                 残差 / 自定义混合播放器
                                 <span className="ml-1 font-mono text-slate-300">
@@ -5975,9 +5975,13 @@ export default function AudioLabApp() {
 
               {/* Objective Metrics (Show after process) */}
               {(results || (stems && stems.length > 0)) && (
-                <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 animate-in fade-in slide-in-from-bottom-4">
+                <div className={`rounded-xl p-6 border animate-in fade-in slide-in-from-bottom-4 ${
+                  isDark ? "bg-slate-800/50 border-slate-700/50" : "bg-white border-slate-200 shadow-sm"
+                }`}>
                   <h3 
-                    className="text-sm font-bold text-slate-400 uppercase mb-4 flex items-center gap-2 cursor-pointer hover:text-slate-300 transition"
+                    className={`text-sm font-bold uppercase mb-4 flex items-center gap-2 cursor-pointer transition ${
+                      isDark ? "text-slate-400 hover:text-slate-300" : "text-slate-600 hover:text-slate-800"
+                    }`}
                     onClick={() => toggleSection('objectiveMetrics')}
                   >
                     <Award size={14} /> Objective Metrics
@@ -5989,7 +5993,7 @@ export default function AudioLabApp() {
                   </h3>
                 {!collapsedSections.objectiveMetrics && (
                   <div>
-              <div className="flex items-center gap-4 text-xs text-slate-400 mb-3">
+              <div className={`flex items-center gap-4 text-xs mb-3 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 <div>
                   算法:{" "}
                   <span className="font-mono text-cyan-400">
@@ -6074,7 +6078,7 @@ export default function AudioLabApp() {
                           <>
                             <div>
                               <div className="flex justify-between text-xs mb-1">
-                                <span className="text-slate-400">
+                                <span className={isDark ? "text-slate-400" : "text-slate-600"}>
                                   SDR (Signal-to-Distortion)
                                 </span>
                                 <span className="text-emerald-400 font-mono">
@@ -6091,7 +6095,7 @@ export default function AudioLabApp() {
 
                             <div>
                               <div className="flex justify-between text-xs mb-1 mt-3">
-                                <span className="text-slate-400">
+                                <span className={isDark ? "text-slate-400" : "text-slate-600"}>
                                   SIR (Signal-to-Interference)
                                 </span>
                                 <span className="text-blue-400 font-mono">
@@ -6108,7 +6112,7 @@ export default function AudioLabApp() {
 
                             <div>
                               <div className="flex justify-between text-xs mb-1 mt-3">
-                                <span className="text-slate-400">
+                                <span className={isDark ? "text-slate-400" : "text-slate-600"}>
                                   SAR (Signal-to-Artifacts)
                                 </span>
                                 <span className="text-amber-300 font-mono">
@@ -6136,7 +6140,7 @@ export default function AudioLabApp() {
 
                             <div>
                               <div className="flex justify-between text-xs mb-1 mt-3">
-                                <span className="text-slate-400">
+                                <span className={isDark ? "text-slate-400" : "text-slate-600"}>
                                   SI-SDR (Scale-Invariant SDR)
                                 </span>
                                 <span className="text-fuchsia-300 font-mono">
@@ -6157,7 +6161,7 @@ export default function AudioLabApp() {
                             {sdrCurveData && (
                               <div className="mt-4">
                                 <div className="flex justify-between items-center mb-1 text-xs">
-                                  <span className="text-slate-400">
+                                  <span className={isDark ? "text-slate-400" : "text-slate-600"}>
                                     SDR vs Time
                                   </span>
                                   <span className="font-mono text-slate-500">
@@ -7134,19 +7138,19 @@ export default function AudioLabApp() {
                           <th className={`px-3 py-2 text-left font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             任务ID
                           </th>
-                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                          <th className={`px-3 py-2 text-left font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             文件名
                           </th>
-                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                          <th className={`px-3 py-2 text-left font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             算法
                           </th>
-                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                          <th className={`px-3 py-2 text-left font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             状态
                           </th>
-                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                          <th className={`px-3 py-2 text-left font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             创建时间
                           </th>
-                          <th className="px-3 py-2 text-left text-slate-400 font-medium">
+                          <th className={`px-3 py-2 text-left font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             操作
                           </th>
                         </tr>
@@ -7195,7 +7199,11 @@ export default function AudioLabApp() {
                                 </button>
                                 <button
                                   type="button"
-                                  className="px-2 py-1 rounded bg-slate-700 hover:bg-red-600 text-white text-[11px]"
+                                  className={`px-2 py-1 rounded text-[11px] ${
+                                    isDark
+                                      ? "bg-slate-700 hover:bg-red-600 text-white"
+                                      : "bg-slate-200 hover:bg-red-500 text-slate-800 hover:text-white"
+                                  }`}
                                   onClick={() => handleDeleteHistoryTask(t.id)}
                                 >
                                   删除
@@ -7208,14 +7216,16 @@ export default function AudioLabApp() {
                     </table>
                   </div>
                   {myTaskHistoryTotalPages > 1 && (
-                    <div className="flex items-center justify-between mt-4 text-[11px] text-slate-400">
+                    <div className={`flex items-center justify-between mt-4 text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                       <button
                         type="button"
                         disabled={myTaskHistoryPage <= 1}
                         onClick={() =>
                           fetchMyTaskHistory(myTaskHistoryPage - 1)
                         }
-                        className="px-3 py-1.5 rounded bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={`px-3 py-1.5 rounded disabled:opacity-40 disabled:cursor-not-allowed ${
+                          isDark ? "bg-slate-800" : "bg-slate-100 border border-slate-300"
+                        }`}
                       >
                         上一页
                       </button>
@@ -7228,7 +7238,9 @@ export default function AudioLabApp() {
                         onClick={() =>
                           fetchMyTaskHistory(myTaskHistoryPage + 1)
                         }
-                        className="px-3 py-1.5 rounded bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={`px-3 py-1.5 rounded disabled:opacity-40 disabled:cursor-not-allowed ${
+                          isDark ? "bg-slate-800" : "bg-slate-100 border border-slate-300"
+                        }`}
                       >
                         下一页
                       </button>
@@ -7289,7 +7301,11 @@ export default function AudioLabApp() {
                   说明：这里展示的是<strong>后端数据库</strong>中的评分记录。点击“删除”会从后端移除该条评分，并尽量同步清理本地缓存。
                 </p>
                 {myScoresError ? (
-                  <div className="mb-4 text-xs text-red-300 bg-red-900/20 border border-red-700/40 rounded px-3 py-2">
+                  <div className={`mb-4 text-xs rounded px-3 py-2 ${
+                    isDark
+                      ? "text-red-300 bg-red-900/20 border border-red-700/40"
+                      : "text-red-700 bg-red-50 border border-red-200"
+                  }`}>
                     加载失败：{myScoresError}
                   </div>
                 ) : null}
@@ -7693,7 +7709,11 @@ export default function AudioLabApp() {
               </div>
 
               {sigError ? (
-                <div className="text-xs text-red-300 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
+                <div className={`text-xs rounded-lg px-3 py-2 ${
+                  isDark
+                    ? "text-red-300 bg-red-900/20 border border-red-800/40"
+                    : "text-red-700 bg-red-50 border border-red-200"
+                }`}>
                   {sigError}
                 </div>
               ) : null}
@@ -7704,33 +7724,39 @@ export default function AudioLabApp() {
                     <div className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>样本对数</div>
                     <div className={`text-sm font-mono ${isDark ? "text-white" : "text-slate-800"}`}>{sigResult.n_pairs ?? "-"}</div>
                   </div>
-                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
-                    <div className="text-[11px] text-slate-400">W 统计量</div>
-                    <div className="text-sm text-white font-mono">
+                  <div className={`border rounded-lg px-3 py-2 ${isDark ? "bg-slate-900/50 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+                    <div className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>W 统计量</div>
+                    <div className={`text-sm font-mono ${isDark ? "text-white" : "text-slate-800"}`}>
                       {typeof sigResult.w_stat === "number" ? sigResult.w_stat.toFixed(3) : "-"}
                     </div>
                   </div>
-                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
-                    <div className="text-[11px] text-slate-400">Z 分数</div>
-                    <div className="text-sm text-white font-mono">
+                  <div className={`border rounded-lg px-3 py-2 ${isDark ? "bg-slate-900/50 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+                    <div className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>Z 分数</div>
+                    <div className={`text-sm font-mono ${isDark ? "text-white" : "text-slate-800"}`}>
                       {typeof sigResult.z_score === "number" ? sigResult.z_score.toFixed(3) : "-"}
                     </div>
                   </div>
-                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
-                    <div className="text-[11px] text-slate-400">p 值</div>
-                    <div className="text-sm text-white font-mono">
+                  <div className={`border rounded-lg px-3 py-2 ${isDark ? "bg-slate-900/50 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+                    <div className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>p 值</div>
+                    <div className={`text-sm font-mono ${isDark ? "text-white" : "text-slate-800"}`}>
                       {typeof sigResult.p_value === "number" ? sigResult.p_value.toExponential(3) : "-"}
                     </div>
                   </div>
-                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
-                    <div className="text-[11px] text-slate-400">效果量 (RBC)</div>
-                    <div className="text-sm text-white font-mono">
+                  <div className={`border rounded-lg px-3 py-2 ${isDark ? "bg-slate-900/50 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+                    <div className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>效果量 (RBC)</div>
+                    <div className={`text-sm font-mono ${isDark ? "text-white" : "text-slate-800"}`}>
                       {typeof sigResult.effect_size_rbc === "number" ? sigResult.effect_size_rbc.toFixed(3) : "-"}
                     </div>
                   </div>
-                  <div className="bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
-                    <div className="text-[11px] text-slate-400">显著性</div>
-                    <div className={`text-sm font-semibold ${sigResult.significant ? "text-emerald-400" : "text-amber-300"}`}>
+                  <div className={`border rounded-lg px-3 py-2 ${isDark ? "bg-slate-900/50 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+                    <div className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>显著性</div>
+                    <div
+                      className={`text-sm font-semibold ${
+                        sigResult.significant
+                          ? (isDark ? "text-emerald-400" : "text-emerald-600")
+                          : (isDark ? "text-amber-300" : "text-amber-600")
+                      }`}
+                    >
                       {sigResult.significant ? "显著 (p<0.05)" : "不显著"}
                     </div>
                   </div>

@@ -893,17 +893,21 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   };
 
   const content = (
-    <div className={`${embedded ? '' : 'bg-slate-900 rounded-xl border border-slate-700'} w-full ${embedded ? '' : 'max-w-7xl max-h-[90vh]'} overflow-hidden flex flex-col`}>
+    <div
+      className={`${embedded ? '' : 'bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700'} w-full ${
+        embedded ? '' : 'max-w-7xl max-h-[90vh]'
+      } overflow-hidden flex flex-col`}
+    >
       {/* Header */}
       {!embedded && (
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
           <div>
-            <h2 className="text-2xl font-bold text-white">管理员后台</h2>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">管理员后台</h2>
             <p className="text-sm text-slate-400 mt-1">用户管理 / 音频资源管理 / 评分管理 / 系统管理</p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition"
           >
             <X size={20} />
           </button>
@@ -911,13 +915,13 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       )}
 
       {/* 顶部主导航 Tabs（为保持风格统一，这里展示所有一级入口） */}
-      <div className="flex border-b border-slate-700">
+      <div className="flex border-b border-slate-200 dark:border-slate-700">
         <button
           onClick={() => navigate("/admin/users")}
           className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
             activeTab === "users"
               ? "text-cyan-400 border-b-2 border-cyan-400"
-              : "text-slate-400 hover:text-white"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
           }`}
         >
           <Users size={18} />
@@ -928,7 +932,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
             activeTab === "audio"
               ? "text-cyan-400 border-b-2 border-cyan-400"
-              : "text-slate-400 hover:text-white"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
           }`}
         >
           <Music size={18} />
@@ -939,7 +943,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
             activeTab === "scores"
               ? "text-cyan-400 border-b-2 border-cyan-400"
-              : "text-slate-400 hover:text-white"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
           }`}
         >
           <Award size={18} />
@@ -950,7 +954,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
             (location.pathname || "").startsWith("/admin/system/settings")
               ? "text-cyan-400 border-b-2 border-cyan-400"
-              : "text-slate-400 hover:text-white"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
           }`}
         >
           <Settings size={18} />
@@ -961,7 +965,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
             (location.pathname || "").startsWith("/admin/system/notifications")
               ? "text-cyan-400 border-b-2 border-cyan-400"
-              : "text-slate-400 hover:text-white"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
           }`}
         >
           <Bell size={18} />
@@ -972,7 +976,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
             (location.pathname || "").startsWith("/admin/system/analytics")
               ? "text-cyan-400 border-b-2 border-cyan-400"
-              : "text-slate-400 hover:text-white"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
           }`}
         >
           <BarChart3 size={18} />
@@ -983,7 +987,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
             (location.pathname || "").startsWith("/admin/system/tasks")
               ? "text-cyan-400 border-b-2 border-cyan-400"
-              : "text-slate-400 hover:text-white"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
           }`}
         >
           <Activity size={18} />
@@ -999,23 +1003,23 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               {/* 用户统计 */}
               {userStats && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-400">总用户数</div>
-                    <div className="text-2xl font-bold text-white mt-1">{userStats.total}</div>
+                    <div className="text-2xl font-bold text-slate-800 dark:text-white mt-1">{userStats.total}</div>
                   </div>
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-400">已激活</div>
                     <div className="text-2xl font-bold text-emerald-400 mt-1">{userStats.active}</div>
                   </div>
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-400">未激活</div>
                     <div className="text-2xl font-bold text-red-400 mt-1">{userStats.inactive}</div>
                   </div>
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-400">已审批</div>
                     <div className="text-2xl font-bold text-cyan-400 mt-1">{userStats.approved}</div>
                   </div>
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-400">待审批</div>
                     <div className="text-2xl font-bold text-yellow-400 mt-1">{userStats.pending}</div>
                   </div>
@@ -1024,16 +1028,16 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
 
               {/* 待审批用户列表 */}
               {pendingUsers.length > 0 && (
-                <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-                  <div className="p-4 border-b border-slate-700">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <div className="p-4 border-b border-slate-200 dark:border-b-slate-700">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                       <CheckCircle size={20} className="text-yellow-400" />
                       待审批用户 ({pendingUsers.length})
                     </h3>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-slate-900">
+                      <thead className="bg-slate-50 dark:bg-slate-900">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">ID</th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">用户名</th>
@@ -1043,12 +1047,17 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                           <th className="px-4 py-3 text-right text-xs font-medium text-slate-400">操作</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-700">
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                         {pendingUsers.map((pending, index) => (
-                          <tr key={`pending-${String(pending.id)}-${pending.username || index}`} className="hover:bg-slate-700/50">
-                            <td className="px-4 py-3 text-sm text-slate-300">{pending.id}</td>
-                            <td className="px-4 py-3 text-sm text-white font-medium">{pending.username}</td>
-                            <td className="px-4 py-3 text-sm text-slate-300">{pending.email}</td>
+                          <tr
+                            key={`pending-${String(pending.id)}-${pending.username || index}`}
+                            className="hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                          >
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{pending.id}</td>
+                            <td className="px-4 py-3 text-sm text-slate-800 dark:text-white font-medium">
+                              {pending.username}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{pending.email}</td>
                             <td className="px-4 py-3">
                               <span
                                 className={`px-2 py-1 text-xs rounded ${
@@ -1093,14 +1102,14 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               )}
 
               {/* 筛选器 */}
-              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div>
                     <label className="block text-xs text-slate-400 mb-2">角色</label>
                     <select
                       value={userFilters.role}
                       onChange={(e) => setUserFilters({ ...userFilters, role: e.target.value, page: 1 })}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                     >
                       <option value="">全部</option>
                       <option value="expert">专家</option>
@@ -1112,7 +1121,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                     <select
                       value={userFilters.is_active}
                       onChange={(e) => setUserFilters({ ...userFilters, is_active: e.target.value, page: 1 })}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                     >
                       <option value="">全部</option>
                       <option value="true">已激活</option>
@@ -1124,7 +1133,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                     <select
                       value={userFilters.is_approved}
                       onChange={(e) => setUserFilters({ ...userFilters, is_approved: e.target.value, page: 1 })}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                     >
                       <option value="">全部</option>
                       <option value="true">已审批</option>
@@ -1140,7 +1149,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         value={userFilters.search}
                         onChange={(e) => setUserFilters({ ...userFilters, search: e.target.value, page: 1 })}
                         placeholder="搜索用户名或邮箱..."
-                        className="w-full pl-10 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                        className="w-full pl-10 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                       />
                     </div>
                   </div>
@@ -1148,10 +1157,10 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               </div>
 
               {/* 用户列表 */}
-              <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-slate-900">
+                    <thead className="bg-slate-50 dark:bg-slate-900">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">ID</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">用户名</th>
@@ -1162,7 +1171,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         <th className="px-4 py-3 text-right text-xs font-medium text-slate-400">操作</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700">
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                       {loading ? (
                         <tr>
                           <td colSpan="7" className="px-4 py-8 text-center text-slate-400">
@@ -1177,7 +1186,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         </tr>
                       ) : (
                         users.map((user, index) => (
-                          <tr key={`user-${String(user.id)}-${user.username || index}`} className="hover:bg-slate-700/50">
+                          <tr key={`user-${String(user.id)}-${user.username || index}`} className="hover:bg-slate-200/50 dark:hover:bg-slate-700/50">
                             <td className="px-4 py-3">
                               <input
                                 type="checkbox"
@@ -1192,9 +1201,9 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                                 className="rounded"
                               />
                             </td>
-                            <td className="px-4 py-3 text-sm text-slate-300">{user.id}</td>
-                            <td className="px-4 py-3 text-sm text-white font-medium">{user.username}</td>
-                            <td className="px-4 py-3 text-sm text-slate-300">{user.email}</td>
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{user.id}</td>
+                            <td className="px-4 py-3 text-sm text-slate-800 dark:text-white font-medium">{user.username}</td>
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{user.email}</td>
                             <td className="px-4 py-3">
                               <span
                                 className={`px-2 py-1 text-xs rounded ${
@@ -1231,14 +1240,14 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                               <div className="flex items-center justify-end gap-2">
                                 <button
                                   onClick={() => setEditingUser(user)}
-                                  className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400 transition"
+                                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
                                   title="编辑"
                                 >
                                   <Edit size={16} />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteUser(user)}
-                                  className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition"
+                                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition"
                                   title="删除"
                                 >
                                   <Trash2 size={16} />
@@ -1261,7 +1270,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       <button
                         onClick={() => setUserFilters({ ...userFilters, page: Math.max(1, userFilters.page - 1) })}
                         disabled={userFilters.page === 1}
-                        className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white disabled:opacity-50"
+                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-sm text-slate-800 dark:text-white disabled:opacity-50"
                       >
                         上一页
                       </button>
@@ -1270,7 +1279,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                           setUserFilters({ ...userFilters, page: Math.min(Math.ceil(userTotal / userFilters.page_size), userFilters.page + 1) })
                         }
                         disabled={userFilters.page >= Math.ceil(userTotal / userFilters.page_size)}
-                        className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white disabled:opacity-50"
+                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-sm text-slate-800 dark:text-white disabled:opacity-50"
                       >
                         下一页
                       </button>
@@ -1280,12 +1289,12 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               </div>
 
               {/* 专家建议 / 站内信（简单一问一答） */}
-              <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                   <div className="flex items-center gap-2">
                     <MessageCircle size={18} className="text-cyan-400" />
                     <div>
-                      <h3 className="text-sm font-bold text-white">专家建议箱</h3>
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-white">专家建议箱</h3>
                       <p className="text-xs text-slate-400">
                         专家在前台提交的建议 / 反馈，便于管理员收集使用体验和需求。
                       </p>
@@ -1308,7 +1317,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                     </div>
                   ) : (
                     <table className="w-full text-sm">
-                      <thead className="bg-slate-900">
+                      <thead className="bg-slate-50 dark:bg-slate-900">
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">ID</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-slate-400">专家ID</th>
@@ -1318,12 +1327,12 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                           <th className="px-4 py-2 text-right text-xs font-medium text-slate-400">操作</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-700">
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                         {expertMessages.map((m) => (
-                          <tr key={m.id} className="hover:bg-slate-700/40">
-                            <td className="px-4 py-2 text-slate-300 text-xs">{m.id}</td>
-                            <td className="px-4 py-2 text-slate-300 text-xs">{m.expert_id}</td>
-                            <td className="px-4 py-2 text-slate-100 text-xs max-w-xs truncate" title={m.subject}>
+                          <tr key={m.id} className="hover:bg-slate-200/40 dark:hover:bg-slate-700/40">
+                            <td className="px-4 py-2 text-slate-700 dark:text-slate-300 text-xs">{m.id}</td>
+                            <td className="px-4 py-2 text-slate-700 dark:text-slate-300 text-xs">{m.expert_id}</td>
+                            <td className="px-4 py-2 text-slate-700 dark:text-slate-100 text-xs max-w-xs truncate" title={m.subject}>
                               {m.subject}
                             </td>
                             <td className="px-4 py-2 text-xs">
@@ -1346,7 +1355,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                                   setReplyingMessage(m);
                                   setReplyContent(m.reply_content || "");
                                 }}
-                                className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-100"
+                                className="px-3 py-1 text-xs rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100"
                               >
                                 查看 / 回复
                               </button>
@@ -1370,7 +1379,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                           fetchExpertMessages(newPage);
                         }}
                         disabled={expertMessagesPage === 1}
-                        className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white"
+                        className="px-3 py-1 text-xs rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-800 dark:text-white"
                       >
                         上一页
                       </button>
@@ -1382,7 +1391,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                           fetchExpertMessages(newPage);
                         }}
                         disabled={expertMessagesPage >= Math.ceil(expertMessagesTotal / expertMessagesPageSize)}
-                        className="px-3 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white"
+                        className="px-3 py-1 text-xs rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-800 dark:text-white"
                       >
                         下一页
                       </button>
@@ -1396,23 +1405,23 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               {/* 音频统计 */}
               {audioStats && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-400">总资源数</div>
-                    <div className="text-2xl font-bold text-white mt-1">{audioStats.total}</div>
+                    <div className="text-2xl font-bold text-slate-800 dark:text-white mt-1">{audioStats.total}</div>
                   </div>
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-400">公开资源</div>
                     <div className="text-2xl font-bold text-emerald-400 mt-1">{audioStats.public}</div>
                   </div>
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-400">私有资源</div>
                     <div className="text-2xl font-bold text-slate-400 mt-1">{audioStats.private}</div>
                   </div>
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-400">总下载</div>
                     <div className="text-2xl font-bold text-cyan-400 mt-1">{audioStats.total_downloads}</div>
                   </div>
-                  <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                     <div className="text-sm text-slate-400">总大小</div>
                     <div className="text-2xl font-bold text-purple-400 mt-1">{audioStats.total_size_mb} MB</div>
                   </div>
@@ -1420,8 +1429,8 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               )}
 
               {/* 上传表单 */}
-              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                   <Plus size={20} />
                   上传音频资源
                 </h3>
@@ -1438,7 +1447,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         onChange={(e) =>
                           setUploadForm({ ...uploadForm, mixtureFile: e.target.files[0] || null })
                         }
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                       />
                     </div>
                     <div>
@@ -1449,7 +1458,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         onChange={(e) =>
                           setUploadForm({ ...uploadForm, vocalsFile: e.target.files[0] || null })
                         }
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                       />
                     </div>
                     <div>
@@ -1460,7 +1469,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         onChange={(e) =>
                           setUploadForm({ ...uploadForm, drumsFile: e.target.files[0] || null })
                         }
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                       />
                     </div>
                     <div>
@@ -1471,7 +1480,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         onChange={(e) =>
                           setUploadForm({ ...uploadForm, bassFile: e.target.files[0] || null })
                         }
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                       />
                     </div>
                     <div>
@@ -1482,7 +1491,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         onChange={(e) =>
                           setUploadForm({ ...uploadForm, otherFile: e.target.files[0] || null })
                         }
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                       />
                     </div>
                   </div>
@@ -1493,7 +1502,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       value={uploadForm.title}
                       onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
                       placeholder="音频标题"
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                     />
                   </div>
                   <div>
@@ -1503,7 +1512,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       value={uploadForm.description}
                       onChange={(e) => setUploadForm({ ...uploadForm, description: e.target.value })}
                       placeholder="音频描述"
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                     />
                   </div>
                   <div>
@@ -1513,7 +1522,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       value={uploadForm.category}
                       onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value })}
                       placeholder="分类标签"
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                     />
                   </div>
                   {/* 标签字段已废弃 */}
@@ -1584,34 +1593,34 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               </div>
 
               {/* 快捷筛选标签 + 视图切换 */}
-              <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-slate-400 font-medium">快捷筛选：</span>
                     <button
                       onClick={() => applyQuickFilter("hot")}
-                      className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
+                      className="px-2.5 py-1 bg-slate-200/50 dark:bg-slate-700/50 hover:bg-cyan-600 hover:text-white text-slate-800 dark:text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
                     >
                       <TrendingUp size={12} />
                       热门
                     </button>
                     <button
                       onClick={() => applyQuickFilter("latest")}
-                      className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
+                      className="px-2.5 py-1 bg-slate-200/50 dark:bg-slate-700/50 hover:bg-cyan-600 hover:text-white text-slate-800 dark:text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
                     >
                       <Clock size={12} />
                       最新
                     </button>
                     <button
                       onClick={() => applyQuickFilter("long")}
-                      className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
+                      className="px-2.5 py-1 bg-slate-200/50 dark:bg-slate-700/50 hover:bg-cyan-600 hover:text-white text-slate-800 dark:text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
                     >
                       <FileAudio size={12} />
                       长音频
                     </button>
                     <button
                       onClick={() => applyQuickFilter("short")}
-                      className="px-2.5 py-1 bg-slate-700/50 hover:bg-cyan-600 text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
+                      className="px-2.5 py-1 bg-slate-200/50 dark:bg-slate-700/50 hover:bg-cyan-600 hover:text-white text-slate-800 dark:text-white rounded-md transition text-xs flex items-center gap-1.5 font-medium"
                     >
                       <FileAudio size={12} />
                       短音频
@@ -1627,7 +1636,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   </div>
                   <button
                     onClick={() => setAudioViewMode(audioViewMode === "grid" ? "list" : "grid")}
-                    className="ml-auto p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition"
+                    className="ml-auto p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white transition"
                     title={audioViewMode === "grid" ? "列表视图" : "卡片视图"}
                   >
                     {audioViewMode === "grid" ? <List size={18} /> : <Grid size={18} />}
@@ -1636,7 +1645,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               </div>
 
               {/* 筛选器 */}
-              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                 <div className="space-y-3">
                   {/* 第一行：分类、公开状态和搜索 */}
                   <div className="flex flex-col sm:flex-row gap-3">
@@ -1648,7 +1657,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                           value={audioFilters.category}
                           onChange={(e) => setAudioFilters({ ...audioFilters, category: e.target.value, page: 1 })}
                           placeholder="分类"
-                          className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
+                      className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
                         />
                       </div>
                     </div>
@@ -1656,7 +1665,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       <select
                         value={audioFilters.is_public}
                         onChange={(e) => setAudioFilters({ ...audioFilters, is_public: e.target.value, page: 1 })}
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
                       >
                         <option value="">全部状态</option>
                         <option value="true">公开</option>
@@ -1671,7 +1680,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                           value={audioFilters.uploader}
                           onChange={(e) => setAudioFilters({ ...audioFilters, uploader: e.target.value, page: 1 })}
                           placeholder="上传者"
-                          className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
+                          className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
                         />
                       </div>
                     </div>
@@ -1687,7 +1696,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                             debouncedSearch(value);
                           }}
                           placeholder="按标题搜索"
-                          className="w-full pl-10 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
+                          className="w-full pl-10 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
                         />
                       </div>
                     </div>
@@ -1700,7 +1709,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       <select
                         value={audioFilters.sort_by}
                         onChange={(e) => setAudioFilters({ ...audioFilters, sort_by: e.target.value, page: 1 })}
-                        className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
+                        className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
                       >
                         <option value="created_at">上传时间</option>
                         <option value="download_count">下载次数</option>
@@ -1711,7 +1720,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       <select
                         value={audioFilters.sort_order}
                         onChange={(e) => setAudioFilters({ ...audioFilters, sort_order: e.target.value, page: 1 })}
-                        className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
+                        className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
                       >
                         <option value="desc">降序</option>
                         <option value="asc">升序</option>
@@ -1735,7 +1744,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                           <select
                             value={audioFilters.file_format}
                             onChange={(e) => setAudioFilters({ ...audioFilters, file_format: e.target.value, page: 1 })}
-                            className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
+                            className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 appearance-none cursor-pointer"
                           >
                             <option value="">全部格式</option>
                             {audioFormats.map((fmt) => (
@@ -1752,7 +1761,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                             value={audioFilters.min_duration}
                             onChange={(e) => setAudioFilters({ ...audioFilters, min_duration: e.target.value, page: 1 })}
                             placeholder="60"
-                            className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
+                            className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
                           />
                         </div>
                         <div>
@@ -1762,7 +1771,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                             value={audioFilters.max_duration}
                             onChange={(e) => setAudioFilters({ ...audioFilters, max_duration: e.target.value, page: 1 })}
                             placeholder="300"
-                            className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
+                            className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
                           />
                         </div>
                         <div>
@@ -1773,14 +1782,14 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                               value={audioFilters.min_size ? audioFilters.min_size / (1024 * 1024) : ""}
                               onChange={(e) => setAudioFilters({ ...audioFilters, min_size: e.target.value ? parseInt(e.target.value) * 1024 * 1024 : "", page: 1 })}
                               placeholder="最小"
-                              className="flex-1 px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
+                              className="flex-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
                             />
                             <input
                               type="number"
                               value={audioFilters.max_size ? audioFilters.max_size / (1024 * 1024) : ""}
                               onChange={(e) => setAudioFilters({ ...audioFilters, max_size: e.target.value ? parseInt(e.target.value) * 1024 * 1024 : "", page: 1 })}
                               placeholder="最大"
-                              className="flex-1 px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
+                              className="flex-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50"
                             />
                           </div>
                         </div>
@@ -1792,8 +1801,8 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
 
               {/* 批量操作 */}
               {selectedAudio.length > 0 && (
-                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700 flex items-center justify-between">
-                  <span className="text-sm text-slate-300">已选择 {selectedAudio.length} 个音频资源</span>
+                <div className="bg-white dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                  <span className="text-sm text-slate-700 dark:text-slate-300">已选择 {selectedAudio.length} 个音频资源</span>
                   <button
                     onClick={handleBatchDeleteAudio}
                     className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-sm transition"
@@ -1813,7 +1822,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   {audioResources.map((resource, index) => (
                     <div
                       key={`audio-${resource.id}-${index}`}
-                      className="bg-slate-800 rounded-lg p-4 border border-slate-700"
+                      className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700"
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-start gap-2 flex-1">
@@ -1829,19 +1838,21 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                             }}
                             className="mt-1 rounded"
                           />
-                          <h4 className="font-bold text-white flex-1">{resource.title}</h4>
+                          <h4 className="font-bold text-slate-800 dark:text-white flex-1">
+                            {resource.title}
+                          </h4>
                         </div>
                         <div className="flex gap-2">
                           <button
                             onClick={() => setEditingAudio(resource)}
-                            className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400 transition"
+                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
                             title="编辑"
                           >
                             <Edit size={14} />
                           </button>
                           <button
                             onClick={() => handleDeleteAudio(resource.id)}
-                            className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition"
+                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition"
                             title="删除"
                           >
                             <Trash2 size={14} />
@@ -1869,21 +1880,21 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       <div className="space-y-2 text-xs text-slate-400">
                         <div className="flex items-center justify-between">
                           <span>格式:</span>
-                          <span className="text-slate-300">
+                          <span className="text-slate-700 dark:text-slate-300">
                             {(resource.file_format || "未知").toUpperCase()}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>大小:</span>
-                          <span className="text-slate-300">{formatFileSize(resource.file_size)}</span>
+                          <span className="text-slate-700 dark:text-slate-300">{formatFileSize(resource.file_size)}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>时长:</span>
-                          <span className="text-slate-300">{formatDuration(resource.duration)}</span>
+                          <span className="text-slate-700 dark:text-slate-300">{formatDuration(resource.duration)}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>下载:</span>
-                          <span className="text-slate-300">{resource.download_count} 次</span>
+                          <span className="text-slate-700 dark:text-slate-300">{resource.download_count} 次</span>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 mt-3">
                           {resource.category && (
@@ -1898,7 +1909,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                               .map((tag, idx) => (
                                 <span
                                   key={idx}
-                                  className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs"
+                                  className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded text-xs"
                                 >
                                   {tag.trim()}
                                 </span>
@@ -1908,7 +1919,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                               公开
                             </span>
                           ) : (
-                            <span className="px-2 py-1 bg-slate-500/20 text-slate-300 rounded text-xs">
+                            <span className="px-2 py-1 bg-slate-500/20 text-slate-700 dark:text-slate-300 rounded text-xs">
                               私有
                             </span>
                           )}
@@ -1922,7 +1933,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   {audioResources.map((resource, index) => (
                     <div
                       key={`audio-list-${resource.id}-${index}`}
-                      className="bg-slate-800 rounded-lg p-4 border border-slate-700 flex items-start gap-4"
+                      className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700 flex items-start gap-4"
                     >
                       <div>
                         <input
@@ -1940,18 +1951,18 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-3 mb-1">
-                          <h4 className="font-bold text-white truncate">{resource.title}</h4>
+                          <h4 className="font-bold text-slate-800 dark:text-white truncate">{resource.title}</h4>
                           <div className="flex gap-2 flex-shrink-0">
                             <button
                               onClick={() => setEditingAudio(resource)}
-                              className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400 transition"
+                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
                               title="编辑"
                             >
                               <Edit size={14} />
                             </button>
                             <button
                               onClick={() => handleDeleteAudio(resource.id)}
-                              className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition"
+                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition"
                               title="删除"
                             >
                               <Trash2 size={14} />
@@ -1999,7 +2010,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                               .map((tag, idx) => (
                                 <span
                                   key={idx}
-                                  className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs"
+                                  className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded text-xs"
                                 >
                                   {tag.trim()}
                                 </span>
@@ -2009,7 +2020,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                               公开
                             </span>
                           ) : (
-                            <span className="px-2 py-1 bg-slate-500/20 text-slate-300 rounded text-xs">
+                            <span className="px-2 py-1 bg-slate-500/20 text-slate-700 dark:text-slate-300 rounded text-xs">
                               私有
                             </span>
                           )}
@@ -2022,7 +2033,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
 
               {/* 分页 */}
               {audioTotal > audioFilters.page_size && (
-                <div className="flex items-center justify-between px-4 py-3 bg-slate-800 rounded-lg border border-slate-700">
+                <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                   <div className="text-sm text-slate-400">
                     共 {audioTotal} 条，第 {audioFilters.page} / {Math.ceil(audioTotal / audioFilters.page_size)} 页
                   </div>
@@ -2030,7 +2041,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                     <button
                       onClick={() => setAudioFilters({ ...audioFilters, page: Math.max(1, audioFilters.page - 1) })}
                       disabled={audioFilters.page === 1}
-                      className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white disabled:opacity-50"
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-sm text-slate-800 dark:text-white disabled:opacity-50"
                     >
                       上一页
                     </button>
@@ -2039,7 +2050,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         setAudioFilters({ ...audioFilters, page: Math.min(Math.ceil(audioTotal / audioFilters.page_size), audioFilters.page + 1) })
                       }
                       disabled={audioFilters.page >= Math.ceil(audioTotal / audioFilters.page_size)}
-                      className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white disabled:opacity-50"
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-sm text-slate-800 dark:text-white disabled:opacity-50"
                     >
                       下一页
                     </button>
@@ -2050,8 +2061,8 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           ) : activeTab === "scores" ? (
             <div className="space-y-6">
               {/* 评分筛选器 */}
-              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                   <Award size={20} className="text-cyan-400" />
                   评分管理
                 </h3>
@@ -2068,7 +2079,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         }))
                       }
                       placeholder="精确匹配 user_id"
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                     />
                   </div>
                   <div>
@@ -2083,7 +2094,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         }))
                       }
                       placeholder="task_id"
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                     />
                   </div>
                   <div>
@@ -2098,7 +2109,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         }))
                       }
                       placeholder="例如：MDX23C"
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                     />
                   </div>
                   <div>
@@ -2113,7 +2124,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         }))
                       }
                       placeholder="例如：Vocals / Drums"
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                     />
                   </div>
                 </div>
@@ -2127,7 +2138,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         stem_name: "",
                       });
                     }}
-                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg text-sm"
                   >
                     重置筛选
                   </button>
@@ -2142,10 +2153,10 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               </div>
 
               {/* 评分列表 */}
-              <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-slate-900">
+                    <thead className="bg-slate-50 dark:bg-slate-900">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">ID</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">专家ID</th>
@@ -2159,7 +2170,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         <th className="px-4 py-3 text-right text-xs font-medium text-slate-400">操作</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700">
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                       {loadingScores ? (
                         <tr>
                           <td colSpan="10" className="px-4 py-8 text-center text-slate-400">
@@ -2176,20 +2187,20 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                         scores.map((score, index) => (
                           <tr
                             key={`score-${String(score.id)}-${index}`}
-                            className="hover:bg-slate-700/50"
+                            className="hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
                           >
-                            <td className="px-4 py-3 text-sm text-slate-300">{score.id}</td>
-                            <td className="px-4 py-3 text-sm text-slate-300">{score.user_id}</td>
-                            <td className="px-4 py-3 text-sm text-slate-300">{score.task_id}</td>
-                            <td className="px-4 py-3 text-sm text-slate-300">{score.algorithm}</td>
-                            <td className="px-4 py-3 text-sm text-slate-300">
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{score.id}</td>
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{score.user_id}</td>
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{score.task_id}</td>
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{score.algorithm}</td>
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
                               {score.stem_name || "-"}
                             </td>
-                            <td className="px-4 py-3 text-sm text-slate-300">{score.quality}</td>
-                            <td className="px-4 py-3 text-sm text-slate-300">
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{score.quality}</td>
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
                               {score.interference}
                             </td>
-                            <td className="px-4 py-3 text-sm text-slate-300">
+                            <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
                               {score.artifacts}
                             </td>
                             <td className="px-4 py-3 text-sm text-slate-400">
@@ -2201,14 +2212,14 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                               <div className="flex items-center justify-end gap-2">
                                 <button
                                   onClick={() => setEditingScore(score)}
-                                  className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-400 transition"
+                                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
                                   title="编辑评分"
                                 >
                                   <Edit size={16} />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteScore(score.id)}
-                                  className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition"
+                                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition"
                                   title="删除评分"
                                 >
                                   <Trash2 size={16} />
@@ -2240,12 +2251,12 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       {/* 编辑用户模态框 */}
       {editingUser && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-md">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-slate-700">
-              <h3 className="text-xl font-bold text-white">编辑用户</h3>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">编辑用户</h3>
               <button
                 onClick={() => setEditingUser(null)}
-                className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
               >
                 <X size={20} />
               </button>
@@ -2257,7 +2268,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   type="text"
                   value={editingUser.username}
                   onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white"
                 />
               </div>
               <div>
@@ -2266,7 +2277,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   type="email"
                   value={editingUser.email}
                   onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white"
                 />
               </div>
               <div>
@@ -2274,7 +2285,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                 <select
                   value={editingUser.role}
                   onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white"
                 >
                   <option value="expert">专家</option>
                   <option value="admin">管理员</option>
@@ -2303,7 +2314,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => setEditingUser(null)}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
+                  className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition"
                 >
                   取消
                 </button>
@@ -2326,12 +2337,12 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       {/* 编辑音频资源模态框 */}
       {editingAudio && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-md">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-slate-700">
-              <h3 className="text-xl font-bold text-white">编辑音频资源</h3>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">编辑音频资源</h3>
               <button
                 onClick={() => setEditingAudio(null)}
-                className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
               >
                 <X size={20} />
               </button>
@@ -2343,7 +2354,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   type="text"
                   value={editingAudio.title}
                   onChange={(e) => setEditingAudio({ ...editingAudio, title: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white"
                 />
               </div>
               <div>
@@ -2351,7 +2362,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                 <textarea
                   value={editingAudio.description || ""}
                   onChange={(e) => setEditingAudio({ ...editingAudio, description: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white"
                   rows="3"
                 />
               </div>
@@ -2361,7 +2372,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   type="text"
                   value={editingAudio.category || ""}
                   onChange={(e) => setEditingAudio({ ...editingAudio, category: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white"
                 />
               </div>
               <div>
@@ -2371,7 +2382,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   value={editingAudio.tags || ""}
                   onChange={(e) => setEditingAudio({ ...editingAudio, tags: e.target.value })}
                   placeholder="标签1,标签2"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white"
                 />
               </div>
               <div>
@@ -2379,7 +2390,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                 <select
                   value={editingAudio.is_public}
                   onChange={(e) => setEditingAudio({ ...editingAudio, is_public: e.target.value === "true" })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white"
                 >
                   <option value="true">公开</option>
                   <option value="false">私有</option>
@@ -2388,7 +2399,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => setEditingAudio(null)}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
+                  className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition"
                 >
                   取消
                 </button>
@@ -2411,9 +2422,9 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       {/* 管理员回复专家建议模态框 */}
       {replyingMessage && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-lg">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 w-full max-w-lg">
             <div className="flex items-center justify-between p-6 border-b border-slate-700">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <MessageCircle size={18} className="text-cyan-400" />
                 回复专家建议
               </h3>
@@ -2422,7 +2433,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   setReplyingMessage(null);
                   setReplyContent("");
                 }}
-                className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
               >
                 <X size={20} />
               </button>
@@ -2436,7 +2447,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               </div>
               <div>
                 <div className="text-xs text-slate-400 mb-1">专家内容</div>
-                <div className="text-sm text-slate-200 bg-slate-800 rounded-lg p-3 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                <div className="text-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 rounded-lg p-3 whitespace-pre-wrap max-h-40 overflow-y-auto">
                   {replyingMessage.content}
                 </div>
               </div>
@@ -2448,7 +2459,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
                   rows={4}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm resize-none"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm resize-none"
                   placeholder="请输入要回复给专家的内容"
                 />
               </div>
@@ -2458,7 +2469,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                     setReplyingMessage(null);
                     setReplyContent("");
                   }}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
+                  className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition"
                 >
                   取消
                 </button>

@@ -38,6 +38,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useToast } from "./Toast";
+import { useTheme } from "./ThemeContext";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
@@ -60,7 +61,7 @@ export default function SystemManagement({ token }) {
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-slate-900">
+    <div className="w-full h-full flex flex-col bg-slate-50 dark:bg-slate-900">
       {/* Page Header */}
       {/*<div className="border-b border-slate-700 bg-slate-800 px-6 py-4">*/}
       {/*  /!*<div className="flex flex-col gap-3">*!/*/}
@@ -202,12 +203,12 @@ function TaskHistoryAdmin({ token }) {
   }, [token]);
 
   return (
-    <div className="space-y-4">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 flex items-center justify-between">
+      <div className="space-y-4">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity size={18} className="text-cyan-400" />
           <div>
-            <div className="text-white font-semibold text-sm">分离任务历史</div>
+            <div className="text-slate-800 dark:text-white font-semibold text-sm">分离任务历史</div>
             <div className="text-xs text-slate-400">
               查看近期所有音频分离任务的概况，便于排查问题或统计使用情况。
             </div>
@@ -215,14 +216,14 @@ function TaskHistoryAdmin({ token }) {
         </div>
         <button
           onClick={() => fetchTaskHistory(1)}
-          className="px-4 py-2 bg-slate-900 hover:bg-slate-700 text-white rounded-lg text-xs flex items-center gap-2"
+          className="px-4 py-2 bg-slate-50 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-lg text-xs flex items-center gap-2"
         >
           <RotateCcw size={14} />
           刷新
         </button>
       </div>
 
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
         {taskHistoryLoading ? (
           <div className="text-center text-slate-400 py-8 text-sm">加载中...</div>
         ) : taskHistory.length === 0 ? (
@@ -233,28 +234,28 @@ function TaskHistoryAdmin({ token }) {
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="bg-slate-900">
+                <thead className="bg-slate-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-3 py-2 text-left text-slate-400 font-medium">任务ID</th>
-                    <th className="px-3 py-2 text-left text-slate-400 font-medium">用户ID</th>
-                    <th className="px-3 py-2 text-left text-slate-400 font-medium">文件名</th>
-                    <th className="px-3 py-2 text-left text-slate-400 font-medium">算法</th>
-                    <th className="px-3 py-2 text-left text-slate-400 font-medium">模型版本</th>
-                    <th className="px-3 py-2 text-left text-slate-400 font-medium">状态</th>
-                    <th className="px-3 py-2 text-left text-slate-400 font-medium">创建时间</th>
-                    <th className="px-3 py-2 text-left text-slate-400 font-medium">完成时间</th>
+                    <th className="px-3 py-2 text-left text-slate-600 dark:text-slate-400 font-medium">任务ID</th>
+                    <th className="px-3 py-2 text-left text-slate-600 dark:text-slate-400 font-medium">用户ID</th>
+                    <th className="px-3 py-2 text-left text-slate-600 dark:text-slate-400 font-medium">文件名</th>
+                    <th className="px-3 py-2 text-left text-slate-600 dark:text-slate-400 font-medium">算法</th>
+                    <th className="px-3 py-2 text-left text-slate-600 dark:text-slate-400 font-medium">模型版本</th>
+                    <th className="px-3 py-2 text-left text-slate-600 dark:text-slate-400 font-medium">状态</th>
+                    <th className="px-3 py-2 text-left text-slate-600 dark:text-slate-400 font-medium">创建时间</th>
+                    <th className="px-3 py-2 text-left text-slate-600 dark:text-slate-400 font-medium">完成时间</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                   {taskHistory.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-700/40">
-                      <td className="px-3 py-2 font-mono text-slate-200">{t.id}</td>
-                      <td className="px-3 py-2 font-mono text-slate-300">{t.user_id || "-"}</td>
-                      <td className="px-3 py-2 text-slate-100 max-w-xs truncate">
+                    <tr key={t.id} className="hover:bg-slate-200/40 dark:hover:bg-slate-700/40">
+                      <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-200">{t.id}</td>
+                      <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{t.user_id || "-"}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-100 max-w-xs truncate">
                         {t.original_filename || "(未命名)"}
                       </td>
-                      <td className="px-3 py-2 text-slate-300">{t.algorithm || "-"}</td>
-                      <td className="px-3 py-2 text-slate-300">{t.model_version || "-"}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{t.algorithm || "-"}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{t.model_version || "-"}</td>
                       <td className="px-3 py-2">
                         <span
                           className={`px-2 py-1 rounded-full text-[11px] ${
@@ -268,10 +269,10 @@ function TaskHistoryAdmin({ token }) {
                           {t.status || "-"}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-slate-400">
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                         {t.created_at ? new Date(t.created_at).toLocaleString("zh-CN") : "-"}
                       </td>
-                      <td className="px-3 py-2 text-slate-400">
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                         {t.completed_at ? new Date(t.completed_at).toLocaleString("zh-CN") : "-"}
                       </td>
                     </tr>
@@ -280,11 +281,11 @@ function TaskHistoryAdmin({ token }) {
               </table>
             </div>
             {taskHistoryTotalPages > 1 && (
-              <div className="flex items-center justify-between mt-4 text-xs text-slate-400">
+              <div className="flex items-center justify-between mt-4 text-xs text-slate-600 dark:text-slate-400">
                 <button
                   onClick={() => fetchTaskHistory(Math.max(1, taskHistoryPage - 1))}
                   disabled={taskHistoryPage <= 1}
-                  className="px-3 py-1.5 bg-slate-900 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   上一页
                 </button>
@@ -296,7 +297,7 @@ function TaskHistoryAdmin({ token }) {
                     fetchTaskHistory(Math.min(taskHistoryTotalPages, taskHistoryPage + 1))
                   }
                   disabled={taskHistoryPage >= taskHistoryTotalPages}
-                  className="px-3 py-1.5 bg-slate-900 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   下一页
                 </button>
@@ -441,14 +442,14 @@ function SystemLogs({ token }) {
   return (
     <div className="space-y-4">
       {/* 顶部区域：筛选和操作 */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700/80 shadow-lg shadow-black/20 overflow-hidden">
-        <div className="px-5 py-4 bg-gradient-to-r from-slate-900/80 to-slate-800/60 border-b border-slate-700/60 flex items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-lg shadow-black/20 overflow-hidden">
+        <div className="px-5 py-4 bg-gradient-to-r from-slate-50/80 to-slate-100/60 dark:from-slate-900/80 dark:to-slate-800/60 border-b border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
               <FileText size={18} className="text-cyan-400" />
             </div>
             <div className="min-w-0">
-              <div className="text-white font-semibold">系统日志</div>
+              <div className="text-slate-800 dark:text-white font-semibold">系统日志</div>
               <div className="text-xs text-slate-400 truncate">关键词/时间范围/用户/IP 等多条件查询</div>
             </div>
           </div>
@@ -465,7 +466,7 @@ function SystemLogs({ token }) {
           {/* 主搜索 + 常用筛选 */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
             <div className="lg:col-span-5">
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">关键词</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">关键词</label>
               <div className="relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
@@ -476,37 +477,37 @@ function SystemLogs({ token }) {
                     if (e.key === "Enter") applyDraft();
                   }}
                   placeholder="搜索：用户名 / 描述 / 错误信息 / 操作类型 / IP ..."
-                  className="w-full pl-10 pr-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
+                  className="w-full pl-10 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
                 />
               </div>
             </div>
 
             <div className="lg:col-span-2">
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">开始时间</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">开始时间</label>
               <input
                 type="datetime-local"
                 value={draft.start_date}
                 onChange={(e) => setDraft({ ...draft, start_date: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
               />
             </div>
             <div className="lg:col-span-2">
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">结束时间</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">结束时间</label>
               <input
                 type="datetime-local"
                 value={draft.end_date}
                 onChange={(e) => setDraft({ ...draft, end_date: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
               />
             </div>
 
             <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">操作类型</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">操作类型</label>
                 <select
                   value={draft.operation_type}
                   onChange={(e) => setDraft({ ...draft, operation_type: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
                 >
                   <option value="">全部</option>
                   <option value="user_create">创建用户</option>
@@ -519,11 +520,11 @@ function SystemLogs({ token }) {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">资源类型</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">资源类型</label>
                 <select
                   value={draft.resource_type}
                   onChange={(e) => setDraft({ ...draft, resource_type: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
                 >
                   <option value="">全部</option>
                   <option value="user">用户</option>
@@ -531,11 +532,11 @@ function SystemLogs({ token }) {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">状态</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">状态</label>
                 <select
                   value={draft.status}
                   onChange={(e) => setDraft({ ...draft, status: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
                 >
                   <option value="">全部</option>
                   <option value="success">成功</option>
@@ -549,7 +550,7 @@ function SystemLogs({ token }) {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <button
               onClick={() => setShowAdvanced((v) => !v)}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-300 hover:text-white hover:border-slate-600 transition w-fit"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white hover:border-slate-400 dark:hover:border-slate-600 transition w-fit"
             >
               <Filter size={16} className="text-cyan-400" />
               高级筛选
@@ -557,12 +558,12 @@ function SystemLogs({ token }) {
             </button>
 
             <div className="flex items-center gap-2 flex-wrap justify-between md:justify-end">
-              <div className="px-3 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-sm text-slate-400">
+              <div className="px-3 py-2 bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-400">
                 共 <span className="text-cyan-400 font-semibold">{total}</span> 条
               </div>
               <button
                 onClick={resetAll}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
               >
                 <RotateCcw size={14} />
                 重置
@@ -582,45 +583,45 @@ function SystemLogs({ token }) {
             <div className="pt-1">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">用户ID</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">用户ID</label>
                   <input
                     type="number"
                     min="1"
                     value={draft.user_id}
                     onChange={(e) => setDraft({ ...draft, user_id: e.target.value })}
                     placeholder="例如：10001"
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">用户名</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">用户名</label>
                   <input
                     type="text"
                     value={draft.username}
                     onChange={(e) => setDraft({ ...draft, username: e.target.value })}
                     placeholder="模糊匹配"
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">资源ID</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">资源ID</label>
                   <input
                     type="number"
                     min="1"
                     value={draft.resource_id}
                     onChange={(e) => setDraft({ ...draft, resource_id: e.target.value })}
                     placeholder="例如：20001"
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1.5">IP</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">IP</label>
                   <input
                     type="text"
                     value={draft.ip_address}
                     onChange={(e) => setDraft({ ...draft, ip_address: e.target.value })}
                     placeholder="模糊匹配"
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition"
                   />
                 </div>
               </div>
@@ -630,20 +631,20 @@ function SystemLogs({ token }) {
       </div>
 
       {/* Logs Table */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-lg">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden shadow-lg">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-slate-900 to-slate-800 border-b border-slate-700">
+            <thead className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-b border-slate-200 dark:border-slate-700">
               <tr>
-                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">时间</th>
-                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">用户</th>
-                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">操作</th>
-                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">资源</th>
-                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">描述</th>
-                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">状态</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">时间</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">用户</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">操作</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">资源</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">描述</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">状态</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700/50">
+            <tbody className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center">
@@ -664,19 +665,24 @@ function SystemLogs({ token }) {
                 </tr>
               ) : (
                 logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-700/30 transition-colors">
-                    <td className="px-5 py-3.5 text-sm text-slate-300 font-mono">
+                  <tr
+                    key={log.id}
+                    className="hover:bg-slate-200/50 dark:hover:bg-slate-700/30 transition-colors"
+                  >
+                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-300 font-mono">
                       {log.created_at ? new Date(log.created_at).toLocaleString() : "-"}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-200 font-medium">{log.username || "-"}</td>
-                    <td className="px-5 py-3.5 text-sm text-slate-300">
-                      <span className="px-2 py-1 bg-slate-700/50 rounded text-xs">{log.operation_type}</span>
+                    <td className="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-200 font-medium">{log.username || "-"}</td>
+                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-300">
+                      <span className="px-2 py-1 bg-slate-200/50 dark:bg-slate-700/50 rounded text-xs">
+                        {log.operation_type}
+                      </span>
                     </td>
                     <td className="px-5 py-3.5 text-sm text-slate-300">
                       <span className="text-cyan-400">{log.resource_type}</span>
                       {log.resource_id && <span className="text-slate-500 ml-1">#{log.resource_id}</span>}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-400 max-w-md truncate" title={log.description || "-"}>
+                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400 max-w-md truncate" title={log.description || "-"}>
                       {log.description || "-"}
                     </td>
                     <td className="px-5 py-3.5">
@@ -697,7 +703,7 @@ function SystemLogs({ token }) {
           </table>
         </div>
         {/* Pagination */}
-        <div className="px-5 py-4 border-t border-slate-700 bg-slate-900/50 flex items-center justify-between">
+        <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
           <div className="text-sm text-slate-400">
             显示第 <span className="text-cyan-400 font-semibold">{(page - 1) * pageSize + 1}</span> - 
             <span className="text-cyan-400 font-semibold"> {Math.min(page * pageSize, total)}</span> 条，
@@ -707,17 +713,17 @@ function SystemLogs({ token }) {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition font-medium"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg text-sm text-slate-800 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed transition font-medium"
             >
               上一页
             </button>
-            <div className="px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-slate-300 font-medium">
+            <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 font-medium">
               {page} / {Math.max(1, Math.ceil(total / pageSize))}
             </div>
             <button
               onClick={() => setPage((p) => p + 1)}
               disabled={page >= Math.ceil(total / pageSize)}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition font-medium"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg text-sm text-slate-800 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed transition font-medium"
             >
               下一页
             </button>
@@ -1087,7 +1093,7 @@ function SystemSettings({ token }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2 text-slate-400 text-sm">
             <Settings size={18} className="text-cyan-400" />
@@ -1123,10 +1129,10 @@ function SystemSettings({ token }) {
       </div>
 
       {/* 数据源切换 */}
-      <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold text-white mb-2">评分数据源（预留扩展）</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">评分数据源（预留扩展）</h3>
             <p className="text-sm text-slate-400">
               当前所有评分数据统一存储在后端数据库。此处的数据源模式用于未来扩展（例如外部评测平台），暂不改变实际存储行为。
             </p>
@@ -1139,7 +1145,7 @@ function SystemSettings({ token }) {
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   storageMode === "local"
                     ? "bg-emerald-600 text-white"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                 } ${savingStorageMode ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <span className="flex items-center gap-2">
@@ -1153,7 +1159,7 @@ function SystemSettings({ token }) {
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   storageMode === "firestore"
                     ? "bg-purple-600 text-white"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                 } ${savingStorageMode ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <span className="flex items-center gap-2">
@@ -1170,10 +1176,10 @@ function SystemSettings({ token }) {
       </div>
 
       {/* 计算运行模式切换（CPU / GPU） */}
-      <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold text-white mb-2">分离任务运行模式</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">分离任务运行模式</h3>
             <p className="text-sm text-slate-400">
               切换音频分离任务在后端运行时使用的计算设备（CPU 或 GPU）。GPU 模式依赖环境已正确安装 CUDA / PyTorch。
             </p>
@@ -1185,8 +1191,8 @@ function SystemSettings({ token }) {
                 disabled={savingComputeMode || computeMode === "cpu"}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   computeMode === "cpu"
-                    ? "bg-slate-100 text-slate-900"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    ? "bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                    : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                 } ${savingComputeMode ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <span className="flex items-center gap-2">
@@ -1200,7 +1206,7 @@ function SystemSettings({ token }) {
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   computeMode === "gpu"
                     ? "bg-cyan-600 text-white"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                 } ${savingComputeMode ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <span className="flex items-center gap-2">
@@ -1217,10 +1223,10 @@ function SystemSettings({ token }) {
       </div>
 
       {/* 模型版本配置（论文追踪） */}
-      <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-lg font-bold text-white mb-2">算法模型版本配置</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">算法模型版本配置</h3>
             <p className="text-sm text-slate-400">
               由管理员维护每个算法当前使用的模型版本号。新建分离任务时会自动记录该版本信息，便于论文复现与对比追踪。
             </p>
@@ -1229,7 +1235,7 @@ function SystemSettings({ token }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {Object.keys(modelVersions || {}).map((algo) => (
             <div key={algo}>
-              <label className="block text-xs text-slate-400 mb-1.5">{algo} 版本</label>
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1.5">{algo} 版本</label>
               <input
                 type="text"
                 value={modelVersions[algo] || ""}
@@ -1237,7 +1243,7 @@ function SystemSettings({ token }) {
                   setModelVersions((prev) => ({ ...(prev || {}), [algo]: e.target.value }))
                 }
                 placeholder="例如：v1.0.3 / 2026-03-22"
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
               />
             </div>
           ))}
@@ -1254,10 +1260,10 @@ function SystemSettings({ token }) {
       </div>
 
       {/* 邮箱测试 */}
-      <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-3 mb-4">
           <Mail size={20} className="text-cyan-400" />
-          <h3 className="text-lg font-bold text-white">邮箱测试</h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">邮箱测试</h3>
         </div>
         <p className="text-sm text-slate-400 mb-4">
           测试系统邮件发送功能是否正常工作。测试邮件将发送验证码到指定邮箱。
@@ -1268,7 +1274,7 @@ function SystemSettings({ token }) {
             value={testEmail}
             onChange={(e) => setTestEmail(e.target.value)}
             placeholder="请输入测试邮箱地址"
-            className="flex-1 px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+            className="flex-1 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
             disabled={testingEmail}
           />
           <button
@@ -1292,44 +1298,44 @@ function SystemSettings({ token }) {
       </div>
 
       {showCreate && (
-        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-xs text-slate-400 mb-2">配置键 *</label>
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">配置键 *</label>
               <input
                 type="text"
                 value={createForm.key}
                 onChange={(e) => setCreateForm({ ...createForm, key: e.target.value })}
                 placeholder="例如：upload.max_file_mb"
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-2">配置值</label>
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">配置值</label>
               <input
                 type="text"
                 value={createForm.value}
                 onChange={(e) => setCreateForm({ ...createForm, value: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-2">分类</label>
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">分类</label>
               <input
                 type="text"
                 value={createForm.category}
                 onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })}
                 placeholder="例如：upload/security/email/system"
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs text-slate-400 mb-2">描述</label>
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">描述</label>
               <input
                 type="text"
                 value={createForm.description}
                 onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
               />
             </div>
           </div>
@@ -1342,7 +1348,7 @@ function SystemSettings({ token }) {
             </button>
             <button
               onClick={() => setShowCreate(false)}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg"
             >
               取消
             </button>
@@ -1351,15 +1357,15 @@ function SystemSettings({ token }) {
       )}
 
       {/* 分类筛选 */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-sm text-slate-400">筛选分类：</span>
+          <span className="text-sm text-slate-600 dark:text-slate-400">筛选分类：</span>
           <button
             onClick={() => setSelectedCategory("")}
             className={`px-3 py-1 rounded-lg text-sm transition ${
               selectedCategory === ""
                 ? "bg-cyan-600 text-white"
-                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
             }`}
           >
             全部
@@ -1371,7 +1377,7 @@ function SystemSettings({ token }) {
               className={`px-3 py-1 rounded-lg text-sm transition ${
                 selectedCategory === cat
                   ? "bg-cyan-600 text-white"
-                  : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                  : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
               }`}
             >
               {cat}
@@ -1380,19 +1386,19 @@ function SystemSettings({ token }) {
         </div>
       </div>
 
-      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-900">
+            <thead className="bg-slate-50 dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">配置键</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">配置值</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">分类</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">描述</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">操作</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400">配置键</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400">配置值</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400">分类</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400">描述</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {loading ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
@@ -1407,15 +1413,18 @@ function SystemSettings({ token }) {
                 </tr>
               ) : (
                 configs.map((config, index) => (
-                  <tr key={config.key || `config-${config.id || index}`} className="hover:bg-slate-700/50">
-                    <td className="px-4 py-3 text-sm text-slate-300 font-mono">{config.key}</td>
-                    <td className="px-4 py-3 text-sm text-slate-300">
+                  <tr
+                    key={config.key || `config-${config.id || index}`}
+                    className="hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                  >
+                    <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 font-mono">{config.key}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
                       {editingKey === config.key ? (
                         <input
                           type="text"
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
-                          className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-white text-sm"
+                          className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-800 dark:text-white text-sm"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               handleSave(config.key);
@@ -1426,19 +1435,19 @@ function SystemSettings({ token }) {
                           autoFocus
                         />
                       ) : (
-                        <span className="text-slate-400 font-mono text-xs">{config.value || "-"}</span>
+                        <span className="text-slate-600 dark:text-slate-400 font-mono text-xs">{config.value || "-"}</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       {config.category ? (
-                        <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs">
+                        <span className="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded text-xs">
                           {config.category}
                         </span>
                       ) : (
                         <span className="text-slate-500 text-xs">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-400">{config.description || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">{config.description || "-"}</td>
                     <td className="px-4 py-3">
                       {editingKey === config.key ? (
                         <div className="flex items-center gap-2">
@@ -1451,7 +1460,7 @@ function SystemSettings({ token }) {
                           </button>
                           <button
                             onClick={() => setEditingKey(null)}
-                            className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm"
+                            className="px-3 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded text-sm"
                           >
                             取消
                           </button>
@@ -1459,7 +1468,7 @@ function SystemSettings({ token }) {
                       ) : (
                         <button
                           onClick={() => handleEdit(config)}
-                          className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm"
+                          className="px-3 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded text-sm"
                         >
                           编辑
                         </button>
@@ -1580,10 +1589,10 @@ function Notifications({ token }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-slate-400 text-sm">
+            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm">
               <Bell size={18} className="text-cyan-400" />
               <span>通知管理</span>
             </div>
@@ -1605,33 +1614,33 @@ function Notifications({ token }) {
 
       {/* Create Form */}
       {showCreate && (
-        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs text-slate-400 mb-2">标题</label>
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">标题</label>
               <input
                 type="text"
                 value={createForm.title}
                 onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-2">内容</label>
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">内容</label>
               <textarea
                 value={createForm.content}
                 onChange={(e) => setCreateForm({ ...createForm, content: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                 rows={3}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs text-slate-400 mb-2">类型</label>
+                <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">类型</label>
                 <select
                   value={createForm.type}
                   onChange={(e) => setCreateForm({ ...createForm, type: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                 >
                   <option value="info">信息</option>
                   <option value="warning">警告</option>
@@ -1640,11 +1649,11 @@ function Notifications({ token }) {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-2">目标</label>
+                <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">目标</label>
                 <select
                   value={createForm.target_type}
                   onChange={(e) => setCreateForm({ ...createForm, target_type: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white text-sm"
                 >
                   <option value="all">所有人</option>
                   <option value="expert">专家</option>
@@ -1660,7 +1669,7 @@ function Notifications({ token }) {
               </button>
               <button
                 onClick={() => setShowCreate(false)}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg"
               >
                 取消
               </button>
@@ -1672,21 +1681,21 @@ function Notifications({ token }) {
       {/* Notifications List */}
       <div className="space-y-2">
         {loading ? (
-          <div className="text-center text-slate-400 py-8">加载中...</div>
+          <div className="text-center text-slate-600 dark:text-slate-400 py-8">加载中...</div>
         ) : notifications.length === 0 ? (
-          <div className="text-center text-slate-400 py-8">暂无通知</div>
+          <div className="text-center text-slate-600 dark:text-slate-400 py-8">暂无通知</div>
         ) : (
           notifications.map((notif) => (
             <div
               key={notif.id}
-              className={`bg-slate-800 rounded-lg p-4 border border-slate-700 ${
+              className={`bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700 ${
                 !notif.is_read ? "border-cyan-500" : ""
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-white font-medium">{notif.title}</h3>
+                    <h3 className="text-slate-800 dark:text-white font-medium">{notif.title}</h3>
                     <span
                       className={`px-2 py-1 rounded text-xs ${
                         notif.type === "info"
@@ -1706,7 +1715,7 @@ function Notifications({ token }) {
                       </span>
                     )}
                   </div>
-                  <p className="text-slate-400 text-sm mb-2">{notif.content}</p>
+                  <p className="text-slate-600 dark:text-slate-400 text-sm mb-2">{notif.content}</p>
                   <p className="text-xs text-slate-500">
                     {notif.created_at ? new Date(notif.created_at).toLocaleString() : ""}
                   </p>
@@ -1731,6 +1740,19 @@ function Notifications({ token }) {
 // 数据统计组件
 function Analytics({ token }) {
   const { showError } = useToast();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  const exportBg = isDark ? "#1e293b" : "#f8fafc";
+  const tooltipContentStyle = {
+    backgroundColor: exportBg,
+    border: `1px solid ${isDark ? "#475569" : "#cbd5e1"}`,
+    borderRadius: "8px",
+    color: isDark ? "#f1f5f9" : "#0f172a",
+  };
+  const gridStroke = isDark ? "#475569" : "#cbd5e1";
+  const axisStroke = isDark ? "#94a3b8" : "#64748b";
+
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState(30);
@@ -1789,7 +1811,7 @@ function Analytics({ token }) {
     
     try {
       const canvas = await html2canvas(chartRef.current, {
-        backgroundColor: "#1e293b",
+        backgroundColor: exportBg,
         scale: 2,
         logging: false,
       });
@@ -1817,16 +1839,16 @@ function Analytics({ token }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-slate-400 text-sm">
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm">
             <BarChart3 size={18} className="text-cyan-400" />
             <span>数据统计分析</span>
           </div>
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
           >
             <option value={7}>最近7天</option>
             <option value={30}>最近30天</option>
@@ -1842,17 +1864,17 @@ function Analytics({ token }) {
         <>
           {/* 统计卡片 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm text-slate-400">总用户数</div>
                 <Users size={18} className="text-cyan-400" />
               </div>
-              <div className="text-3xl font-bold text-white">{stats.total_users || 0}</div>
+              <div className="text-3xl font-bold text-slate-900 dark:text-white">{stats.total_users || 0}</div>
               <div className="text-xs text-slate-500 mt-1">
                 活跃: {stats.active_users || 0} 人
               </div>
             </div>
-            <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm text-slate-400">总下载次数</div>
                 <Download size={18} className="text-cyan-400" />
@@ -1862,7 +1884,7 @@ function Analytics({ token }) {
                 资源数: {stats.total_resources || 0}
               </div>
             </div>
-            <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm text-slate-400">总任务数</div>
                 <Activity size={18} className="text-emerald-400" />
@@ -1872,7 +1894,7 @@ function Analytics({ token }) {
                 存储: {formatStorage(stats.total_storage || 0)}
               </div>
             </div>
-            <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm text-slate-400">用户增长</div>
                 <BarChart3 size={18} className="text-purple-400" />
@@ -1887,9 +1909,9 @@ function Analytics({ token }) {
           </div>
 
           {/* 用户增长趋势图 */}
-          <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">用户增长趋势</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">用户增长趋势</h3>
               <button
                 onClick={() => downloadChart(userGrowthRef, "用户增长趋势")}
                 className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm flex items-center gap-1.5 transition-colors"
@@ -1901,24 +1923,19 @@ function Analytics({ token }) {
             <div ref={userGrowthRef}>
               <ResponsiveContainer width="100%" height={300}>
               <LineChart data={stats.user_growth || []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                 <XAxis
                   dataKey="date"
-                  stroke="#94a3b8"
+                  stroke={axisStroke}
                   tickFormatter={formatDate}
                   style={{ fontSize: "12px" }}
                 />
-                <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} />
+                <YAxis stroke={axisStroke} style={{ fontSize: "12px" }} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1e293b",
-                    border: "1px solid #475569",
-                    borderRadius: "8px",
-                    color: "#f1f5f9",
-                  }}
+                  contentStyle={tooltipContentStyle}
                   labelFormatter={(value) => `日期: ${formatDate(value)}`}
                 />
-                <Legend wrapperStyle={{ color: "#94a3b8" }} />
+                <Legend wrapperStyle={{ color: axisStroke }} />
                 <Line
                   type="monotone"
                   dataKey="count"
@@ -1933,9 +1950,9 @@ function Analytics({ token }) {
           </div>
 
           {/* 活跃用户趋势图 */}
-          <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">活跃用户趋势</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">活跃用户趋势</h3>
               <button
                 onClick={() => downloadChart(activeUsersRef, "活跃用户趋势")}
                 className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm flex items-center gap-1.5 transition-colors"
@@ -1953,24 +1970,19 @@ function Analytics({ token }) {
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                 <XAxis
                   dataKey="date"
-                  stroke="#94a3b8"
+                  stroke={axisStroke}
                   tickFormatter={formatDate}
                   style={{ fontSize: "12px" }}
                 />
-                <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} />
+                <YAxis stroke={axisStroke} style={{ fontSize: "12px" }} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1e293b",
-                    border: "1px solid #475569",
-                    borderRadius: "8px",
-                    color: "#f1f5f9",
-                  }}
+                  contentStyle={tooltipContentStyle}
                   labelFormatter={(value) => `日期: ${formatDate(value)}`}
                 />
-                <Legend wrapperStyle={{ color: "#94a3b8" }} />
+                <Legend wrapperStyle={{ color: axisStroke }} />
                 <Area
                   type="monotone"
                   dataKey="count"
@@ -1986,9 +1998,9 @@ function Analytics({ token }) {
 
           {/* 资源上传趋势和下载趋势 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">资源上传趋势</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">资源上传趋势</h3>
                 <button
                   onClick={() => downloadChart(resourceUploadRef, "资源上传趋势")}
                   className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm flex items-center gap-1.5 transition-colors"
@@ -2000,21 +2012,16 @@ function Analytics({ token }) {
               <div ref={resourceUploadRef}>
                 <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={stats.resource_upload || []}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                   <XAxis
                     dataKey="date"
-                    stroke="#94a3b8"
+                    stroke={axisStroke}
                     tickFormatter={formatDate}
                     style={{ fontSize: "11px" }}
                   />
-                  <YAxis stroke="#94a3b8" style={{ fontSize: "11px" }} />
+                  <YAxis stroke={axisStroke} style={{ fontSize: "11px" }} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1e293b",
-                      border: "1px solid #475569",
-                      borderRadius: "8px",
-                      color: "#f1f5f9",
-                    }}
+                    contentStyle={tooltipContentStyle}
                     labelFormatter={(value) => `日期: ${formatDate(value)}`}
                   />
                   <Bar dataKey="count" fill="#8b5cf6" name="上传数量" />
@@ -2023,9 +2030,9 @@ function Analytics({ token }) {
               </div>
             </div>
 
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">下载趋势</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">下载趋势</h3>
                 <button
                   onClick={() => downloadChart(downloadTrendRef, "下载趋势")}
                   className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm flex items-center gap-1.5 transition-colors"
@@ -2037,21 +2044,16 @@ function Analytics({ token }) {
               <div ref={downloadTrendRef}>
                 <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={stats.download_trend || []}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                   <XAxis
                     dataKey="date"
-                    stroke="#94a3b8"
+                    stroke={axisStroke}
                     tickFormatter={formatDate}
                     style={{ fontSize: "11px" }}
                   />
-                  <YAxis stroke="#94a3b8" style={{ fontSize: "11px" }} />
+                  <YAxis stroke={axisStroke} style={{ fontSize: "11px" }} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1e293b",
-                      border: "1px solid #475569",
-                      borderRadius: "8px",
-                      color: "#f1f5f9",
-                    }}
+                    contentStyle={tooltipContentStyle}
                     labelFormatter={(value) => `日期: ${formatDate(value)}`}
                   />
                   <Line
@@ -2070,9 +2072,9 @@ function Analytics({ token }) {
 
           {/* 资源类型分布和分类分布 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">资源类型分布</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">资源类型分布</h3>
                 <button
                   onClick={() => downloadChart(resourceFormatRef, "资源类型分布")}
                   className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm flex items-center gap-1.5 transition-colors"
@@ -2105,12 +2107,7 @@ function Analytics({ token }) {
                       ))}
                     </Pie>
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#1e293b",
-                        border: "1px solid #475569",
-                        borderRadius: "8px",
-                        color: "#f1f5f9",
-                      }}
+                      contentStyle={tooltipContentStyle}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -2120,9 +2117,9 @@ function Analytics({ token }) {
               )}
             </div>
 
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">资源分类分布</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">资源分类分布</h3>
                 <button
                   onClick={() => downloadChart(resourceCategoryRef, "资源分类分布")}
                   className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm flex items-center gap-1.5 transition-colors"
@@ -2135,22 +2132,17 @@ function Analytics({ token }) {
                 <div ref={resourceCategoryRef}>
                   <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={stats.resource_category_dist} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
-                    <XAxis type="number" stroke="#94a3b8" style={{ fontSize: "11px" }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                    <XAxis type="number" stroke={axisStroke} style={{ fontSize: "11px" }} />
                     <YAxis
                       dataKey="category"
                       type="category"
-                      stroke="#94a3b8"
+                      stroke={axisStroke}
                       style={{ fontSize: "11px" }}
                       width={100}
                     />
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#1e293b",
-                        border: "1px solid #475569",
-                        borderRadius: "8px",
-                        color: "#f1f5f9",
-                      }}
+                      contentStyle={tooltipContentStyle}
                     />
                     <Bar dataKey="count" fill="#3b82f6" name="数量" />
                   </BarChart>
@@ -2164,9 +2156,9 @@ function Analytics({ token }) {
 
           {/* 操作类型统计和任务状态统计 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">操作类型统计</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">操作类型统计</h3>
                 <button
                   onClick={() => downloadChart(operationStatsRef, "操作类型统计")}
                   className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm flex items-center gap-1.5 transition-colors"
@@ -2179,23 +2171,18 @@ function Analytics({ token }) {
                 <div ref={operationStatsRef}>
                   <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={stats.operation_stats}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                     <XAxis
                       dataKey="operation_type"
-                      stroke="#94a3b8"
+                      stroke={axisStroke}
                       style={{ fontSize: "11px" }}
                       angle={-45}
                       textAnchor="end"
                       height={100}
                     />
-                    <YAxis stroke="#94a3b8" style={{ fontSize: "11px" }} />
+                    <YAxis stroke={axisStroke} style={{ fontSize: "11px" }} />
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#1e293b",
-                        border: "1px solid #475569",
-                        borderRadius: "8px",
-                        color: "#f1f5f9",
-                      }}
+                      contentStyle={tooltipContentStyle}
                     />
                     <Bar dataKey="count" fill="#ec4899" name="操作次数" />
                   </BarChart>
@@ -2206,9 +2193,9 @@ function Analytics({ token }) {
               )}
             </div>
 
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">任务状态统计</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">任务状态统计</h3>
                 <button
                   onClick={() => downloadChart(taskStatsRef, "任务状态统计")}
                   className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm flex items-center gap-1.5 transition-colors"
@@ -2241,12 +2228,7 @@ function Analytics({ token }) {
                       ))}
                     </Pie>
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#1e293b",
-                        border: "1px solid #475569",
-                        borderRadius: "8px",
-                        color: "#f1f5f9",
-                      }}
+                      contentStyle={tooltipContentStyle}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -2259,9 +2241,9 @@ function Analytics({ token }) {
 
           {/* 用户角色分布 */}
           {stats.user_role_dist && stats.user_role_dist.length > 0 && (
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">用户角色分布</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">用户角色分布</h3>
                 <button
                   onClick={() => downloadChart(userRoleRef, "用户角色分布")}
                   className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm flex items-center gap-1.5 transition-colors"
@@ -2273,20 +2255,15 @@ function Analytics({ token }) {
               <div ref={userRoleRef}>
                 <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={stats.user_role_dist}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                   <XAxis
                     dataKey="role"
-                    stroke="#94a3b8"
+                    stroke={axisStroke}
                     style={{ fontSize: "12px" }}
                   />
-                  <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} />
+                  <YAxis stroke={axisStroke} style={{ fontSize: "12px" }} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1e293b",
-                      border: "1px solid #475569",
-                      borderRadius: "8px",
-                      color: "#f1f5f9",
-                    }}
+                    contentStyle={tooltipContentStyle}
                   />
                   <Bar dataKey="count" fill="#14b8a6" name="用户数" />
                 </BarChart>
