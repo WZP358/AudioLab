@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTheme } from "./ThemeContext";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+const API_BASE = process.env.REACT_APP_API_BASE || (typeof window !== "undefined" ? window.location.origin : "http://localhost:8000");
 
 export default function UserManual({ onBack }) {
   const { resolvedTheme } = useTheme();

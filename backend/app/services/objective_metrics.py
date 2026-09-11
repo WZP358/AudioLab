@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -75,7 +75,7 @@ def compute_residual_mix_minus_est(
     estimate_path: Path,
 ) -> np.ndarray:
     """
-    计算残差音频 r = mix - est（用于“残差播放器”试听剩余干扰/伪影）。
+    计算残差音频 r = mix - est（用于"残差播放器"试听剩余干扰/伪影）。
 
     - 统一为 mono / 44.1kHz，与 compute_bss_metrics_two_source 保持一致
     - 简单去直流偏置，并做幅度归一化，避免写出 WAV 时过载失真
@@ -106,7 +106,7 @@ def compute_bss_metrics_two_source(
     eps: float = 1e-12,
 ) -> ObjectiveMetrics:
     """
-    在“目标源 + 其余源（干扰）”的两源假设下计算 BSS Eval 风格的 SDR/SIR/SAR。
+    在"目标源 + 其余源（干扰）"的两源假设下计算 BSS Eval 风格的 SDR/SIR/SAR。
 
     需要：
     - mixture：混合音 x

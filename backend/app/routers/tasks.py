@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, Request, Header
+﻿from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, Request, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, update
 from typing import List, Optional
@@ -17,7 +17,7 @@ import numpy as np
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.models import SeparationTask, StemFile, TaskStatus, Algorithm, User, Role, Score, SystemConfig
+from app.models import SeparationTask, StemFile, BlindSample, TaskStatus, Algorithm, User, Role, Score, SystemConfig
 from app.routers.auth import get_current_user
 from app.services.separation_engine import mark_task_cancelled
 from app.schemas import (
@@ -37,6 +37,7 @@ from app.services.queue_manager import TaskQueueManager
 from app.services.analysis_service import analyze_audio_file, analysis_to_payload, _read_audio_any
 from app.services.objective_metrics import compute_bss_metrics_two_source, compute_residual_mix_minus_est
 from app.services.objective_metrics_multisource import compute_bss_metrics_multisource
+from app.services.overlay_metrics import compute_soc_from_spectrograms
 from app.utils.log_helper import get_client_ip, get_user_agent
 import logging
 import tempfile
@@ -1526,7 +1527,33 @@ async def compute_objective_metrics(
         task.sdr = float(m.sdr)
         task.sir = float(m.sir)
         task.sar = float(m.sar)
-        _merge_task_metadata(task, si_sdr=float(m.si_sdr) if m.si_sdr is not None else None)
+
+        # 计算 SOC（频谱幅度重叠一致性），用于后续主客观相关性分析
+        # 说明：SOC 基于与前端可视化一致的 spectrogram（幅度谱 + pool + 归一化到 [0,1]）
+        soc_by_stem = (_parse_task_metadata(task).get("soc_by_stem") or {}).copy()
+        if not isinstance(soc_by_stem, dict):
+            soc_by_stem = {}
+
+        analysis_ref = analyze_audio_file(
+            ref_path,
+            spec_freq_bins=128,
+            spec_time_bins=256,
+            max_seconds=0.0,  # 不裁剪：只影响"可视化窗口"，这里关闭裁剪以尽量匹配客观评估的裁剪逻辑
+        )
+        analysis_est = analyze_audio_file(
+            estimate_path,
+            spec_freq_bins=128,
+            spec_time_bins=256,
+            max_seconds=0.0,
+        )
+        soc = compute_soc_from_spectrograms(analysis_ref.spectrogram, analysis_est.spectrogram)
+        soc_by_stem[target] = float(soc)
+
+        _merge_task_metadata(
+            task,
+            si_sdr=float(m.si_sdr) if m.si_sdr is not None else None,
+            soc_by_stem=soc_by_stem,
+        )
         await db.commit()
         await db.refresh(task)
     except Exception as e:
@@ -1653,7 +1680,31 @@ async def compute_objective_metrics_batch(
         avg_si_sdr = float(np.mean([m["si_sdr"] for m in metrics.metrics_by_source.values() if "si_sdr" in m]))
         task.sir = float(avg_sir)
         task.sar = float(avg_sar)
-        _merge_task_metadata(task, si_sdr=avg_si_sdr)
+        # 额外计算 SOC（按 stem 级别），用于"SOC 与主观评分的相关性/单调性检验"
+        meta = _parse_task_metadata(task)
+        soc_by_stem = meta.get("soc_by_stem") or {}
+        if not isinstance(soc_by_stem, dict):
+            soc_by_stem = {}
+
+        for stem_name, ref_path in references.items():
+            est_path = estimates.get(stem_name)
+            if est_path is None:
+                continue
+            analysis_ref = analyze_audio_file(
+                ref_path,
+                spec_freq_bins=128,
+                spec_time_bins=256,
+                max_seconds=0.0,
+            )
+            analysis_est = analyze_audio_file(
+                est_path,
+                spec_freq_bins=128,
+                spec_time_bins=256,
+                max_seconds=0.0,
+            )
+            soc_by_stem[stem_name] = float(compute_soc_from_spectrograms(analysis_ref.spectrogram, analysis_est.spectrogram))
+
+        _merge_task_metadata(task, si_sdr=avg_si_sdr, soc_by_stem=soc_by_stem)
         await db.commit()
 
         return {

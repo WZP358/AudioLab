@@ -1,0 +1,17 @@
+[Unit]
+Description=AudioLab Patent Evaluation System
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=CHANGE_ME
+WorkingDirectory=/data/AudioLab/backend
+EnvironmentFile=/data/AudioLab/backend/.env
+ExecStart=/data/AudioLab/backend/.venv/bin/python /data/AudioLab/backend/run_production.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body, BackgroundTasks
+﻿from fastapi import APIRouter, Depends, HTTPException, status, Body, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, cast, String, bindparam
 from sqlalchemy.exc import IntegrityError
@@ -618,7 +618,7 @@ async def register(req: Request, request: RegisterRequest, db: AsyncSession = De
                 detail=f"该邮箱已有{role_name}角色的待审核申请，请等待审核完成后再试。"
             )
 
-        # 所有注册均走“申请 + 管理员审批”流程
+        # 所有注册均走"申请 + 管理员审批"流程
         pending = PendingUser(
             username=request.username,
             email=request.email,

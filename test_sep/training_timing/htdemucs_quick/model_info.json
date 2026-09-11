@@ -1,0 +1,1434 @@
+{
+  "timestamp": "2026-07-15T19:37:46.648923",
+  "model_class": "HTDemucs",
+  "model_module": "models.demucs4ht",
+  "parameters": {
+    "total": 41984456,
+    "trainable": 41984456,
+    "non_trainable": 0,
+    "total_millions": 41.98,
+    "trainable_millions": 41.98
+  },
+  "memory": {
+    "parameters_mb": 160.16,
+    "buffers_mb": 0.0,
+    "total_mb": 160.16
+  },
+  "layers": [
+    {
+      "name": "encoder.0.conv",
+      "type": "Conv2d",
+      "parameters": 1584
+    },
+    {
+      "name": "encoder.0.rewrite",
+      "type": "Conv2d",
+      "parameters": 4704
+    },
+    {
+      "name": "encoder.0.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 870
+    },
+    {
+      "name": "encoder.0.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 12
+    },
+    {
+      "name": "encoder.0.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 672
+    },
+    {
+      "name": "encoder.0.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 192
+    },
+    {
+      "name": "encoder.0.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 48
+    },
+    {
+      "name": "encoder.0.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 870
+    },
+    {
+      "name": "encoder.0.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 12
+    },
+    {
+      "name": "encoder.0.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 672
+    },
+    {
+      "name": "encoder.0.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 192
+    },
+    {
+      "name": "encoder.0.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 48
+    },
+    {
+      "name": "encoder.1.conv",
+      "type": "Conv2d",
+      "parameters": 36960
+    },
+    {
+      "name": "encoder.1.rewrite",
+      "type": "Conv2d",
+      "parameters": 18624
+    },
+    {
+      "name": "encoder.1.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 3468
+    },
+    {
+      "name": "encoder.1.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 24
+    },
+    {
+      "name": "encoder.1.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 2496
+    },
+    {
+      "name": "encoder.1.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 384
+    },
+    {
+      "name": "encoder.1.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 96
+    },
+    {
+      "name": "encoder.1.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 3468
+    },
+    {
+      "name": "encoder.1.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 24
+    },
+    {
+      "name": "encoder.1.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 2496
+    },
+    {
+      "name": "encoder.1.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 384
+    },
+    {
+      "name": "encoder.1.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 96
+    },
+    {
+      "name": "encoder.2.conv",
+      "type": "Conv2d",
+      "parameters": 147648
+    },
+    {
+      "name": "encoder.2.rewrite",
+      "type": "Conv2d",
+      "parameters": 74112
+    },
+    {
+      "name": "encoder.2.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 13848
+    },
+    {
+      "name": "encoder.2.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 48
+    },
+    {
+      "name": "encoder.2.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 9600
+    },
+    {
+      "name": "encoder.2.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 768
+    },
+    {
+      "name": "encoder.2.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 192
+    },
+    {
+      "name": "encoder.2.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 13848
+    },
+    {
+      "name": "encoder.2.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 48
+    },
+    {
+      "name": "encoder.2.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 9600
+    },
+    {
+      "name": "encoder.2.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 768
+    },
+    {
+      "name": "encoder.2.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 192
+    },
+    {
+      "name": "encoder.3.conv",
+      "type": "Conv2d",
+      "parameters": 590208
+    },
+    {
+      "name": "encoder.3.rewrite",
+      "type": "Conv2d",
+      "parameters": 295680
+    },
+    {
+      "name": "encoder.3.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 55344
+    },
+    {
+      "name": "encoder.3.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 96
+    },
+    {
+      "name": "encoder.3.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 37632
+    },
+    {
+      "name": "encoder.3.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 1536
+    },
+    {
+      "name": "encoder.3.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 384
+    },
+    {
+      "name": "encoder.3.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 55344
+    },
+    {
+      "name": "encoder.3.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 96
+    },
+    {
+      "name": "encoder.3.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 37632
+    },
+    {
+      "name": "encoder.3.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 1536
+    },
+    {
+      "name": "encoder.3.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 384
+    },
+    {
+      "name": "decoder.0.conv_tr",
+      "type": "ConvTranspose2d",
+      "parameters": 590016
+    },
+    {
+      "name": "decoder.0.rewrite",
+      "type": "Conv2d",
+      "parameters": 2654976
+    },
+    {
+      "name": "decoder.0.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 55344
+    },
+    {
+      "name": "decoder.0.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 96
+    },
+    {
+      "name": "decoder.0.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 37632
+    },
+    {
+      "name": "decoder.0.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 1536
+    },
+    {
+      "name": "decoder.0.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 384
+    },
+    {
+      "name": "decoder.0.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 55344
+    },
+    {
+      "name": "decoder.0.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 96
+    },
+    {
+      "name": "decoder.0.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 37632
+    },
+    {
+      "name": "decoder.0.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 1536
+    },
+    {
+      "name": "decoder.0.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 384
+    },
+    {
+      "name": "decoder.1.conv_tr",
+      "type": "ConvTranspose2d",
+      "parameters": 147552
+    },
+    {
+      "name": "decoder.1.rewrite",
+      "type": "Conv2d",
+      "parameters": 663936
+    },
+    {
+      "name": "decoder.1.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 13848
+    },
+    {
+      "name": "decoder.1.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 48
+    },
+    {
+      "name": "decoder.1.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 9600
+    },
+    {
+      "name": "decoder.1.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 768
+    },
+    {
+      "name": "decoder.1.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 192
+    },
+    {
+      "name": "decoder.1.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 13848
+    },
+    {
+      "name": "decoder.1.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 48
+    },
+    {
+      "name": "decoder.1.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 9600
+    },
+    {
+      "name": "decoder.1.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 768
+    },
+    {
+      "name": "decoder.1.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 192
+    },
+    {
+      "name": "decoder.2.conv_tr",
+      "type": "ConvTranspose2d",
+      "parameters": 36912
+    },
+    {
+      "name": "decoder.2.rewrite",
+      "type": "Conv2d",
+      "parameters": 166080
+    },
+    {
+      "name": "decoder.2.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 3468
+    },
+    {
+      "name": "decoder.2.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 24
+    },
+    {
+      "name": "decoder.2.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 2496
+    },
+    {
+      "name": "decoder.2.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 384
+    },
+    {
+      "name": "decoder.2.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 96
+    },
+    {
+      "name": "decoder.2.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 3468
+    },
+    {
+      "name": "decoder.2.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 24
+    },
+    {
+      "name": "decoder.2.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 2496
+    },
+    {
+      "name": "decoder.2.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 384
+    },
+    {
+      "name": "decoder.2.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 96
+    },
+    {
+      "name": "decoder.3.conv_tr",
+      "type": "ConvTranspose2d",
+      "parameters": 6160
+    },
+    {
+      "name": "decoder.3.rewrite",
+      "type": "Conv2d",
+      "parameters": 41568
+    },
+    {
+      "name": "decoder.3.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 870
+    },
+    {
+      "name": "decoder.3.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 12
+    },
+    {
+      "name": "decoder.3.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 672
+    },
+    {
+      "name": "decoder.3.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 192
+    },
+    {
+      "name": "decoder.3.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 48
+    },
+    {
+      "name": "decoder.3.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 870
+    },
+    {
+      "name": "decoder.3.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 12
+    },
+    {
+      "name": "decoder.3.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 672
+    },
+    {
+      "name": "decoder.3.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 192
+    },
+    {
+      "name": "decoder.3.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 48
+    },
+    {
+      "name": "tencoder.0.conv",
+      "type": "Conv1d",
+      "parameters": 816
+    },
+    {
+      "name": "tencoder.0.rewrite",
+      "type": "Conv1d",
+      "parameters": 4704
+    },
+    {
+      "name": "tencoder.0.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 870
+    },
+    {
+      "name": "tencoder.0.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 12
+    },
+    {
+      "name": "tencoder.0.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 672
+    },
+    {
+      "name": "tencoder.0.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 192
+    },
+    {
+      "name": "tencoder.0.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 48
+    },
+    {
+      "name": "tencoder.0.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 870
+    },
+    {
+      "name": "tencoder.0.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 12
+    },
+    {
+      "name": "tencoder.0.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 672
+    },
+    {
+      "name": "tencoder.0.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 192
+    },
+    {
+      "name": "tencoder.0.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 48
+    },
+    {
+      "name": "tencoder.1.conv",
+      "type": "Conv1d",
+      "parameters": 36960
+    },
+    {
+      "name": "tencoder.1.rewrite",
+      "type": "Conv1d",
+      "parameters": 18624
+    },
+    {
+      "name": "tencoder.1.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 3468
+    },
+    {
+      "name": "tencoder.1.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 24
+    },
+    {
+      "name": "tencoder.1.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 2496
+    },
+    {
+      "name": "tencoder.1.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 384
+    },
+    {
+      "name": "tencoder.1.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 96
+    },
+    {
+      "name": "tencoder.1.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 3468
+    },
+    {
+      "name": "tencoder.1.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 24
+    },
+    {
+      "name": "tencoder.1.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 2496
+    },
+    {
+      "name": "tencoder.1.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 384
+    },
+    {
+      "name": "tencoder.1.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 96
+    },
+    {
+      "name": "tencoder.2.conv",
+      "type": "Conv1d",
+      "parameters": 147648
+    },
+    {
+      "name": "tencoder.2.rewrite",
+      "type": "Conv1d",
+      "parameters": 74112
+    },
+    {
+      "name": "tencoder.2.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 13848
+    },
+    {
+      "name": "tencoder.2.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 48
+    },
+    {
+      "name": "tencoder.2.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 9600
+    },
+    {
+      "name": "tencoder.2.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 768
+    },
+    {
+      "name": "tencoder.2.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 192
+    },
+    {
+      "name": "tencoder.2.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 13848
+    },
+    {
+      "name": "tencoder.2.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 48
+    },
+    {
+      "name": "tencoder.2.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 9600
+    },
+    {
+      "name": "tencoder.2.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 768
+    },
+    {
+      "name": "tencoder.2.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 192
+    },
+    {
+      "name": "tencoder.3.conv",
+      "type": "Conv1d",
+      "parameters": 590208
+    },
+    {
+      "name": "tencoder.3.rewrite",
+      "type": "Conv1d",
+      "parameters": 295680
+    },
+    {
+      "name": "tencoder.3.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 55344
+    },
+    {
+      "name": "tencoder.3.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 96
+    },
+    {
+      "name": "tencoder.3.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 37632
+    },
+    {
+      "name": "tencoder.3.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 1536
+    },
+    {
+      "name": "tencoder.3.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 384
+    },
+    {
+      "name": "tencoder.3.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 55344
+    },
+    {
+      "name": "tencoder.3.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 96
+    },
+    {
+      "name": "tencoder.3.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 37632
+    },
+    {
+      "name": "tencoder.3.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 1536
+    },
+    {
+      "name": "tencoder.3.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 384
+    },
+    {
+      "name": "tdecoder.0.conv_tr",
+      "type": "ConvTranspose1d",
+      "parameters": 590016
+    },
+    {
+      "name": "tdecoder.0.rewrite",
+      "type": "Conv1d",
+      "parameters": 885504
+    },
+    {
+      "name": "tdecoder.0.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 55344
+    },
+    {
+      "name": "tdecoder.0.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 96
+    },
+    {
+      "name": "tdecoder.0.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 37632
+    },
+    {
+      "name": "tdecoder.0.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 1536
+    },
+    {
+      "name": "tdecoder.0.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 384
+    },
+    {
+      "name": "tdecoder.0.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 55344
+    },
+    {
+      "name": "tdecoder.0.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 96
+    },
+    {
+      "name": "tdecoder.0.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 37632
+    },
+    {
+      "name": "tdecoder.0.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 1536
+    },
+    {
+      "name": "tdecoder.0.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 384
+    },
+    {
+      "name": "tdecoder.1.conv_tr",
+      "type": "ConvTranspose1d",
+      "parameters": 147552
+    },
+    {
+      "name": "tdecoder.1.rewrite",
+      "type": "Conv1d",
+      "parameters": 221568
+    },
+    {
+      "name": "tdecoder.1.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 13848
+    },
+    {
+      "name": "tdecoder.1.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 48
+    },
+    {
+      "name": "tdecoder.1.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 9600
+    },
+    {
+      "name": "tdecoder.1.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 768
+    },
+    {
+      "name": "tdecoder.1.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 192
+    },
+    {
+      "name": "tdecoder.1.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 13848
+    },
+    {
+      "name": "tdecoder.1.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 48
+    },
+    {
+      "name": "tdecoder.1.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 9600
+    },
+    {
+      "name": "tdecoder.1.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 768
+    },
+    {
+      "name": "tdecoder.1.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 192
+    },
+    {
+      "name": "tdecoder.2.conv_tr",
+      "type": "ConvTranspose1d",
+      "parameters": 36912
+    },
+    {
+      "name": "tdecoder.2.rewrite",
+      "type": "Conv1d",
+      "parameters": 55488
+    },
+    {
+      "name": "tdecoder.2.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 3468
+    },
+    {
+      "name": "tdecoder.2.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 24
+    },
+    {
+      "name": "tdecoder.2.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 2496
+    },
+    {
+      "name": "tdecoder.2.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 384
+    },
+    {
+      "name": "tdecoder.2.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 96
+    },
+    {
+      "name": "tdecoder.2.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 3468
+    },
+    {
+      "name": "tdecoder.2.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 24
+    },
+    {
+      "name": "tdecoder.2.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 2496
+    },
+    {
+      "name": "tdecoder.2.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 384
+    },
+    {
+      "name": "tdecoder.2.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 96
+    },
+    {
+      "name": "tdecoder.3.conv_tr",
+      "type": "ConvTranspose1d",
+      "parameters": 3080
+    },
+    {
+      "name": "tdecoder.3.rewrite",
+      "type": "Conv1d",
+      "parameters": 13920
+    },
+    {
+      "name": "tdecoder.3.dconv.layers.0.0",
+      "type": "Conv1d",
+      "parameters": 870
+    },
+    {
+      "name": "tdecoder.3.dconv.layers.0.1",
+      "type": "GroupNorm",
+      "parameters": 12
+    },
+    {
+      "name": "tdecoder.3.dconv.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 672
+    },
+    {
+      "name": "tdecoder.3.dconv.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 192
+    },
+    {
+      "name": "tdecoder.3.dconv.layers.0.6",
+      "type": "LayerScale",
+      "parameters": 48
+    },
+    {
+      "name": "tdecoder.3.dconv.layers.1.0",
+      "type": "Conv1d",
+      "parameters": 870
+    },
+    {
+      "name": "tdecoder.3.dconv.layers.1.1",
+      "type": "GroupNorm",
+      "parameters": 12
+    },
+    {
+      "name": "tdecoder.3.dconv.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 672
+    },
+    {
+      "name": "tdecoder.3.dconv.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 192
+    },
+    {
+      "name": "tdecoder.3.dconv.layers.1.6",
+      "type": "LayerScale",
+      "parameters": 48
+    },
+    {
+      "name": "freq_emb.embedding",
+      "type": "Embedding",
+      "parameters": 24576
+    },
+    {
+      "name": "channel_upsampler",
+      "type": "Conv1d",
+      "parameters": 197120
+    },
+    {
+      "name": "channel_downsampler",
+      "type": "Conv1d",
+      "parameters": 196992
+    },
+    {
+      "name": "channel_upsampler_t",
+      "type": "Conv1d",
+      "parameters": 197120
+    },
+    {
+      "name": "channel_downsampler_t",
+      "type": "Conv1d",
+      "parameters": 196992
+    },
+    {
+      "name": "crosstransformer.norm_in",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.norm_in_t",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.0.self_attn.out_proj",
+      "type": "NonDynamicallyQuantizableLinear",
+      "parameters": 262656
+    },
+    {
+      "name": "crosstransformer.layers.0.linear1",
+      "type": "Linear",
+      "parameters": 1050624
+    },
+    {
+      "name": "crosstransformer.layers.0.linear2",
+      "type": "Linear",
+      "parameters": 1049088
+    },
+    {
+      "name": "crosstransformer.layers.0.norm1",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.0.norm2",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.0.norm_out",
+      "type": "MyGroupNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.0.gamma_1",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers.0.gamma_2",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers.1.cross_attn.out_proj",
+      "type": "NonDynamicallyQuantizableLinear",
+      "parameters": 262656
+    },
+    {
+      "name": "crosstransformer.layers.1.linear1",
+      "type": "Linear",
+      "parameters": 1050624
+    },
+    {
+      "name": "crosstransformer.layers.1.linear2",
+      "type": "Linear",
+      "parameters": 1049088
+    },
+    {
+      "name": "crosstransformer.layers.1.norm1",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.1.norm2",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.1.norm3",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.1.norm_out",
+      "type": "MyGroupNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.1.gamma_1",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers.1.gamma_2",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers.2.self_attn.out_proj",
+      "type": "NonDynamicallyQuantizableLinear",
+      "parameters": 262656
+    },
+    {
+      "name": "crosstransformer.layers.2.linear1",
+      "type": "Linear",
+      "parameters": 1050624
+    },
+    {
+      "name": "crosstransformer.layers.2.linear2",
+      "type": "Linear",
+      "parameters": 1049088
+    },
+    {
+      "name": "crosstransformer.layers.2.norm1",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.2.norm2",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.2.norm_out",
+      "type": "MyGroupNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.2.gamma_1",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers.2.gamma_2",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers.3.cross_attn.out_proj",
+      "type": "NonDynamicallyQuantizableLinear",
+      "parameters": 262656
+    },
+    {
+      "name": "crosstransformer.layers.3.linear1",
+      "type": "Linear",
+      "parameters": 1050624
+    },
+    {
+      "name": "crosstransformer.layers.3.linear2",
+      "type": "Linear",
+      "parameters": 1049088
+    },
+    {
+      "name": "crosstransformer.layers.3.norm1",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.3.norm2",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.3.norm3",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.3.norm_out",
+      "type": "MyGroupNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.3.gamma_1",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers.3.gamma_2",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers.4.self_attn.out_proj",
+      "type": "NonDynamicallyQuantizableLinear",
+      "parameters": 262656
+    },
+    {
+      "name": "crosstransformer.layers.4.linear1",
+      "type": "Linear",
+      "parameters": 1050624
+    },
+    {
+      "name": "crosstransformer.layers.4.linear2",
+      "type": "Linear",
+      "parameters": 1049088
+    },
+    {
+      "name": "crosstransformer.layers.4.norm1",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.4.norm2",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.4.norm_out",
+      "type": "MyGroupNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers.4.gamma_1",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers.4.gamma_2",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers_t.0.self_attn.out_proj",
+      "type": "NonDynamicallyQuantizableLinear",
+      "parameters": 262656
+    },
+    {
+      "name": "crosstransformer.layers_t.0.linear1",
+      "type": "Linear",
+      "parameters": 1050624
+    },
+    {
+      "name": "crosstransformer.layers_t.0.linear2",
+      "type": "Linear",
+      "parameters": 1049088
+    },
+    {
+      "name": "crosstransformer.layers_t.0.norm1",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.0.norm2",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.0.norm_out",
+      "type": "MyGroupNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.0.gamma_1",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers_t.0.gamma_2",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers_t.1.cross_attn.out_proj",
+      "type": "NonDynamicallyQuantizableLinear",
+      "parameters": 262656
+    },
+    {
+      "name": "crosstransformer.layers_t.1.linear1",
+      "type": "Linear",
+      "parameters": 1050624
+    },
+    {
+      "name": "crosstransformer.layers_t.1.linear2",
+      "type": "Linear",
+      "parameters": 1049088
+    },
+    {
+      "name": "crosstransformer.layers_t.1.norm1",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.1.norm2",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.1.norm3",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.1.norm_out",
+      "type": "MyGroupNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.1.gamma_1",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers_t.1.gamma_2",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers_t.2.self_attn.out_proj",
+      "type": "NonDynamicallyQuantizableLinear",
+      "parameters": 262656
+    },
+    {
+      "name": "crosstransformer.layers_t.2.linear1",
+      "type": "Linear",
+      "parameters": 1050624
+    },
+    {
+      "name": "crosstransformer.layers_t.2.linear2",
+      "type": "Linear",
+      "parameters": 1049088
+    },
+    {
+      "name": "crosstransformer.layers_t.2.norm1",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.2.norm2",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.2.norm_out",
+      "type": "MyGroupNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.2.gamma_1",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers_t.2.gamma_2",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers_t.3.cross_attn.out_proj",
+      "type": "NonDynamicallyQuantizableLinear",
+      "parameters": 262656
+    },
+    {
+      "name": "crosstransformer.layers_t.3.linear1",
+      "type": "Linear",
+      "parameters": 1050624
+    },
+    {
+      "name": "crosstransformer.layers_t.3.linear2",
+      "type": "Linear",
+      "parameters": 1049088
+    },
+    {
+      "name": "crosstransformer.layers_t.3.norm1",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.3.norm2",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.3.norm3",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.3.norm_out",
+      "type": "MyGroupNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.3.gamma_1",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers_t.3.gamma_2",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers_t.4.self_attn.out_proj",
+      "type": "NonDynamicallyQuantizableLinear",
+      "parameters": 262656
+    },
+    {
+      "name": "crosstransformer.layers_t.4.linear1",
+      "type": "Linear",
+      "parameters": 1050624
+    },
+    {
+      "name": "crosstransformer.layers_t.4.linear2",
+      "type": "Linear",
+      "parameters": 1049088
+    },
+    {
+      "name": "crosstransformer.layers_t.4.norm1",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.4.norm2",
+      "type": "LayerNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.4.norm_out",
+      "type": "MyGroupNorm",
+      "parameters": 1024
+    },
+    {
+      "name": "crosstransformer.layers_t.4.gamma_1",
+      "type": "LayerScale",
+      "parameters": 512
+    },
+    {
+      "name": "crosstransformer.layers_t.4.gamma_2",
+      "type": "LayerScale",
+      "parameters": 512
+    }
+  ]
+}

@@ -1,9 +1,9 @@
-"""
+﻿"""
 创建初始账号（Docker 首次启动后执行）
 运行方式: python -m app.create_admin
 
 说明：
-- 本脚本会“创建或更新”两类账号：expert / admin
+- 本脚本会"创建或更新"两类账号：expert / admin
 - 设计目标：一键把系统跑通（专家评分、管理员后台）
 """
 import asyncio

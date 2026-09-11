@@ -1,0 +1,1124 @@
+{
+  "timestamp": "2026-07-15T19:38:19.839668",
+  "model_class": "TFC_TDF_net",
+  "model_module": "models.mdx23c_tfc_tdf_v3",
+  "parameters": {
+    "total": 111988224,
+    "trainable": 111988224,
+    "non_trainable": 0,
+    "total_millions": 111.99,
+    "trainable_millions": 111.99
+  },
+  "memory": {
+    "parameters_mb": 427.2,
+    "buffers_mb": 0.0,
+    "total_mb": 427.2
+  },
+  "layers": [
+    {
+      "name": "first_conv",
+      "type": "Conv2d",
+      "parameters": 2048
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 147456
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 262144
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 262144
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 147456
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 16384
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 147456
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 262144
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 262144
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 147456
+    },
+    {
+      "name": "encoder_blocks.0.tfc_tdf.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 16384
+    },
+    {
+      "name": "encoder_blocks.0.downscale.conv.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "encoder_blocks.0.downscale.conv.2",
+      "type": "Conv2d",
+      "parameters": 131072
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 589824
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 65536
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 65536
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 589824
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 65536
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 589824
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 65536
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 65536
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 589824
+    },
+    {
+      "name": "encoder_blocks.1.tfc_tdf.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 65536
+    },
+    {
+      "name": "encoder_blocks.1.downscale.conv.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "encoder_blocks.1.downscale.conv.2",
+      "type": "Conv2d",
+      "parameters": 393216
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 1327104
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 16384
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 16384
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 1327104
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 147456
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 1327104
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 16384
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 16384
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 1327104
+    },
+    {
+      "name": "encoder_blocks.2.tfc_tdf.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 147456
+    },
+    {
+      "name": "encoder_blocks.2.downscale.conv.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "encoder_blocks.2.downscale.conv.2",
+      "type": "Conv2d",
+      "parameters": 786432
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 2359296
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 4096
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 4096
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 2359296
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 262144
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 2359296
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 4096
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 4096
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 2359296
+    },
+    {
+      "name": "encoder_blocks.3.tfc_tdf.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 262144
+    },
+    {
+      "name": "encoder_blocks.3.downscale.conv.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.3.downscale.conv.2",
+      "type": "Conv2d",
+      "parameters": 1310720
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 3686400
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 3686400
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 409600
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 3686400
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 1024
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 3686400
+    },
+    {
+      "name": "encoder_blocks.4.tfc_tdf.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 409600
+    },
+    {
+      "name": "encoder_blocks.4.downscale.conv.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "encoder_blocks.4.downscale.conv.2",
+      "type": "Conv2d",
+      "parameters": 1966080
+    },
+    {
+      "name": "bottleneck_block.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1536
+    },
+    {
+      "name": "bottleneck_block.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 5308416
+    },
+    {
+      "name": "bottleneck_block.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1536
+    },
+    {
+      "name": "bottleneck_block.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 256
+    },
+    {
+      "name": "bottleneck_block.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 1536
+    },
+    {
+      "name": "bottleneck_block.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 256
+    },
+    {
+      "name": "bottleneck_block.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1536
+    },
+    {
+      "name": "bottleneck_block.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 5308416
+    },
+    {
+      "name": "bottleneck_block.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 589824
+    },
+    {
+      "name": "bottleneck_block.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1536
+    },
+    {
+      "name": "bottleneck_block.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 5308416
+    },
+    {
+      "name": "bottleneck_block.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1536
+    },
+    {
+      "name": "bottleneck_block.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 256
+    },
+    {
+      "name": "bottleneck_block.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 1536
+    },
+    {
+      "name": "bottleneck_block.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 256
+    },
+    {
+      "name": "bottleneck_block.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1536
+    },
+    {
+      "name": "bottleneck_block.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 5308416
+    },
+    {
+      "name": "bottleneck_block.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 589824
+    },
+    {
+      "name": "decoder_blocks.0.upscale.conv.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1536
+    },
+    {
+      "name": "decoder_blocks.0.upscale.conv.2",
+      "type": "ConvTranspose2d",
+      "parameters": 1966080
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 2560
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 7372800
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 3686400
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 819200
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 3686400
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 3686400
+    },
+    {
+      "name": "decoder_blocks.0.tfc_tdf.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 409600
+    },
+    {
+      "name": "decoder_blocks.1.upscale.conv.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1280
+    },
+    {
+      "name": "decoder_blocks.1.upscale.conv.2",
+      "type": "ConvTranspose2d",
+      "parameters": 1310720
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 2048
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 4718592
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 4096
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 4096
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 2359296
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 524288
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 2359296
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 4096
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 4096
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 2359296
+    },
+    {
+      "name": "decoder_blocks.1.tfc_tdf.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 262144
+    },
+    {
+      "name": "decoder_blocks.2.upscale.conv.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.2.upscale.conv.2",
+      "type": "ConvTranspose2d",
+      "parameters": 786432
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1536
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 2654208
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 16384
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 16384
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 1327104
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 294912
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 1327104
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 16384
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 16384
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 1327104
+    },
+    {
+      "name": "decoder_blocks.2.tfc_tdf.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 147456
+    },
+    {
+      "name": "decoder_blocks.3.upscale.conv.0",
+      "type": "InstanceNorm2d",
+      "parameters": 768
+    },
+    {
+      "name": "decoder_blocks.3.upscale.conv.2",
+      "type": "ConvTranspose2d",
+      "parameters": 393216
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 1024
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 1179648
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 65536
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 65536
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 589824
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 131072
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 589824
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 65536
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 65536
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 589824
+    },
+    {
+      "name": "decoder_blocks.3.tfc_tdf.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 65536
+    },
+    {
+      "name": "decoder_blocks.4.upscale.conv.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "decoder_blocks.4.upscale.conv.2",
+      "type": "ConvTranspose2d",
+      "parameters": 131072
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.0.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 512
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.0.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 294912
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.0.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.0.tdf.2",
+      "type": "Linear",
+      "parameters": 262144
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.0.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.0.tdf.5",
+      "type": "Linear",
+      "parameters": 262144
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.0.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.0.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 147456
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.0.shortcut",
+      "type": "Conv2d",
+      "parameters": 32768
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.1.tfc1.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.1.tfc1.2",
+      "type": "Conv2d",
+      "parameters": 147456
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.1.tdf.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.1.tdf.2",
+      "type": "Linear",
+      "parameters": 262144
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.1.tdf.3",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.1.tdf.5",
+      "type": "Linear",
+      "parameters": 262144
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.1.tfc2.0",
+      "type": "InstanceNorm2d",
+      "parameters": 256
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.1.tfc2.2",
+      "type": "Conv2d",
+      "parameters": 147456
+    },
+    {
+      "name": "decoder_blocks.4.tfc_tdf.blocks.1.shortcut",
+      "type": "Conv2d",
+      "parameters": 16384
+    },
+    {
+      "name": "final_conv.0",
+      "type": "Conv2d",
+      "parameters": 18432
+    },
+    {
+      "name": "final_conv.2",
+      "type": "Conv2d",
+      "parameters": 2048
+    }
+  ]
+}

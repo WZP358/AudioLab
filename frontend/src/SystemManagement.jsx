@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import html2canvas from "html2canvas";
 import {
@@ -40,7 +40,7 @@ import {
 import { useToast } from "./Toast";
 import { useTheme } from "./ThemeContext";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+const API_BASE = process.env.REACT_APP_API_BASE || (typeof window !== "undefined" ? window.location.origin : "http://localhost:8000");
 
 export default function SystemManagement({ token }) {
   const location = useLocation();
@@ -764,6 +764,20 @@ function SystemSettings({ token }) {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [initializing, setInitializing] = useState(false);
   const [allConfigs, setAllConfigs] = useState([]);
+  const [labels, setLabels] = useState([]);
+  const [labelStem, setLabelStem] = useState("Vocals");
+  const [newLabel, setNewLabel] = useState("");
+  const fetchLabels = useCallback(async () => {
+    const resp = await fetch(`${API_BASE}/api/standard-labels?include_inactive=true`, { headers: { Authorization: `Bearer ${token}` } });
+    if (resp.ok) setLabels(await resp.json());
+  }, [token]);
+  useEffect(() => { fetchLabels().catch(() => {}); }, [fetchLabels]);
+  const addLabel = async () => {
+    if (!newLabel.trim()) return;
+    const resp = await fetch(`${API_BASE}/api/standard-labels`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ stem_name: labelStem, label: newLabel.trim() }) });
+    if (!resp.ok) { showError((await resp.json()).detail || "新增标签失败"); return; }
+    setNewLabel(""); fetchLabels(); showSuccess("标准标签已新增");
+  };
 
   const fetchConfigs = async (category = null) => {
     setLoading(true);
@@ -1092,7 +1106,21 @@ function SystemSettings({ token }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 max-w-6xl mx-auto">
+      <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 dark:bg-cyan-500/10 px-5 py-4">
+        <div className="flex items-start gap-3">
+          <Settings size={20} className="mt-0.5 text-cyan-500" />
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">实验系统设置</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">只需维护评分标签、计算设备和模型版本；其余配置保持默认即可。</p>
+          </div>
+        </div>
+      </div>
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+        <div className="flex items-center justify-between mb-3"><div><h3 className="font-bold text-slate-900 dark:text-white">标准化评语标签库</h3><p className="text-xs text-slate-500 mt-1">按声源维护专家评分时可选的标签；专家的自定义标签不会修改此库。</p></div><button onClick={fetchLabels} className="text-xs text-cyan-500">刷新</button></div>
+        <div className="flex flex-col sm:flex-row gap-2 mb-3"><select value={labelStem} onChange={(e) => setLabelStem(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"><option>Vocals</option><option>Drums</option><option>Bass</option><option>Other</option></select><input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addLabel()} placeholder="输入新的听感问题标签" className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder:text-slate-400" /><button onClick={addLabel} className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm">新增标签</button></div>
+        <div className="space-y-2">{labels.filter((item) => item.stem_name === labelStem).map((item) => <div key={item.id} className="flex items-center gap-2 text-sm"><input defaultValue={item.label} onBlur={async (e) => { const value = e.target.value.trim(); if (!value || value === item.label) return; await fetch(`${API_BASE}/api/standard-labels/${item.id}`, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ stem_name: item.stem_name, label: value, is_active: item.is_active }) }); fetchLabels(); }} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100" /><button onClick={async () => { await fetch(`${API_BASE}/api/standard-labels/${item.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }); fetchLabels(); }} className="px-2 py-1 text-xs text-red-500 hover:text-red-400">删除</button></div>)}</div>
+      </div>
       <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2 text-slate-400 text-sm">
@@ -1129,7 +1157,7 @@ function SystemSettings({ token }) {
       </div>
 
       {/* 数据源切换 */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
+      <div className="hidden bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">评分数据源（预留扩展）</h3>
@@ -2276,4 +2304,3 @@ function Analytics({ token }) {
     </div>
   );
 }
-

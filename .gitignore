@@ -62,11 +62,39 @@ models/
 # Docker
 .dockerignore
 
-Music-Source-Separation-Training-main/
-
-
 *.wav
 *.mp3
 *.pth
 *.ckpt
 *.pt
+
+# Local environments, caches, and generated build output
+.conda/
+.claude/
+.npm-cache/
+.tmp/
+.tmp-*/
+frontend/build/
+wandb/
+
+# Generated separation test artifacts
+test_sep/inference_results/
+test_sep/inference_timing/
+test_sep/results/
+test_sep/test_input.wav
+test_sep/training_timing/*/*.ckpt
+
+# Include the embedded training repository as source, but never its Git metadata
+!Music-Source-Separation-Training-main/
+!Music-Source-Separation-Training-main/**
+Music-Source-Separation-Training-main/.git/
+Music-Source-Separation-Training-main/.git.audiolab-original/
+Music-Source-Separation-Training-main/**/.git/
+Music-Source-Separation-Training-main/**/__pycache__/
+Music-Source-Separation-Training-main/**/wandb/
+Music-Source-Separation-Training-main/**/results/
+Music-Source-Separation-Training-main/**/*.wav
+Music-Source-Separation-Training-main/**/*.mp3
+Music-Source-Separation-Training-main/**/*.pth
+Music-Source-Separation-Training-main/**/*.ckpt
+Music-Source-Separation-Training-main/**/*.pt

@@ -1,4 +1,4 @@
-import base64
+﻿import base64
 import os
 import logging
 import re
@@ -81,9 +81,9 @@ def _run_subprocess_windows(cmd, task_prefix, task_id: Optional[int] = None):
     stdout_lines = []
     last_progress = 0
 
-    # 实时读取输出，同时轮询“是否被取消”
+    # 实时读取输出，同时轮询"是否被取消"
     for line in proc.stdout:
-        # 如果用户在处理中点击了“停止分离”，尝试终止子进程
+        # 如果用户在处理中点击了"停止分离"，尝试终止子进程
         if is_task_marked_cancelled(task_id):
             print_progress_text(f"{task_prefix} 检测到用户取消，终止分离进程...", clear_line=True)
             try:
@@ -534,7 +534,7 @@ class MSSLocalEngine(SeparationEngine):
                     error_details = '\n'.join(last_lines)
                     error_msg += f"\n输出信息：\n{error_details}"
 
-                # 针对常见“checkpoint 与 config 不匹配”的报错，追加可操作的修复建议
+                # 针对常见"checkpoint 与 config 不匹配"的报错，追加可操作的修复建议
                 combined_text = f"{stderr_text}\n{stdout_text}".lower()
                 if "size mismatch" in combined_text and "to_freqs" in combined_text:
                     # Band Split RoFormer 最常见：dim=384 vs dim=192
@@ -840,7 +840,7 @@ class HttpSeparationEngine(SeparationEngine):
 
 class LocalSeparationEngine(SeparationEngine):
     """
-    预留：对接“本地模型/本机推理”。
+    预留：对接"本地模型/本机推理"。
     这里不直接实现具体算法，避免把 Demucs/Spleeter 等依赖硬塞进仓库；
     你只需要把 MODEL_LOCAL_CMD 指向一个可执行脚本即可。
 
@@ -961,6 +961,9 @@ def build_separation_engine_from_env() -> SeparationEngine:
             raise
 
     if mode == "mock":
+        allow_test_engines = (os.getenv("ALLOW_TEST_ENGINES") or "false").strip().lower() == "true"
+        if not allow_test_engines:
+            raise ValueError("Mock 分离引擎仅允许在 ALLOW_TEST_ENGINES=true 的测试环境中启用")
         logger.info("使用 Mock 引擎（仅用于测试）")
         return MockSeparationEngine()
 

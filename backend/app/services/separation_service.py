@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import logging
 import os
 
@@ -20,7 +20,7 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm)
             if not task:
                 return
 
-            # 若任务已经被标记为“用户取消”，则不再进入真正的分离流程
+            # 若任务已经被标记为"用户取消"，则不再进入真正的分离流程
             if task.status == TaskStatus.FAILED and (task.comment or "").startswith("任务已被用户取消"):
                 print_progress_text(f"[任务 {task_id}] 已被用户取消，跳过分离处理。")
                 return
@@ -84,7 +84,7 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm)
                 else:
                     os.environ["CUDA_VISIBLE_DEVICES"] = old_cuda_visible
 
-            # 再次刷新任务，避免覆盖可能在分离过程中被设置的“用户取消”状态
+            # 再次刷新任务，避免覆盖可能在分离过程中被设置的"用户取消"状态
             await session.refresh(task)
             if task.status == TaskStatus.FAILED and (task.comment or "").startswith("任务已被用户取消"):
                 print_progress_text(f"[任务 {task_id}] 在分离过程中被用户取消，跳过结果写入。")
@@ -115,15 +115,18 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm)
             # 正常结束后清理取消标记
             clear_task_cancelled(task_id)
         except Exception as e:
-            # 区分“用户主动取消”与真实错误，避免把取消当成异常噪音
+            # 区分"用户主动取消"与真实错误，避免把取消当成异常噪音
             msg = f"{type(e).__name__}: {str(e)}"
+            task_for_check = await session.get(SeparationTask, task_id)
             is_user_cancel = "CANCELLED_BY_USER" in str(e) or (
-                await session.get(SeparationTask, task_id)
-            ) is not None
+                task_for_check is not None
+                and task_for_check.status == TaskStatus.FAILED
+                and (task_for_check.comment or "").startswith("任务已被用户取消")
+            )
 
             if is_user_cancel:
                 # 已经由 /cancel 接口把状态改成 FAILED + "任务已被用户取消"
-                logger.info("任务 %s 已被用户取消（MSS 进程提前退出）。", task_id)
+                logger.info("任务 %s 已被用户取消(MSS 进程提前退出)。", task_id)
                 print_progress_text(f"[任务 {task_id}] 已根据用户请求取消分离。")
             else:
                 # 记录详细错误信息
@@ -131,7 +134,7 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm)
                 logger.error(error_msg, exc_info=True)
                 print_progress_text(f"[任务 {task_id}] ✗ 分离失败: {msg}")
 
-                # 更新任务状态为失败（若未被标记为“用户取消”）
+                # 更新任务状态为失败（若未被标记为"用户取消"）
                 task = await session.get(SeparationTask, task_id)
                 if task:
                     await session.refresh(task)

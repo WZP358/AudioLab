@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, Text, Enum as SQLEnum, Boolean, UniqueConstraint, event
+﻿from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, Text, Enum as SQLEnum, Boolean, UniqueConstraint, event
 from sqlalchemy.sql import func
 from app.database import Base
 from app.utils import generate_id
@@ -46,7 +46,7 @@ class User(Base):
     username = Column(String(100, collation='utf8mb4_bin'), unique=True, index=True, nullable=False)
     email = Column(String(255), index=True, nullable=False)  # 移除unique=True，改为联合唯一约束
     password_hash = Column(String(255), nullable=False)
-    # 默认角色调整为 EXPERT，系统仅保留“管理员 / 专家”两种身份
+    # 默认角色调整为 EXPERT，系统仅保留"管理员 / 专家"两种身份
     role = Column(SQLEnum(Role), default=Role.EXPERT, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     is_approved = Column(Boolean, default=False, nullable=False)
@@ -133,17 +133,50 @@ class StemFile(Base):
 
 class Score(Base):
     __tablename__ = "scores"
+    __table_args__ = (UniqueConstraint("user_id", "blind_sample_id", name="uq_scores_user_blind_sample"),)
 
     id = Column(BigInteger, primary_key=True, index=True, default=generate_id)
     user_id = Column(String(255), index=True)
     task_id = Column(BigInteger, index=True)
+    blind_sample_id = Column(BigInteger, nullable=True, index=True)
     algorithm = Column(SQLEnum(Algorithm))
     # 主观评分维度：增加 stem_name，将评分细化到单一声源
     stem_name = Column(String(50), nullable=True, index=True)  # Vocals, Drums, Bass, Other
     quality = Column(Integer)  # 0-100
     interference = Column(Integer)  # 0-100
     artifacts = Column(Integer)  # 0-100
+    overall_acceptability = Column(Integer, nullable=True)  # 0-100
+    segment_start = Column(Float, nullable=True)  # seconds within the 15-second clip
+    segment_end = Column(Float, nullable=True)
+    issue_tags = Column(Text, nullable=True)  # JSON array of standardized labels
+    reliability = Column(Integer, nullable=True)  # 0-100, expert confidence
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class BlindSample(Base):
+    """真实 15 秒试听样本及其仅后台可见的算法映射。"""
+    __tablename__ = "blind_samples"
+    id = Column(BigInteger, primary_key=True, index=True, default=generate_id)
+    blind_code = Column(String(64), unique=True, index=True, nullable=False)
+    task_id = Column(BigInteger, index=True, nullable=False)
+    algorithm = Column(SQLEnum(Algorithm), nullable=False)
+    stem_name = Column(String(50), nullable=False, index=True)
+    start_seconds = Column(Float, nullable=False, default=0.0)
+    end_seconds = Column(Float, nullable=False, default=15.0)
+    file_path = Column(String(500), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class StandardLabel(Base):
+    """管理员维护的按声源分类的标准化听感问题标签。"""
+    __tablename__ = "standard_labels"
+    id = Column(BigInteger, primary_key=True, index=True, default=generate_id)
+    stem_name = Column(String(50), index=True, nullable=False)
+    label = Column(String(100), nullable=False)
+    description = Column(String(500), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
 class AudioResource(Base):
@@ -287,7 +320,7 @@ def ensure_id(mapper, connection, target):
 # 为所有使用BigInteger主键的模型注册事件监听器
 models_with_snowflake_id = [
     User, PendingUser, EmailVerification, OutboxEmail,
-    SeparationTask, StemFile, Score, AudioResource,
+    SeparationTask, StemFile, BlindSample, Score, StandardLabel, AudioResource,
     SystemLog, SystemConfig, Notification, NotificationRead,
     ExpertMessage,
 ]

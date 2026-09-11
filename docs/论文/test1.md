@@ -64,3 +64,47 @@
 
 
 
+音乐源分离（Music Source Separation, MSS）旨在将混合音频分解为若干独立的语义声部（如 Vocals、Drums、Bass、Other），广泛应用于智能编曲、音频编辑、音乐信息检索和音乐教育等领域。近年来，深度学习技术驱动的MSS在公开数据集上的客观指标（如 SDR、SI-SDR等）持续提升，但在实际应用中仍存在“指标好看、听感不稳”的问题：同一模型在不同曲风、不同编配密度下常出现声部泄漏（source leakage）、瞬态响应模糊（transient smearing）或高频伪影（high-frequency artifacts)等感知质量问题。由此可见，单一依赖客观指标难以全面评估算法模型的实际性能。
+
+
+
+
+
+
+
+目前国内外已有一些音乐源分离相关的在线工具和平台，但多存在以下局限：
+
+(1) **面向C端用户的在线分离服务**：如LALAL.AI[1]、Moises[2]、Spleeter Web[3]等，主要提供单一算法的在线分离功能，用户上传音频后获得分离结果，但不支持多算法对比、不提供客观指标计算，也不具备专家评分与统计分析能力，难以用于研究场景。
+
+(2) **开源命令行工具**：如Spleeter[4]、Demucs[5]、Open-Unmix[6]等，提供了模型推理脚本，但缺乏统一的任务管理、结果可视化和评分机制，研究者需要手动编写脚本管理输入输出、计算指标、整理评测数据，工程门槛较高。
+
+(3) **学术评测工具包**：如museval[7]、mir_eval[8]等，专注于客观指标计算，但不提供Web界面、不支持多用户协作、不具备主观评分功能，且需要研究者自行管理音频文件与参考音频的对应关系。
+
+(4) **音频处理平台**：如Audacity、Adobe Audition等专业音频软件虽然功能强大，但主要面向音频编辑而非算法评测，不支持批量任务管理、多算法并行对比和评分统计。
+
+综上所述，现有系统在**算法可扩展性**（难以快速接入新模型）、**评测完整性**（主客观评估割裂）、**协作便利性**（缺乏多用户评分机制）和**结果可复现性**（样本管理不规范）方面存在不足。
+
+
+
+
+
+为解决该问题，本文提出一种以音源分离神经网络的算法对比和算法优化为主体、以主客观联合评估（基于专家反馈闭环）为关键机制的研究方案：在神经网络模型层面，本文提出基于Scnet、注意力机制和LoRA微调技术的新的音源分离方案，，在主客观评估层面，系统引入专家主观评估与客观评估数据进行相关性分析，，使主观经验能够直接影响后续优化方向，以数据驱动优化
+
+---
+
+参考文献（引言部分引用）：
+[1] LALAL.AI. https://www.lalal.ai/
+[2] Moises. https://moises.ai/
+[3] Spleeter Web. https://github.com/JeffreyCA/spleeter-web
+[4] Hennequin R, Khlif A, Voituret F, et al. Spleeter: a fast and efficient music source separation tool with pre-trained models[J]. Journal of Open Source Software, 2020, 5(50): 2154.
+[5] Défossez A, Usunier N, Bottou L, et al. Music source separation in the waveform domain[J]. arXiv preprint arXiv:1911.13254, 2019.
+[6] Stöter F R, Uhlich S, Liutkus A, et al. Open-Unmix-a reference implementation for music source separation[J]. Journal of Open Source Software, 2019, 4(41): 1667.
+[7] Stöter F R, Liutkus A, Ito N. The 2018 signal separation evaluation campaign[C]//Latent Variable Analysis and Signal Separation. Springer, 2018: 293-305.
+[8] Raffel C, McFee B, Humphrey E J, et al. mir_eval: A transparent implementation of common MIR metrics[C]//ISMIR. 2014: 367-372.
+
+我在写期刊论文。这是引言部分，我觉得我自己写的不好，但也符合需求介绍-对比-推出的结构。我想请你帮我修改，论文化、学术化。
+
+下面是我导师的建议
++横向对比分析国内外和音源分离相关的网站系统，给出索引；对每一个相关工作，简单指出两个事情：1）该平台或网站系统关键有什么功能，2）它和我们的平台系统的功能和应用目标的区别是什么 -- 铺垫后面我们要开发的AudioLab，并支撑：开发主客观评估系统的必要性。
++介绍MDX23C、Demucs4HT、Band Split RoFormer、SCNet这四类主流的音源分离算法，各自涉及的神经网络框架是什么，它们现阶段在客观评估指标上的分数对四个声源各自有什么优劣，以及在训练和推理阶段的运行效率上面的优劣。【铺垫后文中为什么选择这几种方法进行横向评估。收尾表达这个意思：这些算法可以在某些方面客观评分高，甚至最高，但是主观结果却不尽如人意，这确实对整个领域的算法更新推进，造成非常太大障碍】
+所有和音源分离的其他网站系统（尽可能找到全面），便于在“国内外研究现状小节里”横向对比分析它们和我们系统的功能和应用目标的区别--- 只有横向对比了这个内容，才能说明我们提出的主客观评估系统的必要性 ---师出有名！。

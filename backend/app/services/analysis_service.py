@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -111,14 +111,14 @@ def _downsample_waveform_envelope(
     y: np.ndarray, points: int = 800
 ) -> tuple[List[float], List[float], List[float]]:
     """
-    生成“更像 DAW”的波形包络数据：
+    生成"更像 DAW"的波形包络数据：
     - waveform_min：每桶最小值
     - waveform_max：每桶最大值
     - waveform：为了向后兼容保留的中线（(min+max)/2）
 
     说明：
     - 只返回固定点数，保证 payload 体积可控
-    - 比“每桶一个点（平均/抽样）”更可靠：瞬态不会被完全抹掉
+    - 比"每桶一个点（平均/抽样）"更可靠：瞬态不会被完全抹掉
     """
     if y.size == 0 or points <= 0:
         return [], [], []
@@ -266,10 +266,10 @@ def analyze_audio_file(
     # to mono
     mono = y.mean(axis=1)
 
-    # 在裁剪之前先计算“完整时长”，用于返回给前端 / 数据库
+    # 在裁剪之前先计算"完整时长"，用于返回给前端 / 数据库
     full_duration_s = float(mono.size / sr) if sr > 0 else 0.0
 
-    # 动态调整 n_fft / hop，避免短音频导致“全黑/全空”
+    # 动态调整 n_fft / hop，避免短音频导致"全黑/全空"
     if mono.size > 0:
         # n_fft 取不超过音频长度的 2 的幂（至少 256）
         max_fft = int(2 ** np.floor(np.log2(max(256, mono.size))))
@@ -277,12 +277,12 @@ def analyze_audio_file(
         hop_length = int(min(hop_length, max(64, n_fft // 4)))
 
     if max_seconds and sr > 0:
-        # max_seconds 仅用于控制分析的“可视化窗口”，不影响 duration_s
+        # max_seconds 仅用于控制分析的"可视化窗口"，不影响 duration_s
         max_samples = int(max_seconds * sr)
         if mono.size > max_samples:
             mono = mono[:max_samples]
 
-    # 返回值中的 duration_s 始终为“完整音频时长”
+    # 返回值中的 duration_s 始终为"完整音频时长"
     duration_s = full_duration_s
 
     waveform, waveform_min, waveform_max = _downsample_waveform_envelope(

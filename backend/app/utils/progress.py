@@ -4,6 +4,14 @@
 import sys
 from typing import Optional
 
+# Windows 控制台默认使用 GBK 编码，无法输出 ✓ ✗ █ ░ 等 Unicode 字符
+# 将 stdout 重配置为 UTF-8 以支持完整的 Unicode 输出
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 
 def print_progress_bar(
     current: int,

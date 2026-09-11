@@ -30,7 +30,7 @@ import {
 import SystemManagement from "./SystemManagement";
 import { useToast } from "./Toast";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+const API_BASE = process.env.REACT_APP_API_BASE || (typeof window !== "undefined" ? window.location.origin : "http://localhost:8000");
 
 export default function AdminApproval({ token, onClose, defaultTab = "users", embedded = false }) {
   const location = useLocation();
@@ -102,6 +102,24 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     algorithm: "",
     stem_name: "",
   });
+  const [blindTaskId, setBlindTaskId] = useState("");
+  const [generatingBlind, setGeneratingBlind] = useState(false);
+
+  const generateBlindSamples = async () => {
+    if (!blindTaskId.trim()) { showError("请输入已完成的任务ID"); return; }
+    setGeneratingBlind(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/blind-samples/generate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ task_id: Number(blindTaskId.trim()) }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "生成盲化样本失败");
+      showSuccess(`已生成/复用 ${data.created_or_existing || 0} 个 15 秒盲化样本`);
+    } catch (e) { showError(e.message || "生成盲化样本失败"); }
+    finally { setGeneratingBlind(false); }
+  };
   const [, setEditingScore] = useState(null);
 
   // 专家建议列表（管理员侧查看与回复）
@@ -2143,12 +2161,31 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                     重置筛选
                   </button>
                   <button
+                    onClick={async () => {
+                      try {
+                        const resp = await fetch(`${API_BASE}/api/scores/export`, { headers: { Authorization: `Bearer ${token}` } });
+                        if (!resp.ok) throw new Error("导出失败");
+                        const blob = await resp.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a"); a.href = url; a.download = "subjective_scores.csv"; a.click(); URL.revokeObjectURL(url);
+                      } catch (e) { showError?.(e.message || "导出失败"); }
+                    }}
+                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm"
+                  >
+                    导出全部主观评分
+                  </button>
+                  <button
                     onClick={fetchScores}
                     className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm flex items-center gap-2"
                   >
                     <Search size={16} />
                     查询
                   </button>
+                </div>
+                <div className="mt-4 px-4 pb-4 pt-4 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-500">生成 15 秒盲化样本</span>
+                  <input value={blindTaskId} onChange={(e) => setBlindTaskId(e.target.value)} placeholder="已完成任务 ID" className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 text-sm" />
+                  <button onClick={generateBlindSamples} disabled={generatingBlind} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm disabled:opacity-50">{generatingBlind ? "生成中..." : "生成盲化样本"}</button>
                 </div>
               </div>
 

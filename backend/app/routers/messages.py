@@ -1,4 +1,4 @@
-from typing import Optional, List
+﻿from typing import Optional, List
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, Request
@@ -123,7 +123,7 @@ async def get_my_message_detail(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    专家查看单条建议详情，同时标记为“已读”（针对管理员回复的查看）
+    专家查看单条建议详情，同时标记为"已读"（针对管理员回复的查看）
     """
     query = select(ExpertMessage).where(
         ExpertMessage.id == message_id,
@@ -205,7 +205,7 @@ async def get_expert_message_detail_admin(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    管理员查看单条专家建议详情，同时标记为“管理员已读”
+    管理员查看单条专家建议详情，同时标记为"管理员已读"
     """
     query = select(ExpertMessage).where(ExpertMessage.id == message_id)
     res = await db.execute(query)

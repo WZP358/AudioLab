@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Mail, Lock, User, Loader } from "lucide-react";
 import { useToast } from "./Toast";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+const API_BASE = process.env.REACT_APP_API_BASE || (typeof window !== "undefined" ? window.location.origin : "http://localhost:8000");
 const SEND_CODE_COOLDOWN_S = 30;
 
 export default function AuthPage({ onLoginSuccess }) {
@@ -23,8 +23,9 @@ export default function AuthPage({ onLoginSuccess }) {
   const cooldownTimersRef = useRef({}); // 存储每个邮箱的定时器
   // 组件卸载时清理所有定时器
   useEffect(() => {
+    const timers = cooldownTimersRef.current;
     return () => {
-      Object.values(cooldownTimersRef.current).forEach(timer => {
+      Object.values(timers).forEach(timer => {
         if (timer) clearInterval(timer);
       });
     };
@@ -169,7 +170,7 @@ export default function AuthPage({ onLoginSuccess }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!formData.email || !formData.password) {
-      showError("请输入邮箱与密码。");
+      showError("请输入邮箱/用户名与密码。");
       return;
     }
 
@@ -323,19 +324,20 @@ export default function AuthPage({ onLoginSuccess }) {
             </>
           )}
 
-          {/* Email */}
+          {/* Login identifier / registration email */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              邮箱 *
+              {mode === "login" ? "邮箱或用户名 *" : "邮箱 *"}
             </label>
             <div className="relative">
-              <Mail size={18} className="absolute left-3 top-3 text-slate-500" />
+              {mode === "login" ? <User size={18} className="absolute left-3 top-3 text-slate-500" /> : <Mail size={18} className="absolute left-3 top-3 text-slate-500" />}
               <input
-                type="email"
+                type={mode === "login" ? "text" : "email"}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 text-white"
-                placeholder="请输入邮箱"
+                placeholder={mode === "login" ? "请输入邮箱或用户名" : "请输入邮箱"}
+                autoComplete={mode === "login" ? "username" : "email"}
                 required
               />
             </div>

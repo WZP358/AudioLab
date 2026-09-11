@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
-from .routers import tasks, scores, auth, admin, audio_resources, system, messages
+from .routers import tasks, scores, auth, admin, audio_resources, system, messages, labels, blind_samples
 import os
 import logging
 from pathlib import Path
@@ -24,7 +24,7 @@ async def lifespan(_app: FastAPI):
     try:
         async with engine.begin() as conn:
             await conn.execute(text("ALTER TABLE separation_tasks ADD COLUMN metadata_json TEXT NULL"))
-            print("✓ 已自动补齐字段 separation_tasks.metadata_json")
+            print("[OK] Auto-added column separation_tasks.metadata_json")
             # 清理头像相关字段（如果存在）
             try:
                 await conn.execute(text("ALTER TABLE users DROP COLUMN avatar_url"))
@@ -52,14 +52,14 @@ async def lifespan(_app: FastAPI):
 
     # startup 阶段：输出一次清晰的启动成功提示（使用 print 确保始终显示）
     print("\n" + "="*60)
-    print("✓ AudioLab 后端已启动")
-    print("  API 地址：http://127.0.0.1:8000")
-    print("  API 文档：http://127.0.0.1:8000/docs")
+    print("[OK] AudioLab backend started")
+    print("  API: http://127.0.0.1:8000")
+    print("  Docs: http://127.0.0.1:8000/docs")
     print("="*60 + "\n")
     # 初始化任务队列管理器
     from app.services.queue_manager import TaskQueueManager
     await TaskQueueManager.get_instance()
-    print("✓ 任务队列管理器已启动\n")
+    print("[OK] Task queue manager started\n")
     yield
     # shutdown：显式释放 SQLAlchemy AsyncEngine 的连接池，避免热重载/退出时 aiomysql 在 __del__
     # 里尝试回收连接却发现 event loop 已关闭，从而刷屏 "RuntimeError: Event loop is closed"
@@ -73,9 +73,17 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="AudioLab Backend", version="0.1.0", lifespan=lifespan)
 
 # 添加CORS中间件，允许前端跨域访问
+_cors_origins = [item.strip() for item in (os.getenv("CORS_ORIGINS") or "").split(",") if item.strip()]
+if not _cors_origins:
+    _cors_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -87,10 +95,13 @@ app.add_middleware(
 async def debug_exception_handler(request: Request, exc: Exception):
     tb = traceback.format_exc()
     logging.error("Unhandled exception:\n%s", tb)
-    # 返回简洁的错误信息和 traceback（仅在本地开发时使用）
+    # 正式环境默认不向客户端泄露 traceback；调试时显式设置 DEBUG_ERRORS=true。
+    content = {"detail": "服务器内部错误"}
+    if (os.getenv("DEBUG_ERRORS") or "false").lower() in ("1", "true", "yes", "on"):
+        content = {"detail": str(exc), "trace": tb}
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc), "trace": tb},
+        content=content,
         headers={
             "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
             "Access-Control-Allow-Credentials": "true",
@@ -103,6 +114,8 @@ async def debug_exception_handler(request: Request, exc: Exception):
 app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(scores.router)
+app.include_router(labels.router)
+app.include_router(blind_samples.router)
 app.include_router(admin.router)
 app.include_router(audio_resources.router)
 app.include_router(system.router)

@@ -1,0 +1,3694 @@
+{
+  "timestamp": "2026-07-15T19:41:06.807800",
+  "model_class": "BSRoformer",
+  "model_module": "models.bs_roformer.bs_roformer",
+  "parameters": {
+    "total": 131704164,
+    "trainable": 131704100,
+    "non_trainable": 64,
+    "total_millions": 131.7,
+    "trainable_millions": 131.7
+  },
+  "memory": {
+    "parameters_mb": 502.41,
+    "buffers_mb": 0.0,
+    "total_mb": 502.41
+  },
+  "layers": [
+    {
+      "name": "layers.0.0.layers.0.0.rotary_embed",
+      "type": "RotaryEmbedding",
+      "parameters": 32
+    },
+    {
+      "name": "layers.0.0.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.0.0.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.0.0.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.0.0.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.0.0.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.0.0.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.0.0.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.0.1.layers.0.0.rotary_embed",
+      "type": "RotaryEmbedding",
+      "parameters": 32
+    },
+    {
+      "name": "layers.0.1.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.0.1.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.0.1.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.0.1.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.0.1.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.0.1.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.0.1.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.1.0.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.1.0.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.1.0.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.1.0.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.1.0.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.1.0.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.1.0.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.1.1.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.1.1.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.1.1.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.1.1.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.1.1.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.1.1.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.1.1.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.2.0.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.2.0.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.2.0.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.2.0.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.2.0.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.2.0.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.2.0.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.2.1.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.2.1.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.2.1.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.2.1.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.2.1.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.2.1.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.2.1.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.3.0.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.3.0.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.3.0.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.3.0.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.3.0.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.3.0.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.3.0.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.3.1.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.3.1.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.3.1.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.3.1.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.3.1.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.3.1.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.3.1.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.4.0.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.4.0.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.4.0.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.4.0.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.4.0.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.4.0.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.4.0.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.4.1.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.4.1.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.4.1.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.4.1.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.4.1.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.4.1.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.4.1.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.5.0.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.5.0.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.5.0.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.5.0.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.5.0.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.5.0.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.5.0.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.5.1.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.5.1.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.5.1.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.5.1.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.5.1.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.5.1.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.5.1.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.6.0.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.6.0.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.6.0.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.6.0.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.6.0.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.6.0.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.6.0.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.6.1.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.6.1.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.6.1.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.6.1.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.6.1.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.6.1.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.6.1.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.7.0.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.7.0.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.7.0.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.7.0.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.7.0.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.7.0.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.7.0.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "layers.7.1.layers.0.0.norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.7.1.layers.0.0.to_qkv",
+      "type": "Linear",
+      "parameters": 589824
+    },
+    {
+      "name": "layers.7.1.layers.0.0.to_gates",
+      "type": "Linear",
+      "parameters": 3080
+    },
+    {
+      "name": "layers.7.1.layers.0.0.to_out.0",
+      "type": "Linear",
+      "parameters": 196608
+    },
+    {
+      "name": "layers.7.1.layers.0.1.net.0",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "layers.7.1.layers.0.1.net.1",
+      "type": "Linear",
+      "parameters": 591360
+    },
+    {
+      "name": "layers.7.1.layers.0.1.net.4",
+      "type": "Linear",
+      "parameters": 590208
+    },
+    {
+      "name": "final_norm",
+      "type": "RMSNorm",
+      "parameters": 384
+    },
+    {
+      "name": "band_split.to_features.0.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.0.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.1.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.1.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.2.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.2.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.3.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.3.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.4.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.4.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.5.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.5.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.6.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.6.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.7.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.7.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.8.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.8.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.9.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.9.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.10.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.10.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.11.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.11.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.12.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.12.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.13.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.13.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.14.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.14.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.15.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.15.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.16.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.16.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.17.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.17.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.18.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.18.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.19.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.19.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.20.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.20.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.21.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.21.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.22.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.22.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.23.0",
+      "type": "RMSNorm",
+      "parameters": 8
+    },
+    {
+      "name": "band_split.to_features.23.1",
+      "type": "Linear",
+      "parameters": 3456
+    },
+    {
+      "name": "band_split.to_features.24.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.24.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.25.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.25.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.26.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.26.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.27.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.27.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.28.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.28.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.29.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.29.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.30.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.30.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.31.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.31.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.32.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.32.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.33.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.33.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.34.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.34.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.35.0",
+      "type": "RMSNorm",
+      "parameters": 16
+    },
+    {
+      "name": "band_split.to_features.35.1",
+      "type": "Linear",
+      "parameters": 6528
+    },
+    {
+      "name": "band_split.to_features.36.0",
+      "type": "RMSNorm",
+      "parameters": 48
+    },
+    {
+      "name": "band_split.to_features.36.1",
+      "type": "Linear",
+      "parameters": 18816
+    },
+    {
+      "name": "band_split.to_features.37.0",
+      "type": "RMSNorm",
+      "parameters": 48
+    },
+    {
+      "name": "band_split.to_features.37.1",
+      "type": "Linear",
+      "parameters": 18816
+    },
+    {
+      "name": "band_split.to_features.38.0",
+      "type": "RMSNorm",
+      "parameters": 48
+    },
+    {
+      "name": "band_split.to_features.38.1",
+      "type": "Linear",
+      "parameters": 18816
+    },
+    {
+      "name": "band_split.to_features.39.0",
+      "type": "RMSNorm",
+      "parameters": 48
+    },
+    {
+      "name": "band_split.to_features.39.1",
+      "type": "Linear",
+      "parameters": 18816
+    },
+    {
+      "name": "band_split.to_features.40.0",
+      "type": "RMSNorm",
+      "parameters": 48
+    },
+    {
+      "name": "band_split.to_features.40.1",
+      "type": "Linear",
+      "parameters": 18816
+    },
+    {
+      "name": "band_split.to_features.41.0",
+      "type": "RMSNorm",
+      "parameters": 48
+    },
+    {
+      "name": "band_split.to_features.41.1",
+      "type": "Linear",
+      "parameters": 18816
+    },
+    {
+      "name": "band_split.to_features.42.0",
+      "type": "RMSNorm",
+      "parameters": 48
+    },
+    {
+      "name": "band_split.to_features.42.1",
+      "type": "Linear",
+      "parameters": 18816
+    },
+    {
+      "name": "band_split.to_features.43.0",
+      "type": "RMSNorm",
+      "parameters": 48
+    },
+    {
+      "name": "band_split.to_features.43.1",
+      "type": "Linear",
+      "parameters": 18816
+    },
+    {
+      "name": "band_split.to_features.44.0",
+      "type": "RMSNorm",
+      "parameters": 96
+    },
+    {
+      "name": "band_split.to_features.44.1",
+      "type": "Linear",
+      "parameters": 37248
+    },
+    {
+      "name": "band_split.to_features.45.0",
+      "type": "RMSNorm",
+      "parameters": 96
+    },
+    {
+      "name": "band_split.to_features.45.1",
+      "type": "Linear",
+      "parameters": 37248
+    },
+    {
+      "name": "band_split.to_features.46.0",
+      "type": "RMSNorm",
+      "parameters": 96
+    },
+    {
+      "name": "band_split.to_features.46.1",
+      "type": "Linear",
+      "parameters": 37248
+    },
+    {
+      "name": "band_split.to_features.47.0",
+      "type": "RMSNorm",
+      "parameters": 96
+    },
+    {
+      "name": "band_split.to_features.47.1",
+      "type": "Linear",
+      "parameters": 37248
+    },
+    {
+      "name": "band_split.to_features.48.0",
+      "type": "RMSNorm",
+      "parameters": 96
+    },
+    {
+      "name": "band_split.to_features.48.1",
+      "type": "Linear",
+      "parameters": 37248
+    },
+    {
+      "name": "band_split.to_features.49.0",
+      "type": "RMSNorm",
+      "parameters": 96
+    },
+    {
+      "name": "band_split.to_features.49.1",
+      "type": "Linear",
+      "parameters": 37248
+    },
+    {
+      "name": "band_split.to_features.50.0",
+      "type": "RMSNorm",
+      "parameters": 96
+    },
+    {
+      "name": "band_split.to_features.50.1",
+      "type": "Linear",
+      "parameters": 37248
+    },
+    {
+      "name": "band_split.to_features.51.0",
+      "type": "RMSNorm",
+      "parameters": 96
+    },
+    {
+      "name": "band_split.to_features.51.1",
+      "type": "Linear",
+      "parameters": 37248
+    },
+    {
+      "name": "band_split.to_features.52.0",
+      "type": "RMSNorm",
+      "parameters": 192
+    },
+    {
+      "name": "band_split.to_features.52.1",
+      "type": "Linear",
+      "parameters": 74112
+    },
+    {
+      "name": "band_split.to_features.53.0",
+      "type": "RMSNorm",
+      "parameters": 192
+    },
+    {
+      "name": "band_split.to_features.53.1",
+      "type": "Linear",
+      "parameters": 74112
+    },
+    {
+      "name": "band_split.to_features.54.0",
+      "type": "RMSNorm",
+      "parameters": 192
+    },
+    {
+      "name": "band_split.to_features.54.1",
+      "type": "Linear",
+      "parameters": 74112
+    },
+    {
+      "name": "band_split.to_features.55.0",
+      "type": "RMSNorm",
+      "parameters": 192
+    },
+    {
+      "name": "band_split.to_features.55.1",
+      "type": "Linear",
+      "parameters": 74112
+    },
+    {
+      "name": "band_split.to_features.56.0",
+      "type": "RMSNorm",
+      "parameters": 192
+    },
+    {
+      "name": "band_split.to_features.56.1",
+      "type": "Linear",
+      "parameters": 74112
+    },
+    {
+      "name": "band_split.to_features.57.0",
+      "type": "RMSNorm",
+      "parameters": 192
+    },
+    {
+      "name": "band_split.to_features.57.1",
+      "type": "Linear",
+      "parameters": 74112
+    },
+    {
+      "name": "band_split.to_features.58.0",
+      "type": "RMSNorm",
+      "parameters": 192
+    },
+    {
+      "name": "band_split.to_features.58.1",
+      "type": "Linear",
+      "parameters": 74112
+    },
+    {
+      "name": "band_split.to_features.59.0",
+      "type": "RMSNorm",
+      "parameters": 192
+    },
+    {
+      "name": "band_split.to_features.59.1",
+      "type": "Linear",
+      "parameters": 74112
+    },
+    {
+      "name": "band_split.to_features.60.0",
+      "type": "RMSNorm",
+      "parameters": 512
+    },
+    {
+      "name": "band_split.to_features.60.1",
+      "type": "Linear",
+      "parameters": 196992
+    },
+    {
+      "name": "band_split.to_features.61.0",
+      "type": "RMSNorm",
+      "parameters": 516
+    },
+    {
+      "name": "band_split.to_features.61.1",
+      "type": "Linear",
+      "parameters": 198528
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.0.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.0.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.1.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.1.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.2.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.2.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.3.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.3.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.4.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.4.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.5.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.5.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.6.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.6.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.7.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.7.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.8.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.8.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.9.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.9.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.10.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.10.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.11.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.11.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.12.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.12.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.13.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.13.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.14.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.14.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.15.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.15.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.16.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.16.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.17.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.17.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.18.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.18.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.19.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.19.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.20.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.20.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.21.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.21.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.22.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.22.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.23.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.23.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.24.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.24.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.25.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.25.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.26.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.26.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.27.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.27.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.28.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.28.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.29.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.29.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.30.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.30.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.31.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.31.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.32.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.32.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.33.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.33.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.34.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.34.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.35.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.35.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.36.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.36.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.37.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.37.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.38.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.38.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.39.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.39.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.40.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.40.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.41.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.41.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.42.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.42.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.43.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.43.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.44.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.44.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.45.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.45.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.46.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.46.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.47.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.47.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.48.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.48.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.49.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.49.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.50.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.50.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.51.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.51.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.52.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.52.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.53.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.53.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.54.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.54.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.55.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.55.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.56.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.56.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.57.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.57.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.58.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.58.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.59.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.59.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.60.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.60.0.2",
+      "type": "Linear",
+      "parameters": 787456
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.61.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.0.to_freqs.61.0.2",
+      "type": "Linear",
+      "parameters": 793608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.0.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.0.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.1.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.1.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.2.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.2.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.3.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.3.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.4.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.4.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.5.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.5.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.6.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.6.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.7.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.7.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.8.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.8.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.9.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.9.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.10.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.10.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.11.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.11.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.12.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.12.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.13.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.13.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.14.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.14.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.15.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.15.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.16.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.16.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.17.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.17.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.18.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.18.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.19.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.19.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.20.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.20.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.21.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.21.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.22.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.22.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.23.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.23.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.24.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.24.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.25.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.25.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.26.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.26.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.27.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.27.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.28.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.28.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.29.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.29.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.30.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.30.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.31.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.31.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.32.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.32.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.33.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.33.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.34.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.34.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.35.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.35.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.36.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.36.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.37.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.37.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.38.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.38.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.39.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.39.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.40.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.40.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.41.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.41.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.42.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.42.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.43.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.43.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.44.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.44.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.45.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.45.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.46.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.46.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.47.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.47.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.48.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.48.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.49.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.49.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.50.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.50.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.51.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.51.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.52.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.52.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.53.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.53.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.54.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.54.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.55.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.55.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.56.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.56.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.57.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.57.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.58.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.58.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.59.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.59.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.60.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.60.0.2",
+      "type": "Linear",
+      "parameters": 787456
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.61.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.1.to_freqs.61.0.2",
+      "type": "Linear",
+      "parameters": 793608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.0.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.0.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.1.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.1.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.2.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.2.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.3.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.3.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.4.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.4.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.5.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.5.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.6.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.6.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.7.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.7.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.8.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.8.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.9.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.9.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.10.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.10.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.11.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.11.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.12.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.12.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.13.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.13.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.14.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.14.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.15.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.15.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.16.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.16.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.17.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.17.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.18.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.18.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.19.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.19.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.20.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.20.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.21.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.21.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.22.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.22.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.23.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.23.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.24.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.24.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.25.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.25.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.26.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.26.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.27.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.27.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.28.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.28.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.29.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.29.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.30.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.30.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.31.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.31.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.32.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.32.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.33.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.33.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.34.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.34.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.35.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.35.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.36.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.36.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.37.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.37.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.38.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.38.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.39.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.39.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.40.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.40.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.41.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.41.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.42.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.42.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.43.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.43.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.44.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.44.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.45.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.45.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.46.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.46.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.47.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.47.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.48.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.48.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.49.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.49.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.50.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.50.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.51.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.51.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.52.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.52.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.53.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.53.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.54.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.54.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.55.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.55.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.56.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.56.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.57.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.57.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.58.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.58.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.59.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.59.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.60.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.60.0.2",
+      "type": "Linear",
+      "parameters": 787456
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.61.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.2.to_freqs.61.0.2",
+      "type": "Linear",
+      "parameters": 793608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.0.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.0.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.1.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.1.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.2.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.2.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.3.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.3.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.4.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.4.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.5.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.5.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.6.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.6.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.7.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.7.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.8.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.8.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.9.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.9.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.10.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.10.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.11.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.11.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.12.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.12.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.13.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.13.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.14.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.14.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.15.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.15.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.16.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.16.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.17.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.17.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.18.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.18.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.19.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.19.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.20.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.20.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.21.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.21.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.22.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.22.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.23.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.23.0.2",
+      "type": "Linear",
+      "parameters": 12304
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.24.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.24.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.25.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.25.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.26.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.26.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.27.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.27.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.28.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.28.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.29.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.29.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.30.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.30.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.31.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.31.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.32.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.32.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.33.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.33.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.34.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.34.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.35.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.35.0.2",
+      "type": "Linear",
+      "parameters": 24608
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.36.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.36.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.37.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.37.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.38.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.38.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.39.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.39.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.40.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.40.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.41.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.41.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.42.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.42.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.43.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.43.0.2",
+      "type": "Linear",
+      "parameters": 73824
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.44.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.44.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.45.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.45.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.46.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.46.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.47.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.47.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.48.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.48.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.49.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.49.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.50.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.50.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.51.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.51.0.2",
+      "type": "Linear",
+      "parameters": 147648
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.52.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.52.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.53.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.53.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.54.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.54.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.55.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.55.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.56.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.56.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.57.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.57.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.58.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.58.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.59.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.59.0.2",
+      "type": "Linear",
+      "parameters": 295296
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.60.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.60.0.2",
+      "type": "Linear",
+      "parameters": 787456
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.61.0.0",
+      "type": "Linear",
+      "parameters": 295680
+    },
+    {
+      "name": "mask_estimators.3.to_freqs.61.0.2",
+      "type": "Linear",
+      "parameters": 793608
+    }
+  ]
+}

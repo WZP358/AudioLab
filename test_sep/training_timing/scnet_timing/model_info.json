@@ -1,0 +1,769 @@
+{
+  "timestamp": "2026-07-15T19:47:59.928722",
+  "model_class": "SCNet",
+  "model_module": "models.scnet.scnet",
+  "parameters": {
+    "total": 10578768,
+    "trainable": 10578768,
+    "non_trainable": 0,
+    "total_millions": 10.58,
+    "trainable_millions": 10.58
+  },
+  "memory": {
+    "parameters_mb": 40.35,
+    "buffers_mb": 0.0,
+    "total_mb": 40.35
+  },
+  "layers": [
+    {
+      "name": "encoder.0.SDlayer.convs.0",
+      "type": "Conv2d",
+      "parameters": 416
+    },
+    {
+      "name": "encoder.0.SDlayer.convs.1",
+      "type": "Conv2d",
+      "parameters": 544
+    },
+    {
+      "name": "encoder.0.SDlayer.convs.2",
+      "type": "Conv2d",
+      "parameters": 2080
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.0.0",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.0.1",
+      "type": "Conv1d",
+      "parameters": 1552
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 16
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.0.6",
+      "type": "Conv1d",
+      "parameters": 288
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.1.0",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.1.1",
+      "type": "Conv1d",
+      "parameters": 1552
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 16
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.1.6",
+      "type": "Conv1d",
+      "parameters": 288
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.2.0",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.2.1",
+      "type": "Conv1d",
+      "parameters": 1552
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.2.3",
+      "type": "Conv1d",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.2.4",
+      "type": "GroupNorm",
+      "parameters": 16
+    },
+    {
+      "name": "encoder.0.conv_modules.0.layers.2.6",
+      "type": "Conv1d",
+      "parameters": 288
+    },
+    {
+      "name": "encoder.0.conv_modules.1.layers.0.0",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.0.conv_modules.1.layers.0.1",
+      "type": "Conv1d",
+      "parameters": 1552
+    },
+    {
+      "name": "encoder.0.conv_modules.1.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.0.conv_modules.1.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 16
+    },
+    {
+      "name": "encoder.0.conv_modules.1.layers.0.6",
+      "type": "Conv1d",
+      "parameters": 288
+    },
+    {
+      "name": "encoder.0.conv_modules.1.layers.1.0",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.0.conv_modules.1.layers.1.1",
+      "type": "Conv1d",
+      "parameters": 1552
+    },
+    {
+      "name": "encoder.0.conv_modules.1.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.0.conv_modules.1.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 16
+    },
+    {
+      "name": "encoder.0.conv_modules.1.layers.1.6",
+      "type": "Conv1d",
+      "parameters": 288
+    },
+    {
+      "name": "encoder.0.conv_modules.2.layers.0.0",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.0.conv_modules.2.layers.0.1",
+      "type": "Conv1d",
+      "parameters": 1552
+    },
+    {
+      "name": "encoder.0.conv_modules.2.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.0.conv_modules.2.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 16
+    },
+    {
+      "name": "encoder.0.conv_modules.2.layers.0.6",
+      "type": "Conv1d",
+      "parameters": 288
+    },
+    {
+      "name": "encoder.0.globalconv",
+      "type": "Conv2d",
+      "parameters": 9248
+    },
+    {
+      "name": "encoder.1.SDlayer.convs.0",
+      "type": "Conv2d",
+      "parameters": 6208
+    },
+    {
+      "name": "encoder.1.SDlayer.convs.1",
+      "type": "Conv2d",
+      "parameters": 8256
+    },
+    {
+      "name": "encoder.1.SDlayer.convs.2",
+      "type": "Conv2d",
+      "parameters": 32832
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.0.0",
+      "type": "GroupNorm",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.0.1",
+      "type": "Conv1d",
+      "parameters": 6176
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.0.6",
+      "type": "Conv1d",
+      "parameters": 1088
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.1.0",
+      "type": "GroupNorm",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.1.1",
+      "type": "Conv1d",
+      "parameters": 6176
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.1.6",
+      "type": "Conv1d",
+      "parameters": 1088
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.2.0",
+      "type": "GroupNorm",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.2.1",
+      "type": "Conv1d",
+      "parameters": 6176
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.2.3",
+      "type": "Conv1d",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.2.4",
+      "type": "GroupNorm",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.1.conv_modules.0.layers.2.6",
+      "type": "Conv1d",
+      "parameters": 1088
+    },
+    {
+      "name": "encoder.1.conv_modules.1.layers.0.0",
+      "type": "GroupNorm",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.1.conv_modules.1.layers.0.1",
+      "type": "Conv1d",
+      "parameters": 6176
+    },
+    {
+      "name": "encoder.1.conv_modules.1.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.1.conv_modules.1.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.1.conv_modules.1.layers.0.6",
+      "type": "Conv1d",
+      "parameters": 1088
+    },
+    {
+      "name": "encoder.1.conv_modules.1.layers.1.0",
+      "type": "GroupNorm",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.1.conv_modules.1.layers.1.1",
+      "type": "Conv1d",
+      "parameters": 6176
+    },
+    {
+      "name": "encoder.1.conv_modules.1.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.1.conv_modules.1.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.1.conv_modules.1.layers.1.6",
+      "type": "Conv1d",
+      "parameters": 1088
+    },
+    {
+      "name": "encoder.1.conv_modules.2.layers.0.0",
+      "type": "GroupNorm",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.1.conv_modules.2.layers.0.1",
+      "type": "Conv1d",
+      "parameters": 6176
+    },
+    {
+      "name": "encoder.1.conv_modules.2.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.1.conv_modules.2.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 32
+    },
+    {
+      "name": "encoder.1.conv_modules.2.layers.0.6",
+      "type": "Conv1d",
+      "parameters": 1088
+    },
+    {
+      "name": "encoder.1.globalconv",
+      "type": "Conv2d",
+      "parameters": 36928
+    },
+    {
+      "name": "encoder.2.SDlayer.convs.0",
+      "type": "Conv2d",
+      "parameters": 24704
+    },
+    {
+      "name": "encoder.2.SDlayer.convs.1",
+      "type": "Conv2d",
+      "parameters": 32896
+    },
+    {
+      "name": "encoder.2.SDlayer.convs.2",
+      "type": "Conv2d",
+      "parameters": 131200
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.0.0",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.0.1",
+      "type": "Conv1d",
+      "parameters": 24640
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.0.6",
+      "type": "Conv1d",
+      "parameters": 4224
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.1.0",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.1.1",
+      "type": "Conv1d",
+      "parameters": 24640
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.1.6",
+      "type": "Conv1d",
+      "parameters": 4224
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.2.0",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.2.1",
+      "type": "Conv1d",
+      "parameters": 24640
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.2.3",
+      "type": "Conv1d",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.2.4",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.2.conv_modules.0.layers.2.6",
+      "type": "Conv1d",
+      "parameters": 4224
+    },
+    {
+      "name": "encoder.2.conv_modules.1.layers.0.0",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "encoder.2.conv_modules.1.layers.0.1",
+      "type": "Conv1d",
+      "parameters": 24640
+    },
+    {
+      "name": "encoder.2.conv_modules.1.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.2.conv_modules.1.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.2.conv_modules.1.layers.0.6",
+      "type": "Conv1d",
+      "parameters": 4224
+    },
+    {
+      "name": "encoder.2.conv_modules.1.layers.1.0",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "encoder.2.conv_modules.1.layers.1.1",
+      "type": "Conv1d",
+      "parameters": 24640
+    },
+    {
+      "name": "encoder.2.conv_modules.1.layers.1.3",
+      "type": "Conv1d",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.2.conv_modules.1.layers.1.4",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.2.conv_modules.1.layers.1.6",
+      "type": "Conv1d",
+      "parameters": 4224
+    },
+    {
+      "name": "encoder.2.conv_modules.2.layers.0.0",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "encoder.2.conv_modules.2.layers.0.1",
+      "type": "Conv1d",
+      "parameters": 24640
+    },
+    {
+      "name": "encoder.2.conv_modules.2.layers.0.3",
+      "type": "Conv1d",
+      "parameters": 128
+    },
+    {
+      "name": "encoder.2.conv_modules.2.layers.0.4",
+      "type": "GroupNorm",
+      "parameters": 64
+    },
+    {
+      "name": "encoder.2.conv_modules.2.layers.0.6",
+      "type": "Conv1d",
+      "parameters": 4224
+    },
+    {
+      "name": "encoder.2.globalconv",
+      "type": "Conv2d",
+      "parameters": 147584
+    },
+    {
+      "name": "decoder.0.0.conv",
+      "type": "Conv2d",
+      "parameters": 590080
+    },
+    {
+      "name": "decoder.0.1.convtrs.0",
+      "type": "ConvTranspose2d",
+      "parameters": 24640
+    },
+    {
+      "name": "decoder.0.1.convtrs.1",
+      "type": "ConvTranspose2d",
+      "parameters": 32832
+    },
+    {
+      "name": "decoder.0.1.convtrs.2",
+      "type": "ConvTranspose2d",
+      "parameters": 131136
+    },
+    {
+      "name": "decoder.1.0.conv",
+      "type": "Conv2d",
+      "parameters": 147584
+    },
+    {
+      "name": "decoder.1.1.convtrs.0",
+      "type": "ConvTranspose2d",
+      "parameters": 6176
+    },
+    {
+      "name": "decoder.1.1.convtrs.1",
+      "type": "ConvTranspose2d",
+      "parameters": 8224
+    },
+    {
+      "name": "decoder.1.1.convtrs.2",
+      "type": "ConvTranspose2d",
+      "parameters": 32800
+    },
+    {
+      "name": "decoder.2.0.conv",
+      "type": "Conv2d",
+      "parameters": 36928
+    },
+    {
+      "name": "decoder.2.1.convtrs.0",
+      "type": "ConvTranspose2d",
+      "parameters": 1552
+    },
+    {
+      "name": "decoder.2.1.convtrs.1",
+      "type": "ConvTranspose2d",
+      "parameters": 2064
+    },
+    {
+      "name": "decoder.2.1.convtrs.2",
+      "type": "ConvTranspose2d",
+      "parameters": 8208
+    },
+    {
+      "name": "separation_net.dp_modules.0.lstm_layers.0",
+      "type": "LSTM",
+      "parameters": 264192
+    },
+    {
+      "name": "separation_net.dp_modules.0.lstm_layers.1",
+      "type": "LSTM",
+      "parameters": 264192
+    },
+    {
+      "name": "separation_net.dp_modules.0.linear_layers.0",
+      "type": "Linear",
+      "parameters": 32896
+    },
+    {
+      "name": "separation_net.dp_modules.0.linear_layers.1",
+      "type": "Linear",
+      "parameters": 32896
+    },
+    {
+      "name": "separation_net.dp_modules.0.norm_layers.0",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "separation_net.dp_modules.0.norm_layers.1",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "separation_net.dp_modules.1.lstm_layers.0",
+      "type": "LSTM",
+      "parameters": 1052672
+    },
+    {
+      "name": "separation_net.dp_modules.1.lstm_layers.1",
+      "type": "LSTM",
+      "parameters": 1052672
+    },
+    {
+      "name": "separation_net.dp_modules.1.linear_layers.0",
+      "type": "Linear",
+      "parameters": 131328
+    },
+    {
+      "name": "separation_net.dp_modules.1.linear_layers.1",
+      "type": "Linear",
+      "parameters": 131328
+    },
+    {
+      "name": "separation_net.dp_modules.1.norm_layers.0",
+      "type": "GroupNorm",
+      "parameters": 512
+    },
+    {
+      "name": "separation_net.dp_modules.1.norm_layers.1",
+      "type": "GroupNorm",
+      "parameters": 512
+    },
+    {
+      "name": "separation_net.dp_modules.2.lstm_layers.0",
+      "type": "LSTM",
+      "parameters": 264192
+    },
+    {
+      "name": "separation_net.dp_modules.2.lstm_layers.1",
+      "type": "LSTM",
+      "parameters": 264192
+    },
+    {
+      "name": "separation_net.dp_modules.2.linear_layers.0",
+      "type": "Linear",
+      "parameters": 32896
+    },
+    {
+      "name": "separation_net.dp_modules.2.linear_layers.1",
+      "type": "Linear",
+      "parameters": 32896
+    },
+    {
+      "name": "separation_net.dp_modules.2.norm_layers.0",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "separation_net.dp_modules.2.norm_layers.1",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "separation_net.dp_modules.3.lstm_layers.0",
+      "type": "LSTM",
+      "parameters": 1052672
+    },
+    {
+      "name": "separation_net.dp_modules.3.lstm_layers.1",
+      "type": "LSTM",
+      "parameters": 1052672
+    },
+    {
+      "name": "separation_net.dp_modules.3.linear_layers.0",
+      "type": "Linear",
+      "parameters": 131328
+    },
+    {
+      "name": "separation_net.dp_modules.3.linear_layers.1",
+      "type": "Linear",
+      "parameters": 131328
+    },
+    {
+      "name": "separation_net.dp_modules.3.norm_layers.0",
+      "type": "GroupNorm",
+      "parameters": 512
+    },
+    {
+      "name": "separation_net.dp_modules.3.norm_layers.1",
+      "type": "GroupNorm",
+      "parameters": 512
+    },
+    {
+      "name": "separation_net.dp_modules.4.lstm_layers.0",
+      "type": "LSTM",
+      "parameters": 264192
+    },
+    {
+      "name": "separation_net.dp_modules.4.lstm_layers.1",
+      "type": "LSTM",
+      "parameters": 264192
+    },
+    {
+      "name": "separation_net.dp_modules.4.linear_layers.0",
+      "type": "Linear",
+      "parameters": 32896
+    },
+    {
+      "name": "separation_net.dp_modules.4.linear_layers.1",
+      "type": "Linear",
+      "parameters": 32896
+    },
+    {
+      "name": "separation_net.dp_modules.4.norm_layers.0",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "separation_net.dp_modules.4.norm_layers.1",
+      "type": "GroupNorm",
+      "parameters": 256
+    },
+    {
+      "name": "separation_net.dp_modules.5.lstm_layers.0",
+      "type": "LSTM",
+      "parameters": 1052672
+    },
+    {
+      "name": "separation_net.dp_modules.5.lstm_layers.1",
+      "type": "LSTM",
+      "parameters": 1052672
+    },
+    {
+      "name": "separation_net.dp_modules.5.linear_layers.0",
+      "type": "Linear",
+      "parameters": 131328
+    },
+    {
+      "name": "separation_net.dp_modules.5.linear_layers.1",
+      "type": "Linear",
+      "parameters": 131328
+    },
+    {
+      "name": "separation_net.dp_modules.5.norm_layers.0",
+      "type": "GroupNorm",
+      "parameters": 512
+    },
+    {
+      "name": "separation_net.dp_modules.5.norm_layers.1",
+      "type": "GroupNorm",
+      "parameters": 512
+    }
+  ]
+}

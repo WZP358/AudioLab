@@ -2,11 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useLocation, useNavigate } from "react-router-dom";
 import StemPlayer from "./StemPlayer";
 import AuthPage from "./AuthPage";
-import AudioResources from "./AudioResources";
 import AudioResourceSelector from "./AudioResourceSelector";
 import AdminDashboard from "./AdminDashboard";
-import NotificationCenter from "./NotificationCenter";
-import ExpertMessageDialog from "./ExpertMessageDialog";
 import UserManual from "./UserManual";
 import { useToast } from "./Toast";
 //   orderBy,
@@ -31,7 +28,6 @@ import {
   ChevronDown,
   Headphones,
   MessageCircle,
-  Bell,
   Mail,
   Lock,
   X as CloseIcon,
@@ -66,9 +62,6 @@ import {
 const VIEW_TO_PATH = {
   dashboard: "/",
   stats: "/stats",
-  audio_resources: "/audio-resources",
-  comments: "/comments",
-  history: "/history",
   manual: "/manual",
 };
 const normalizePathname = (pathname) => {
@@ -85,6 +78,13 @@ const normalizePathname = (pathname) => {
 const PATH_TO_VIEW = Object.fromEntries(
   Object.entries(VIEW_TO_PATH).map(([view, path]) => [path, view]),
 );
+
+const STANDARD_ISSUE_TAGS = {
+  Vocals: ["音色变薄", "齿音异常", "人声残留", "伴奏残留", "尾音截断", "声像不稳定"],
+  Drums: ["鼓点瞬态削弱", "鼓声起音模糊", "底鼓低频缺失", "军鼓主体缺失", "镲片高频缺失", "鼓点断续/破碎"],
+  Bass: ["低频主体缺失", "基频能量削弱", "Bass音色变薄", "低频串扰", "起音瞬态削弱", "延音不完整"],
+  Other: ["其他伴奏残留", "混响残留", "人声残留", "金属感伪影", "颗粒感伪影", "动态变化受损"],
+};
 
 // --- Components ---
 
@@ -2490,7 +2490,7 @@ const ALGORITHMS = [
 ];
 // Algorithm 下拉框的“无”选项（前端哨兵值；不要传给后端）
 const ALGO_NONE = "__NONE__";
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+const API_BASE = process.env.REACT_APP_API_BASE || (typeof window !== "undefined" ? window.location.origin : "http://localhost:8000");
 
 export default function AudioLabApp() {
   const location = useLocation();
@@ -2540,8 +2540,12 @@ export default function AudioLabApp() {
   const [waveAutoGain, setWaveAutoGain] = useState(true);
   const [waveYZoom, setWaveYZoom] = useState(1.6);
   const [waveExpanded, setWaveExpanded] = useState(false); // 弹窗放大波形对比
-  // 按 stem 维度存储主观评分：stemName -> { quality, interference, artifacts }
+  // 按 stem 维度存储主观评分及 15 秒片段标注
   const [stemScores, setStemScores] = useState({});
+  const [standardLabels, setStandardLabels] = useState({});
+  const [blindSamples, setBlindSamples] = useState([]);
+  const [selectedBlindCode, setSelectedBlindCode] = useState("");
+  const [blindAudioUrl, setBlindAudioUrl] = useState("");
 
   // ---- 播放进度统一同步（Input / Gold / Stem 共用一条“全局时间轴”）----
   const inputPlaybackRef = useRef(null);
@@ -2634,9 +2638,6 @@ export default function AudioLabApp() {
   const [myScoresError, setMyScoresError] = useState(null);
   
   // 通知相关状态
-  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
-  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
-  const [showExpertMessageDialog, setShowExpertMessageDialog] = useState(false);
   const [showUserProfileDialog, setShowUserProfileDialog] = useState(false);
 
   // 波形/频谱：等待后端分析结果（空数组表示暂无数据，避免 mock 误导）
@@ -2658,7 +2659,7 @@ export default function AudioLabApp() {
   // 记录当前 Gold Standard 对应的声部类型（例如 "Vocals" / "Drums" / "Bass" / "Other"），用于与 4. Stem Source 联动
   const [goldStemTargetName, setGoldStemTargetName] = useState(null);
   // 存储所有gold stems的资源信息（根据mixture自动加载）
-  const [goldStems, setGoldStems] = useState({
+  const [, setGoldStems] = useState({
     vocals: null,
     drums: null,
     bass: null,
@@ -2708,6 +2709,50 @@ export default function AudioLabApp() {
       [section]: !prev[section]
     }));
   };
+
+  useEffect(() => {
+    if (!authToken) return;
+    fetch(`${API_BASE}/api/standard-labels`, { headers: { Authorization: `Bearer ${authToken}` } })
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((items) => {
+        const grouped = {};
+        (Array.isArray(items) ? items : []).forEach((item) => { (grouped[item.stem_name] ||= []).push(item.label); });
+        setStandardLabels(grouped);
+      })
+      .catch(() => {});
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken || user?.role !== "expert") return;
+    fetch(`${API_BASE}/api/blind-samples`, { headers: { Authorization: `Bearer ${authToken}` } })
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((items) => { const available = Array.isArray(items) ? items.filter((sample) => !sample.scored) : []; setBlindSamples(available); setSelectedBlindCode((prev) => prev || available[0]?.blind_code || ""); })
+      .catch(() => {});
+  }, [authToken, user?.role, taskId]);
+
+  // 盲化音频接口需要 Bearer 鉴权，先以 Blob 下载后交给 audio 元素播放。
+  useEffect(() => {
+    let objectUrl = "";
+    if (!authToken || !selectedBlindCode) {
+      setBlindAudioUrl("");
+      return undefined;
+    }
+    fetch(`${API_BASE}/api/blind-samples/${encodeURIComponent(selectedBlindCode)}/audio`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+      .then((resp) => {
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return resp.blob();
+      })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        setBlindAudioUrl(objectUrl);
+      })
+      .catch(() => setBlindAudioUrl(""));
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [authToken, selectedBlindCode]);
 
   // 根据当前选择的 stems 和模式，请求后端生成混合 / 残差音频
   const generateMixedAudio = async () => {
@@ -3527,64 +3572,6 @@ export default function AudioLabApp() {
     setUser(userData);
     setAuthToken(token);
   };
-
-  // 获取未读通知数量
-  const fetchUnreadNotificationCount = useCallback(async () => {
-    if (!authToken || !user) return false;
-    try {
-      const resp = await fetch(`${API_BASE}/api/system/notifications/unread-count`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        setUnreadNotificationCount(data.count || 0);
-        return true;
-      } else if (resp.status === 404) {
-        // API 不存在，设置默认值
-        setUnreadNotificationCount(0);
-        return false;
-      }
-    } catch (err) {
-      // 网络错误或其他错误，静默处理（避免控制台噪音）
-      // 如果是404，浏览器会自动记录，但我们已经处理了
-      return false;
-    }
-    return true;
-  }, [authToken, user]);
-
-  // 定期刷新未读通知数量
-  useEffect(() => {
-    if (!authToken || !user) {
-      setUnreadNotificationCount(0);
-      return;
-    }
-    let apiExists = true;
-    let intervalId = null;
-    
-    // 首次检查
-    fetchUnreadNotificationCount().then((exists) => {
-      apiExists = exists !== false;
-      // 如果API存在，才设置定时器
-      if (apiExists) {
-        intervalId = setInterval(() => {
-          fetchUnreadNotificationCount().then((exists) => {
-            if (exists === false) {
-              apiExists = false;
-              if (intervalId) {
-                clearInterval(intervalId);
-              }
-            }
-          });
-        }, 30000); // 每30秒刷新一次
-      }
-    });
-    
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [authToken, user, fetchUnreadNotificationCount]);
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token");
@@ -4966,39 +4953,44 @@ export default function AudioLabApp() {
         quality: 50,
         interference: 50,
         artifacts: 50,
+        overall_acceptability: 50,
+        segment_start: 0,
+        segment_end: 15,
+        issue_tags: [],
+        reliability: 80,
       };
 
     // 当前任务的客观指标（来自后端任务结果），与该 stem 的主观评分一并存储
     try {
-      // 仅使用后端版本：直接写入数据库
-      if (taskId && authToken) {
-        const resp = await fetch(`${API_BASE}/api/scores`, {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${authToken}`
-          },
-          body: JSON.stringify({
-            task_id: taskId,
-            algorithm: selectedAlgo,
-            stem_name: currentStemName,
-            quality: currentScore.quality,
-            interference: currentScore.interference,
-            artifacts: currentScore.artifacts,
-          }),
-        });
-        if (!resp.ok) {
-          // 不阻塞本地保存；仅提示
-          console.warn("评分已本地保存，但后端提交失败：", await resp.text());
-          showError("评分已保存到本地，但提交到后端失败（可查看控制台）");
-          return;
-        }
-
-        // 刷新“我的评分记录”列表
-        fetchMyScores({ skip: 0, limit: 100 });
+      const blindSample = blindSamples.find((sample) => sample.blind_code === selectedBlindCode && sample.stem_name === currentStemName && !sample.scored)
+        || blindSamples.find((sample) => sample.stem_name === currentStemName && !sample.scored);
+      if (!blindSample) {
+        showError("当前声源暂无可评分的盲化 15 秒样本，请联系管理员先生成样本");
+        return;
       }
-
-      showSuccess("评分已提交并写入后端数据库！");
+      const blindResp = await fetch(`${API_BASE}/api/blind-samples/score`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({
+          blind_code: blindSample.blind_code,
+          quality: currentScore.quality,
+          interference: currentScore.interference,
+          artifacts: currentScore.artifacts,
+          overall_acceptability: currentScore.overall_acceptability,
+          segment_start: currentScore.segment_start,
+          segment_end: currentScore.segment_end,
+          issue_tags: currentScore.issue_tags || [],
+          reliability: currentScore.reliability,
+        }),
+      });
+      if (!blindResp.ok) {
+        const detail = await blindResp.text();
+        showError(`盲化评分未保存：${detail || `HTTP ${blindResp.status}`}`);
+        return;
+      }
+      setBlindSamples((prev) => prev.map((sample) => sample.blind_code === blindSample.blind_code ? { ...sample, scored: true } : sample));
+      fetchMyScores({ skip: 0, limit: 100 });
+      showSuccess("盲化评分已提交并写入后端数据库！");
     } catch (e) {
       console.error(e);
       showError("提交失败，请重试");
@@ -5157,9 +5149,6 @@ export default function AudioLabApp() {
   const panelTitleClass = isDark
     ? "text-sm font-bold text-slate-400 uppercase mb-4 flex items-center gap-2 cursor-pointer hover:text-slate-300 transition"
     : "text-sm font-bold text-slate-600 uppercase mb-4 flex items-center gap-2 cursor-pointer hover:text-slate-800 transition";
-  const inputClass = isDark
-    ? "flex-1 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
-    : "flex-1 px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50";
   const libraryBtnClass = isDark
     ? "w-full px-4 py-2 bg-slate-700/80 hover:bg-slate-600 border border-slate-600 hover:border-cyan-500/50 text-white rounded-lg transition flex items-center justify-center gap-2 text-sm font-medium"
     : "w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 hover:border-cyan-500/50 text-slate-800 rounded-lg transition flex items-center justify-center gap-2 text-sm font-medium";
@@ -5206,10 +5195,7 @@ export default function AudioLabApp() {
           <nav className={`hidden lg:flex gap-1 p-1 rounded-lg border flex-shrink-0 ${isDark ? "bg-slate-800/50 border-slate-700/50" : "bg-slate-100 border-slate-200"}`}>
             {[
               { id: "dashboard", label: "工作台", icon: Layers },
-              { id: "history", label: "分离历史", icon: Clock },
-              { id: "stats", label: "社区评估数据", icon: BarChart2 },
-              { id: "audio_resources", label: "音频资源", icon: Music },
-              { id: "comments", label: "社区评论", icon: User },
+              { id: "stats", label: "实验统计", icon: BarChart2 },
             ].map((item) => (
               <button
                 key={item.id}
@@ -5240,20 +5226,6 @@ export default function AudioLabApp() {
               </span>
             </div>
 
-            {/* 通知按钮 */}
-            <button
-              onClick={() => setShowNotificationCenter(true)}
-              className={`relative p-2 rounded-lg transition flex-shrink-0 ${isDark ? "hover:bg-slate-800" : "hover:bg-slate-200"}`}
-              title="通知中心"
-            >
-              <Bell className={`${isDark ? "text-slate-400" : "text-slate-600"}`} size={20} />
-              {unreadNotificationCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                  {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
-                </span>
-              )}
-            </button>
-
             {/* 说明文档 */}
             <button
               type="button"
@@ -5263,21 +5235,6 @@ export default function AudioLabApp() {
             >
               <BookOpen size={14} className="text-cyan-400 flex-shrink-0" />
             </button>
-
-            {/* 给管理员建议按钮（仅专家可见） */}
-            {user?.role === "expert" && (
-              <button
-                onClick={() => setShowExpertMessageDialog(true)}
-                className={`hidden lg:inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border text-xs transition flex-shrink-0 ${
-                  isDark
-                    ? "border-slate-700/60 bg-slate-800/60 text-slate-200 hover:border-cyan-500/70 hover:text-white hover:bg-slate-800"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-cyan-400/60 hover:text-slate-900 hover:bg-slate-100"
-                }`}
-                title="向管理员发送建议"
-              >
-                <MessageCircle size={14} className="text-cyan-400 flex-shrink-0" />
-              </button>
-            )}
 
             {/* 用户信息面板 */}
             <div className="flex-shrink-0">
@@ -5311,41 +5268,6 @@ export default function AudioLabApp() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Left Panel: Controls */}
             <div className="lg:col-span-4 space-y-6">
-              {/* 历史记录 ID 一键导入（卡片上方的小工具栏，仅登录用户可见） */}
-              {user && (
-                <div className={`rounded-xl p-4 border ${panelClass}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-col flex-1">
-                      <span
-                        className={`text-xs font-semibold ${isDark ? "text-slate-200" : "text-slate-700"}`}
-                        title="已完成的分离任务，可以直接通过 ID 导入结果，避免重复计算。"
-                      >
-                        历史记录 ID 导入
-                      </span>
-                    </div>
-                    <div className="flex-1 flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={historyIdInput}
-                        onChange={(e) => setHistoryIdInput(e.target.value)}
-                        className={inputClass}
-                        placeholder="例如：177253401234567890"
-                      />
-                      <button
-                        type="button"
-                        disabled={historyImportLoading || !historyIdInput.trim()}
-                        onClick={() => handleImportHistoryById()}
-                        className={`px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-medium text-white transition whitespace-nowrap ${
-                          isDark ? "disabled:bg-slate-700 disabled:text-slate-500" : "disabled:bg-slate-200 disabled:text-slate-400"
-                        }`}
-                      >
-                        {historyImportLoading ? "导入中..." : "按ID导入"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Upload Section */}
               <div
                 className={`rounded-xl p-6 border ${panelClass}`}
@@ -5377,7 +5299,7 @@ export default function AudioLabApp() {
                       className={libraryBtnClass}
                     >
                       <Music size={16} />
-                      从音频资源库选择
+                      从实验音频库选择
                     </button>
                   </div>
                 ) : (
@@ -5502,7 +5424,7 @@ export default function AudioLabApp() {
                       className={libraryBtnClass}
                     >
                       <Music size={16} />
-                      从音频资源库选择
+                          从实验音频库选择
                     </button>
                   </div>
                 ) : (
@@ -5806,7 +5728,7 @@ export default function AudioLabApp() {
                         <div className="text-[11px] text-slate-500">
                           残差播放器 <span className="font-mono text-slate-300">Residual (Mix - Alg)</span>：用于听剩余干扰与伪影。
                         </div>
-                        {taskId && (
+                        {false && taskId && (
                           <div className="overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900/60">
                             <StemPlayer
                               name={`${currentStem.name} Residual`}
@@ -5849,7 +5771,7 @@ export default function AudioLabApp() {
                         )}
 
                         {/* 自定义残差 / 混合播放器 */}
-                        {stems && stems.length > 0 && (
+                        {false && stems && stems.length > 0 && (
                           <div className="mt-4 space-y-2 bg-slate-900/60 border border-slate-700/60 rounded-lg p-3">
                             <div className="flex items-center justify-between text-[11px] text-slate-300">
                               <div>
@@ -6648,15 +6570,22 @@ export default function AudioLabApp() {
                       专家主观评分（按 Stem）
                     </h3>
                     <p className={`text-xs mb-6 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                      请基于当前选中的单一声源（stem），对其清晰度、干扰抑制与伪影控制分别打分。
+                      请在盲化条件下对 15 秒片段评分，并标注听感问题的时间范围。
                     </p>
 
                     <div className="space-y-6">
+                      {blindSamples.length > 0 && (
+                        <div className={`rounded-lg border p-3 ${isDark ? "border-indigo-500/40 bg-indigo-950/20" : "border-indigo-200 bg-indigo-50"}`}>
+                          <div className="text-xs font-semibold mb-2">盲化试听样本</div>
+                          <select value={selectedBlindCode} onChange={(e) => setSelectedBlindCode(e.target.value)} className={`w-full rounded border px-3 py-2 text-sm ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`}>
+                            {blindSamples.map((sample) => <option key={sample.blind_code} value={sample.blind_code}>{sample.blind_code} · {sample.stem_name} · 15 秒</option>)}
+                          </select>
+                          {selectedBlindCode && blindAudioUrl && <audio controls preload="metadata" className="w-full mt-3" src={blindAudioUrl} />}
+                          <p className="text-[11px] mt-2 text-slate-500">当前评分将写入所选盲化样本，专家端不显示真实算法。</p>
+                        </div>
+                      )}
                       <div className={`text-xs mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                        当前算法：{" "}
-                        <span className="font-mono text-cyan-400">
-                          {selectedAlgo && selectedAlgo !== ALGO_NONE ? selectedAlgo : "无"}
-                        </span>
+                        盲化样本： <span className="font-mono text-cyan-400">{selectedBlindCode || "未选择"}</span>
                       </div>
                       <div className={`text-xs mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                         当前评估目标：{" "}
@@ -6672,6 +6601,11 @@ export default function AudioLabApp() {
                             quality: 50,
                             interference: 50,
                             artifacts: 50,
+                            overall_acceptability: 50,
+                            segment_start: 0,
+                            segment_end: 15,
+                            issue_tags: [],
+                            reliability: 80,
                           };
                         const metrics = [
                           {
@@ -6686,6 +6620,7 @@ export default function AudioLabApp() {
                             key: "artifacts",
                             label: "Artifacts (伪影控制)",
                           },
+                          { key: "overall_acceptability", label: "Overall (整体可接受度)" },
                         ];
                         return metrics.map((m) => (
                           <div key={m.key}>
@@ -6757,6 +6692,27 @@ export default function AudioLabApp() {
                             </div>
                           </div>
                         ));
+                      })()}
+
+                      {(() => {
+                        const stemName = currentStem?.name || "GLOBAL";
+                        const currentScore = stemScores[stemName] || { quality: 50, interference: 50, artifacts: 50, overall_acceptability: 50, segment_start: 0, segment_end: 15, issue_tags: [], reliability: 80 };
+                        const update = (patch) => setStemScores((prev) => ({ ...prev, [stemName]: { ...currentScore, ...patch } }));
+                        const tags = standardLabels[stemName]?.length ? standardLabels[stemName] : (STANDARD_ISSUE_TAGS[stemName] || STANDARD_ISSUE_TAGS.Other);
+                        return (
+                          <div className={`space-y-4 border-t pt-4 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
+                            <div className="grid grid-cols-2 gap-3">
+                              <label className="text-xs">问题开始（秒）<input type="number" min="0" max="15" step="0.1" value={currentScore.segment_start} onChange={(e) => update({ segment_start: Number(e.target.value) })} className={`mt-1 w-full rounded border px-2 py-2 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} /></label>
+                              <label className="text-xs">问题结束（秒）<input type="number" min="0" max="15" step="0.1" value={currentScore.segment_end} onChange={(e) => update({ segment_end: Number(e.target.value) })} className={`mt-1 w-full rounded border px-2 py-2 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} /></label>
+                            </div>
+                            <div>
+                              <div className="text-xs mb-2">标准化评语标签（可多选）</div>
+                              <div className="flex flex-wrap gap-2">{tags.map((tag) => { const active = currentScore.issue_tags?.includes(tag); return <button type="button" key={tag} onClick={() => update({ issue_tags: active ? currentScore.issue_tags.filter((x) => x !== tag) : [...(currentScore.issue_tags || []), tag] })} className={`px-2 py-1 text-xs rounded border ${active ? "bg-cyan-600 border-cyan-500 text-white" : isDark ? "border-slate-600 text-slate-300" : "border-slate-300 text-slate-700"}`}>{tag}</button>; })}</div>
+                              <input type="text" placeholder="补充本次评分的自定义标签，回车确认" className={`mt-3 w-full rounded border px-2 py-2 text-xs ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} onKeyDown={(e) => { if (e.key === "Enter" && e.currentTarget.value.trim()) { e.preventDefault(); const custom = e.currentTarget.value.trim(); if (!currentScore.issue_tags?.includes(custom)) update({ issue_tags: [...(currentScore.issue_tags || []), custom] }); e.currentTarget.value = ""; } }} />
+                            </div>
+                            <label className="block text-xs">主观可靠性：{currentScore.reliability}%<input type="range" min="0" max="100" value={currentScore.reliability} onChange={(e) => update({ reliability: Number(e.target.value) })} className="mt-2 w-full accent-cyan-500" /></label>
+                          </div>
+                        );
                       })()}
 
                       <button
@@ -7037,7 +6993,7 @@ export default function AudioLabApp() {
         )}
 
         {/* 我的分离历史独立页面 */}
-        {currentView === "history" && user && (
+        {false && currentView === "history" && user && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
@@ -7375,7 +7331,7 @@ export default function AudioLabApp() {
 
             {/* 按算法 + Stem 的主观评分统计 - 使用后端数据 */}
             <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
-              <h3 className={`font-bold mb-4 ${isDark ? "text-white" : "text-slate-800"}`}>按 Stem 维度的主观评分统计（社区数据）</h3>
+              <h3 className={`font-bold mb-4 ${isDark ? "text-white" : "text-slate-800"}`}>按 Stem 维度的主观评分统计（实验数据）</h3>
               <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 这里按「算法 + 单一声源（stem）」分别统计了 Quality / Interference /
                 Artifacts 的平均得分，便于对比不同源上的表现差异。数据来自所有专家的集体评估。
@@ -7837,11 +7793,7 @@ export default function AudioLabApp() {
         )}
 
         {/* Community Comments Page View */}
-        {currentView === "audio_resources" && (
-          <AudioResources token={authToken} />
-        )}
-
-        {currentView === "comments" && (
+        {false && currentView === "comments" && (
           <div className="space-y-8 animate-in fade-in">
             <div className={`rounded-xl p-8 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
               <h2 className="text-2xl font-bold mb-2">社区评论板块</h2>
@@ -7996,31 +7948,12 @@ export default function AudioLabApp() {
               <p className={`text-xs leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 <strong className={isDark ? "text-slate-300" : "text-slate-700"}>说明：</strong>
                 本页面展示的是所有专家对不同算法在四个 Stem（Vocals、Drums、Bass、Other）上的打分统计结果。
-                数据实时更新，每30秒自动刷新。您可以在工作台提交自己的评分，参与社区评估。
+                数据来自实验室盲化评分流程，每30秒自动刷新。专家评分完成后由管理员统一导出。
               </p>
             </div>
           </div>
         )}
       </main>
-
-      {/* 通知中心 */}
-      {showNotificationCenter && (
-        <NotificationCenter
-          token={authToken}
-          onClose={() => {
-            setShowNotificationCenter(false);
-            fetchUnreadNotificationCount();
-          }}
-        />
-      )}
-
-      {/* 专家给管理员的建议对话框 */}
-      {showExpertMessageDialog && (
-        <ExpertMessageDialog
-          token={authToken}
-          onClose={() => setShowExpertMessageDialog(false)}
-        />
-      )}
 
       {/* 音频资源选择器 */}
       {showResourceSelector && (

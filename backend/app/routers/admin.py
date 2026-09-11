@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query, Body, Request
+﻿from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query, Body, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_
 from sqlalchemy.exc import IntegrityError
@@ -363,7 +363,7 @@ async def update_user(
     user = result.scalars().first()
 
     # 2) 如果按 ID 没找到，尝试按 email / username 兜底查 users 表
-    #    这样可以处理历史上因为前端 ID 精度问题导致的“假 ID”，
+    #    这样可以处理历史上因为前端 ID 精度问题导致的"假 ID"，
     #    但前端传来的邮箱 / 用户名仍然能对应到真实 users 记录
     if not user:
         fallback_user = None
@@ -1020,7 +1020,7 @@ async def delete_audio_resource(
     
     resource_id = resource_id_int
 
-    # 先查出当前资源，用于决定是否需要“成组删除”
+    # 先查出当前资源，用于决定是否需要"成组删除"
     query = select(AudioResource).where(AudioResource.id == resource_id)
     result = await db.execute(query)
     resource = result.scalars().first()
@@ -1058,7 +1058,7 @@ async def delete_audio_resource(
         bundle_result = await db.execute(bundle_query)
         resources_to_delete = bundle_result.scalars().all()
     elif base_title and resource.title and " [" in str(resource.title):
-        # 只在看起来像“成组标题”的情况下做级联删除，避免误删普通资源
+        # 只在看起来像"成组标题"的情况下做级联删除，避免误删普通资源
         group_query = select(AudioResource).where(AudioResource.title.like(f"{base_title} [%"))
         group_result = await db.execute(group_query)
         resources_to_delete = group_result.scalars().all()
@@ -1154,7 +1154,7 @@ async def batch_delete_audio_resources(
     if len(resources) != len(resource_ids_int):
         raise HTTPException(status_code=404, detail="部分资源不存在")
 
-    # 扩展为“成组删除”：
+    # 扩展为"成组删除"：
     # - 优先：若资源 tags 带 bundle:<id>，按 bundle 级联
     # - 否则：按标题基础名 `BaseTitle [` 约定级联（Mixture + 4 Gold）
     all_resources_to_delete = list(resources)
@@ -1166,7 +1166,7 @@ async def batch_delete_audio_resources(
         if bid:
             bundle_ids.add(bid)
         bt = _extract_base_title_from_audio_title(getattr(res, "title", None))
-        # 只对“看起来像成组标题”的条目收集基础名，避免误扩散
+        # 只对"看起来像成组标题"的条目收集基础名，避免误扩散
         if bt and getattr(res, "title", None) and " [" in str(res.title):
             base_titles.add(bt)
 

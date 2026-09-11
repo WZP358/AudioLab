@@ -1,4 +1,4 @@
-"""
+﻿"""
 系统管理相关API：日志、设置、通知等
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
@@ -1076,7 +1076,7 @@ async def mark_notification_read(
         
         if not notification:
             # 兼容前端：如果通知不存在（可能已被清理），不再返回404，
-            # 而是视为“已读/已处理”，避免用户看到报错
+            # 而是视为"已读/已处理"，避免用户看到报错
             return {"message": f"通知ID {notification_id} 不存在，视为已处理"}
         
         # 检查用户是否有权限操作此通知

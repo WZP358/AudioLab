@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Header, UploadFile, File, Body, Request
+﻿from fastapi import APIRouter, Depends, HTTPException, status, Query, Header, UploadFile, File, Body, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_, case
 from typing import Optional, List
@@ -164,7 +164,7 @@ async def list_public_audio_resources(
                 conditions.append(and_(*search_conditions))  # 所有关键词都要匹配
 
     # 资源角色筛选（基于标题后缀约定：`xxx [Mixture]` / `xxx [Gold Vocals]` 等）
-    # 说明：这是为了兼容历史数据与现有库结构，不新增字段即可实现“Input Source 只能选 Mixture”等 UI 约束。
+    # 说明：这是为了兼容历史数据与现有库结构，不新增字段即可实现"Input Source 只能选 Mixture"等 UI 约束。
     if role:
         role = role.strip().lower()
         role_suffix_map = {
@@ -486,7 +486,7 @@ async def upload_audio_resource_bundle(
     if not base_title:
         raise HTTPException(status_code=400, detail="标题不能为空")
 
-    # 预先构造 5 个标题，并做“整体唯一性”校验，避免上传到一半才因标题冲突失败
+    # 预先构造 5 个标题，并做"整体唯一性"校验，避免上传到一半才因标题冲突失败
     mixture_title = f"{base_title} [Mixture]"
     vocals_title = f"{base_title} [Gold Vocals]"
     drums_title = f"{base_title} [Gold Drums]"
@@ -525,7 +525,7 @@ async def upload_audio_resource_bundle(
         is_public=True,
     )
     # 目前 AudioResource 模型中没有 bundle_id 字段；这里使用 Mixture 的资源 ID 作为该组的稳定标识返回，
-    # 前端/管理端如需“成组操作”，可以依赖这个 bundle_id（无需改表即可避免 NameError）。
+    # 前端/管理端如需"成组操作"，可以依赖这个 bundle_id（无需改表即可避免 NameError）。
     bundle_id = str(mixture_res.id)
     resources.append(
         {

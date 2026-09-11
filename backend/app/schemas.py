@@ -1,5 +1,8 @@
-from pydantic import BaseModel, EmailStr, field_serializer, field_validator
+﻿from pydantic import BaseModel, EmailStr, field_serializer, field_validator
+import json
+from pydantic import model_validator
 from typing import Optional, List
+from pydantic import Field
 from datetime import datetime
 from app.models import TaskStatus, Algorithm, Role, ExpertMessageStatus
 
@@ -24,8 +27,7 @@ class TaskResponse(BaseModel):
     model_version: Optional[str] = None
     comment: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
 
     @field_serializer('id')
     def serialize_id(self, value: int, _info) -> str:
@@ -102,13 +104,49 @@ class StemScoreData(BaseModel):
     quality: int  # 0-100
     interference: int  # 0-100
     artifacts: int  # 0-100
+    overall_acceptability: Optional[int] = None
+    segment_start: Optional[float] = 0.0
+    segment_end: Optional[float] = 15.0
+    issue_tags: List[str] = Field(default_factory=list)
+    reliability: Optional[int] = None
 
-    @field_validator('quality', 'interference', 'artifacts')
+    @field_validator('quality', 'interference', 'artifacts', 'overall_acceptability', 'reliability')
     @classmethod
-    def validate_score_range(cls, v: int) -> int:
-        if not (0 <= v <= 100):
+    def validate_score_range(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and not (0 <= v <= 100):
             raise ValueError('评分必须在 0-100 之间')
         return v
+
+    @field_validator('stem_name')
+    @classmethod
+    def validate_stem_name(cls, v: str) -> str:
+        if v not in {"Vocals", "Drums", "Bass", "Other"}:
+            raise ValueError('声源必须是 Vocals、Drums、Bass 或 Other')
+        return v
+
+    @field_validator('issue_tags')
+    @classmethod
+    def validate_issue_tags(cls, v: List[str]) -> List[str]:
+        cleaned = []
+        for item in v:
+            label = str(item).strip()
+            if not label or len(label) > 100:
+                raise ValueError('评语标签长度应为 1-100 个字符')
+            if label not in cleaned:
+                cleaned.append(label)
+        if len(cleaned) > 20:
+            raise ValueError('单次评分最多选择 20 个标签')
+        return cleaned
+
+    @model_validator(mode='after')
+    def validate_segment(self):
+        start = 0.0 if self.segment_start is None else float(self.segment_start)
+        end = 15.0 if self.segment_end is None else float(self.segment_end)
+        if not (0 <= start < end <= 15):
+            raise ValueError('问题时间必须满足 0 <= 开始时间 < 结束时间 <= 15 秒')
+        self.segment_start = start
+        self.segment_end = end
+        return self
 
 
 class ScoreCreateBatch(BaseModel):
@@ -145,6 +183,22 @@ class ScoreCreate(BaseModel):
     quality: int
     interference: int
     artifacts: int
+    overall_acceptability: Optional[int] = None
+    segment_start: Optional[float] = 0.0
+    segment_end: Optional[float] = 15.0
+    issue_tags: List[str] = Field(default_factory=list)
+    reliability: Optional[int] = None
+
+    @model_validator(mode='after')
+    def validate_score_payload(self):
+        normalized = StemScoreData(**self.model_dump(exclude={"task_id", "algorithm"}))
+        self.stem_name = normalized.stem_name
+        self.overall_acceptability = normalized.overall_acceptability
+        self.segment_start = normalized.segment_start
+        self.segment_end = normalized.segment_end
+        self.issue_tags = normalized.issue_tags
+        self.reliability = normalized.reliability
+        return self
 
 
 class ScoreUpdate(BaseModel):
@@ -152,21 +206,60 @@ class ScoreUpdate(BaseModel):
     quality: Optional[int] = None
     interference: Optional[int] = None
     artifacts: Optional[int] = None
+    overall_acceptability: Optional[int] = None
+    segment_start: Optional[float] = None
+    segment_end: Optional[float] = None
+    issue_tags: Optional[List[str]] = None
+    reliability: Optional[int] = None
+
+    @field_validator('quality', 'interference', 'artifacts', 'overall_acceptability', 'reliability')
+    @classmethod
+    def validate_optional_score_range(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and not (0 <= v <= 100):
+            raise ValueError('评分必须在 0-100 之间')
+        return v
+
+    @model_validator(mode='after')
+    def validate_optional_segment(self):
+        if self.segment_start is not None and not (0 <= self.segment_start < 15):
+            raise ValueError('开始时间必须在 0-15 秒内')
+        if self.segment_end is not None and not (0 < self.segment_end <= 15):
+            raise ValueError('结束时间必须在 0-15 秒内')
+        if self.segment_start is not None and self.segment_end is not None and self.segment_start >= self.segment_end:
+            raise ValueError('开始时间必须早于结束时间')
+        return self
 
 
 class ScoreResponse(BaseModel):
     id: int  # 保持为 int，在序列化时转为字符串
     user_id: str
     task_id: int  # 保持为 int，在序列化时转为字符串
+    blind_sample_id: Optional[int] = None
     algorithm: Algorithm
     stem_name: str | None = None
     quality: int
     interference: int
     artifacts: int
+    overall_acceptability: Optional[int] = None
+    segment_start: Optional[float] = None
+    segment_end: Optional[float] = None
+    issue_tags: Optional[List[str]] = None
+    reliability: Optional[int] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+    @field_validator('issue_tags', mode='before')
+    @classmethod
+    def parse_issue_tags(cls, value):
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                return parsed if isinstance(parsed, list) else []
+            except Exception:
+                return []
+        return value or []
 
     @field_serializer('id')
     def serialize_id(self, value: int, _info) -> str:
@@ -177,6 +270,43 @@ class ScoreResponse(BaseModel):
     def serialize_task_id(self, value: int, _info) -> str:
         """将 task_id 序列化为字符串，避免前端大整数精度丢失"""
         return str(value)
+
+    @field_serializer('blind_sample_id')
+    def serialize_blind_sample_id(self, value: Optional[int], _info):
+        return str(value) if value is not None else None
+
+
+class BlindScoreCreate(BaseModel):
+    blind_code: str
+    quality: int
+    interference: int
+    artifacts: int
+    overall_acceptability: int
+    segment_start: float = 0.0
+    segment_end: float = 15.0
+    issue_tags: List[str] = Field(default_factory=list)
+    reliability: int
+
+    @model_validator(mode='after')
+    def validate_blind_score(self):
+        normalized = StemScoreData(
+            stem_name="Vocals",
+            quality=self.quality,
+            interference=self.interference,
+            artifacts=self.artifacts,
+            overall_acceptability=self.overall_acceptability,
+            segment_start=self.segment_start,
+            segment_end=self.segment_end,
+            issue_tags=self.issue_tags,
+            reliability=self.reliability,
+        )
+        self.issue_tags = normalized.issue_tags
+        self.segment_start = normalized.segment_start
+        self.segment_end = normalized.segment_end
+        if not self.blind_code.strip() or len(self.blind_code) > 64:
+            raise ValueError('盲化样本编号无效')
+        self.blind_code = self.blind_code.strip()
+        return self
 
 
 class StatsResponse(BaseModel):
@@ -224,9 +354,9 @@ class ObjectiveAlgorithmStats(BaseModel):
 
 class SubjectiveObjectivePoint(BaseModel):
     """
-    单条“主观 + 客观”联合样本点：
+    单条"主观 + 客观"联合样本点：
     - 通过 task_id + algorithm 关联 Score 与 SeparationTask
-    - 前端可据此绘制“主观评分 vs SDR/SIR/SAR”的散点图与回归线
+    - 前端可据此绘制"主观评分 vs SDR/SIR/SAR"的散点图与回归线
     """
 
     task_id: int  # 在序列化时转为字符串，避免前端精度丢失
@@ -235,6 +365,7 @@ class SubjectiveObjectivePoint(BaseModel):
     quality: float
     interference: float
     artifacts: float
+    soc: Optional[float] = None
     sdr: Optional[float] = None
     sir: Optional[float] = None
     sar: Optional[float] = None
@@ -254,6 +385,15 @@ class ObjectiveAlgorithmDistribution(BaseModel):
 
     algorithm: Algorithm
     sdr_values: List[float]
+
+
+class SocQualityCorrelationResponse(BaseModel):
+    algorithm: Optional[Algorithm] = None
+    stem_name: Optional[str] = None
+    n_samples: int
+    spearman_rho: float
+    p_value_one_sided: float
+    direction: str = "negative"  # 期望 SOC 与 Quality 呈负相关
 
 
 class ObjectiveSignificanceRequest(BaseModel):

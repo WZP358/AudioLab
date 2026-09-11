@@ -1,0 +1,13 @@
+CUDA is available, use --force_cpu to disable it.
+Using device:  cuda:0
+Start from checkpoint: D:/code/models/mss/scnet_checkpoint_musdb18.ckpt
+Instruments: ['drums', 'bass', 'other', 'vocals']
+Model load time: 0.16 sec
+Total files found: 4. Using sample rate: 44100
+Cannot read track: D:\code\AudioLab\test_sep\gen_test.py
+Error message: 
+Cannot read track: D:\code\AudioLab\test_sep\stderr.txt
+Error message: 
+Cannot read track: D:\code\AudioLab\test_sep\stdout.txt
+Error message: 
+Elapsed time: 8.96 seconds.

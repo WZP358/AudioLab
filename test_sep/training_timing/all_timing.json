@@ -1,0 +1,38 @@
+[
+  {
+    "name": "SCNet",
+    "model_type": "scnet",
+    "measured_batch_size": 4,
+    "original_batch_size": 10,
+    "elapsed_seconds": 481.6,
+    "success": false,
+    "num_steps_completed": 0
+  },
+  {
+    "name": "Demucs4HT",
+    "model_type": "htdemucs",
+    "measured_batch_size": 1,
+    "original_batch_size": 8,
+    "elapsed_seconds": 33.1,
+    "success": false,
+    "num_steps_completed": 0
+  },
+  {
+    "name": "MDX23C",
+    "model_type": "mdx23c",
+    "measured_batch_size": 1,
+    "original_batch_size": 6,
+    "elapsed_seconds": 166.4,
+    "success": false,
+    "num_steps_completed": 0
+  },
+  {
+    "name": "BS-RoFormer",
+    "model_type": "bs_roformer",
+    "measured_batch_size": 1,
+    "original_batch_size": 1,
+    "elapsed_seconds": 237.9,
+    "success": false,
+    "num_steps_completed": 0
+  }
+]
