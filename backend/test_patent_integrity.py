@@ -19,14 +19,14 @@ class PatentIntegrityTests(unittest.TestCase):
             "task_id": 1,
             "algorithm": Algorithm.SCNET,
             "stem_name": "Vocals",
-            "quality": 80,
-            "interference": 75,
-            "artifacts": 70,
-            "overall_acceptability": 78,
+            "quality": 4,
+            "interference": 4,
+            "artifacts": 3,
+            "overall_acceptability": 4,
             "segment_start": 1.0,
             "segment_end": 3.0,
             "issue_tags": ["伴奏残留"],
-            "reliability": 90,
+            "reliability": 4,
         }
         data.update(overrides)
         return ScoreCreate(**data)
@@ -51,7 +51,7 @@ class PatentIntegrityTests(unittest.TestCase):
     def test_all_subjective_fields_are_range_checked(self):
         for field in ("quality", "interference", "artifacts", "overall_acceptability", "reliability"):
             with self.subTest(field=field), self.assertRaises(ValidationError):
-                self.valid_score(**{field: 101})
+                self.valid_score(**{field: 6})
 
     def test_custom_tags_are_normalized_and_deduplicated(self):
         score = self.valid_score(issue_tags=[" 自定义问题 ", "自定义问题"])

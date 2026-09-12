@@ -209,6 +209,12 @@ class MixRequest(BaseModel):
     mode: str = "remove"  # "keep" | "remove"
 
 
+def _assert_task_access(task: SeparationTask, current_user: User) -> None:
+    """All task artifacts are private to the owner unless viewed by admin."""
+    if current_user.role != Role.ADMIN and str(task.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="无权访问该任务")
+
+
 async def get_optional_user(authorization: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)):
     """可选的用户认证，如果未提供token则返回None"""
     if not authorization:
@@ -249,6 +255,7 @@ async def mix_stems_for_task(
     task_id: str,
     body: MixRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     根据用户选择的 stems 生成混合音频（可作为"自定义残差"或"自定义伴奏"使用）：
@@ -263,6 +270,7 @@ async def mix_stems_for_task(
     task = await db.get(SeparationTask, task_id_int)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
+    _assert_task_access(task, current_user)
 
     if not body.stem_names:
         raise HTTPException(status_code=400, detail="stem_names 不能为空")
@@ -498,7 +506,7 @@ async def claim_anonymous_task_history(
 
 
 @router.get("/queue/{task_id}/position")
-async def get_queue_position(task_id: str):
+async def get_queue_position(task_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     获取任务在队列中的位置信息
     
@@ -512,6 +520,10 @@ async def get_queue_position(task_id: str):
         task_id_int = int(task_id)
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="无效的任务ID")
+    task = await db.get(SeparationTask, task_id_int)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    _assert_task_access(task, current_user)
     
     queue_manager = await TaskQueueManager.get_instance()
     position_info = await queue_manager.get_queue_position(task_id_int)
@@ -523,7 +535,7 @@ async def get_queue_position(task_id: str):
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
-async def get_task(task_id: str, db: AsyncSession = Depends(get_db)):
+async def get_task(task_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """获取任务状态"""
     # 确保 task_id 是有效的整数（支持大整数）
     try:
@@ -578,6 +590,7 @@ async def get_task(task_id: str, db: AsyncSession = Depends(get_db)):
         
         logger.warning(error_detail)
         raise HTTPException(status_code=404, detail="任务不存在或已被删除")
+    _assert_task_access(task, current_user)
     
     logger.info(f"任务查询成功: task_id={task.id}, status={task.status}")
     return _attach_task_runtime_fields(task)
@@ -809,7 +822,7 @@ async def delete_task_history(
 
 
 @router.post("/{task_id}/cancel", response_model=TaskResponse)
-async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db)):
+async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     取消一个正在排队或处理中的分离任务。
 
@@ -826,13 +839,13 @@ async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db)):
     task = await db.get(SeparationTask, task_id_int)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
+    _assert_task_access(task, current_user)
 
     # 已经结束/失败的任务不允许重复取消，直接返回当前状态
-    if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
+    if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
         return task
 
-    # 使用 FAILED 状态 + 特殊 comment 表示"用户主动取消"
-    task.status = TaskStatus.FAILED
+    task.status = TaskStatus.CANCELLED
     task.comment = "任务已被用户取消"
 
     # 从队列中移除任务
@@ -856,7 +869,7 @@ async def cancel_task(task_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{task_id}/stems", response_model=list[StemResponse])
-async def get_stems(task_id: str, db: AsyncSession = Depends(get_db)):
+async def get_stems(task_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """获取分离后的音频文件列表"""
     # 确保 task_id 是有效的整数（支持大整数）
     try:
@@ -867,6 +880,7 @@ async def get_stems(task_id: str, db: AsyncSession = Depends(get_db)):
     task = await db.get(SeparationTask, task_id_int)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
+    _assert_task_access(task, current_user)
     
     result = await db.execute(
         select(StemFile).where(StemFile.task_id == task_id_int)
@@ -1008,6 +1022,33 @@ async def export_objective_stats_csv(db: AsyncSession = Depends(get_db)):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.get("/stats/objective/export-detail")
+async def export_objective_detail_csv(db: AsyncSession = Depends(get_db)):
+    """导出每个分离任务的客观指标明细，避免只提供算法聚合均值。"""
+    result = await db.execute(select(SeparationTask).where(SeparationTask.sdr.isnot(None)).order_by(SeparationTask.created_at.asc()))
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["task_id", "original_filename", "algorithm", "metric_scope", "stem_name", "segment_start", "segment_end", "sdr", "sir", "sar", "isr", "si_sdr", "metadata_json", "created_at"])
+    for task in result.scalars().all():
+        meta = _parse_task_metadata(task)
+        source_metrics = meta.get("metrics_by_source") if isinstance(meta.get("metrics_by_source"), dict) else {}
+        if source_metrics:
+            for stem_name, metrics in source_metrics.items():
+                metrics = metrics if isinstance(metrics, dict) else {}
+                writer.writerow([task.id, task.original_filename or "", task.algorithm.value if task.algorithm else "", "source", stem_name, "", "", metrics.get("sdr"), metrics.get("sir"), metrics.get("sar"), metrics.get("isr"), metrics.get("si_sdr"), task.metadata_json or "", task.created_at.isoformat() if task.created_at else ""])
+        else:
+            writer.writerow([task.id, task.original_filename or "", task.algorithm.value if task.algorithm else "", "task_average", "ALL", "", "", task.sdr, task.sir, task.sar, "", meta.get("si_sdr"), task.metadata_json or "", task.created_at.isoformat() if task.created_at else ""])
+    blind_result = await db.execute(select(BlindSample).where(BlindSample.objective_metrics_json.isnot(None)).order_by(BlindSample.created_at.asc()))
+    for sample in blind_result.scalars().all():
+        try:
+            metrics = json.loads(sample.objective_metrics_json or "{}")
+        except Exception:
+            metrics = {}
+        writer.writerow([sample.task_id, "", sample.algorithm.value if sample.algorithm else "", "clip", sample.stem_name, sample.start_seconds, sample.end_seconds, metrics.get("sdr"), metrics.get("sir"), metrics.get("sar"), metrics.get("isr"), metrics.get("si_sdr"), sample.objective_metrics_json or "", sample.created_at.isoformat() if sample.created_at else ""])
+    output.seek(0)
+    return StreamingResponse(iter([output.getvalue().encode("utf-8-sig")]), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f"attachment; filename=objective_detail_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"})
 
 
 @router.post("/stats/significance", response_model=ObjectiveSignificanceResponse)
@@ -1255,7 +1296,7 @@ async def download_stem(
     req: Request,
     task_id: str,
     stem_id: str,
-    current_user: Optional[User] = Depends(get_optional_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """下载分离后的音频文件（支持 Range 请求，用于音频播放）"""
@@ -1269,6 +1310,10 @@ async def download_stem(
     stem = await db.get(StemFile, stem_id_int)
     if not stem or stem.task_id != task_id_int:
         raise HTTPException(status_code=404, detail="未找到对应的声部文件")
+    task = await db.get(SeparationTask, task_id_int)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    _assert_task_access(task, current_user)
     
     file_path = Path(stem.file_path)
     if not file_path.exists():
@@ -1294,6 +1339,7 @@ async def download_stem(
 async def download_mixture_audio(
     task_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     下载原始混合音频文件（用于历史任务导入时还原 Input Source）。
@@ -1306,6 +1352,7 @@ async def download_mixture_audio(
     task = await db.get(SeparationTask, task_id_int)
     if not task or not task.file_path:
         raise HTTPException(status_code=404, detail="任务不存在")
+    _assert_task_access(task, current_user)
 
     file_path = Path(task.file_path)
     if not file_path.exists():
@@ -1334,6 +1381,7 @@ async def get_task_analysis(
     spec_freq_bins: int = 128,
     spec_time_bins: int = 256,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     返回用于前端"可视化分析"的轻量结果（波形 + 频谱）。
@@ -1351,6 +1399,7 @@ async def get_task_analysis(
     task = await db.get(SeparationTask, task_id_int)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
+    _assert_task_access(task, current_user)
 
     # 拉取 stems
     result = await db.execute(select(StemFile).where(StemFile.task_id == task_id_int))
@@ -1487,11 +1536,12 @@ async def compute_objective_metrics(
     if not estimate_path.exists():
         raise HTTPException(status_code=404, detail="算法输出声部文件不存在")
 
-    # 保存 reference 到临时文件
-    tmp_dir = Path(tempfile.gettempdir()) / "audiolab_objective_metrics" / str(task_id_int)
-    tmp_dir.mkdir(parents=True, exist_ok=True)
+    # References are part of the experiment record. Keep them under the task's
+    # persistent results directory so clip metrics still work after restart.
+    reference_dir = RESULTS_DIR / str(task_id_int) / "references"
+    reference_dir.mkdir(parents=True, exist_ok=True)
     safe_name = Path(reference.filename or "reference").name
-    ref_path = tmp_dir / f"ref_{target}_{safe_name}"
+    ref_path = reference_dir / f"ref_{target}_{uuid.uuid4().hex}_{safe_name}"
     try:
         ref_bytes = await reference.read()
         if not ref_bytes:
@@ -1553,6 +1603,7 @@ async def compute_objective_metrics(
             task,
             si_sdr=float(m.si_sdr) if m.si_sdr is not None else None,
             soc_by_stem=soc_by_stem,
+            reference_paths={**(_parse_task_metadata(task).get("reference_paths") or {}), target: str(ref_path)},
         )
         await db.commit()
         await db.refresh(task)
@@ -1637,10 +1688,10 @@ async def compute_objective_metrics_batch(
             detail=f"任务中缺少以下 stems 的分离结果: {', '.join(missing_stems)}"
         )
 
-    # 保存参考文件到临时目录
-    import tempfile
-    tmp_dir = Path(tempfile.gettempdir()) / "audiolab_multisource" / str(task_id_int)
-    tmp_dir.mkdir(parents=True, exist_ok=True)
+    # Keep references with the task. The clip evaluator reuses these paths and
+    # must not depend on the operating system's temporary directory.
+    reference_dir = RESULTS_DIR / str(task_id_int) / "references"
+    reference_dir.mkdir(parents=True, exist_ok=True)
 
     references = {}
     estimates = {}
@@ -1653,7 +1704,7 @@ async def compute_objective_metrics_batch(
                 raise HTTPException(status_code=400, detail=f"{stem_name} 参考文件为空")
 
             safe_name = Path(ref_file.filename or f"{stem_name}_ref").name
-            ref_path = tmp_dir / f"ref_{stem_name}_{safe_name}"
+            ref_path = reference_dir / f"ref_{stem_name}_{uuid.uuid4().hex}_{safe_name}"
             ref_path.write_bytes(ref_bytes)
             references[stem_name] = ref_path
 
@@ -1704,7 +1755,7 @@ async def compute_objective_metrics_batch(
             )
             soc_by_stem[stem_name] = float(compute_soc_from_spectrograms(analysis_ref.spectrogram, analysis_est.spectrogram))
 
-        _merge_task_metadata(task, si_sdr=avg_si_sdr, soc_by_stem=soc_by_stem)
+        _merge_task_metadata(task, si_sdr=avg_si_sdr, soc_by_stem=soc_by_stem, metrics_by_source=metrics.metrics_by_source, reference_paths={**(_parse_task_metadata(task).get("reference_paths") or {}), **{name: str(path) for name, path in references.items()}})
         await db.commit()
 
         return {
@@ -1739,6 +1790,7 @@ async def get_residual_audio(
     task_id: str,
     target: str = "Vocals",
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     残差播放器音频：
@@ -1755,6 +1807,7 @@ async def get_residual_audio(
     task = await db.get(SeparationTask, task_id_int)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
+    _assert_task_access(task, current_user)
 
     from sqlalchemy import select, func
 

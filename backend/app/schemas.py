@@ -101,20 +101,21 @@ class ObjectiveMetricsResponse(BaseModel):
 class StemScoreData(BaseModel):
     """单个源的评分数据"""
     stem_name: str  # Vocals, Drums, Bass, Other
-    quality: int  # 0-100
-    interference: int  # 0-100
-    artifacts: int  # 0-100
+    quality: int  # 1-5
+    interference: int  # 1-5
+    artifacts: int  # 1-5
     overall_acceptability: Optional[int] = None
     segment_start: Optional[float] = 0.0
     segment_end: Optional[float] = 15.0
     issue_tags: List[str] = Field(default_factory=list)
+    issue_annotations: List[dict] = Field(default_factory=list)
     reliability: Optional[int] = None
 
     @field_validator('quality', 'interference', 'artifacts', 'overall_acceptability', 'reliability')
     @classmethod
     def validate_score_range(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and not (0 <= v <= 100):
-            raise ValueError('评分必须在 0-100 之间')
+        if v is not None and not (1 <= v <= 5):
+            raise ValueError('评分必须在 1-5 之间')
         return v
 
     @field_validator('stem_name')
@@ -136,6 +137,23 @@ class StemScoreData(BaseModel):
                 cleaned.append(label)
         if len(cleaned) > 20:
             raise ValueError('单次评分最多选择 20 个标签')
+        return cleaned
+
+    @field_validator('issue_annotations')
+    @classmethod
+    def validate_issue_annotations(cls, v: List[dict]) -> List[dict]:
+        cleaned = []
+        for item in v:
+            if not isinstance(item, dict):
+                raise ValueError('问题标注必须是对象')
+            tag = str(item.get('tag', '')).strip()
+            start = float(item.get('start', 0))
+            end = float(item.get('end', 15))
+            if not tag or len(tag) > 100 or not (0 <= start < end <= 15):
+                raise ValueError('问题标注必须包含有效标签及0-15秒时间范围')
+            cleaned.append({'tag': tag, 'start': start, 'end': end, 'note': str(item.get('note', '')).strip()[:500]})
+        if len(cleaned) > 50:
+            raise ValueError('单次评分最多记录50个问题标注')
         return cleaned
 
     @model_validator(mode='after')
@@ -211,12 +229,13 @@ class ScoreUpdate(BaseModel):
     segment_end: Optional[float] = None
     issue_tags: Optional[List[str]] = None
     reliability: Optional[int] = None
+    reason: Optional[str] = Field(default=None, max_length=500)
 
     @field_validator('quality', 'interference', 'artifacts', 'overall_acceptability', 'reliability')
     @classmethod
     def validate_optional_score_range(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and not (0 <= v <= 100):
-            raise ValueError('评分必须在 0-100 之间')
+        if v is not None and not (1 <= v <= 5):
+            raise ValueError('评分必须在 1-5 之间')
         return v
 
     @model_validator(mode='after')
@@ -285,6 +304,7 @@ class BlindScoreCreate(BaseModel):
     segment_start: float = 0.0
     segment_end: float = 15.0
     issue_tags: List[str] = Field(default_factory=list)
+    issue_annotations: List[dict] = Field(default_factory=list)
     reliability: int
 
     @model_validator(mode='after')
@@ -298,14 +318,28 @@ class BlindScoreCreate(BaseModel):
             segment_start=self.segment_start,
             segment_end=self.segment_end,
             issue_tags=self.issue_tags,
+            issue_annotations=self.issue_annotations,
             reliability=self.reliability,
         )
         self.issue_tags = normalized.issue_tags
         self.segment_start = normalized.segment_start
         self.segment_end = normalized.segment_end
+        self.issue_annotations = normalized.issue_annotations
         if not self.blind_code.strip() or len(self.blind_code) > 64:
             raise ValueError('盲化样本编号无效')
         self.blind_code = self.blind_code.strip()
+        return self
+
+
+class BlindScoreBatchCreate(BaseModel):
+    """一次提交同一实验批次内多个盲化声源评分。"""
+    scores: List[BlindScoreCreate] = Field(min_length=1, max_length=4)
+
+    @model_validator(mode='after')
+    def validate_unique_codes(self):
+        codes = [item.blind_code for item in self.scores]
+        if len(codes) != len(set(codes)):
+            raise ValueError('批量盲化评分中不能重复提交同一个样本')
         return self
 
 

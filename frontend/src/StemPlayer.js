@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useMemo } from "react";
-import { Play, Pause, Download } from "lucide-react";
+import { Play, Pause, Download, Repeat } from "lucide-react";
 import { useGlobalPlayback } from "./GlobalPlaybackContext";
 import { useTheme } from "./ThemeContext";
 
@@ -54,6 +54,10 @@ export default function StemPlayer({
   playbackRate = 1.0,
   onPlaybackRateChange,
   showDownload = true,
+  loopStart = null,
+  loopEnd = null,
+  loopEnabled = false,
+  onLoopToggle,
 }) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -230,6 +234,9 @@ export default function StemPlayer({
     if (!audio) return;
 
     const handleTimeUpdate = () => {
+      if (loopEnabled && Number.isFinite(loopStart) && Number.isFinite(loopEnd) && loopEnd > loopStart && audio.currentTime >= loopEnd) {
+        audio.currentTime = loopStart;
+      }
       setCurrentTime(audio.currentTime);
     };
 
@@ -264,7 +271,7 @@ export default function StemPlayer({
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
     };
-  }, [url]);
+  }, [url, loopEnabled, loopStart, loopEnd]);
 
   // 外部“统一时间轴”同步：当自己不在播放时，让进度条跟随全局时间（并将音频指针同步到该位置，便于随时对齐播放）
   useEffect(() => {
@@ -449,6 +456,17 @@ export default function StemPlayer({
           className={`p-2 rounded-full transition flex-shrink-0 ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-400" : "bg-slate-100 hover:bg-slate-200 text-slate-600"}`}
         >
           <Download size={16} />
+        </button>
+      ) : null}
+      {typeof onLoopToggle === "function" ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onLoopToggle(); }}
+          title={loopEnabled ? "关闭问题区间循环" : "循环播放问题区间"}
+          aria-label={loopEnabled ? "关闭问题区间循环" : "循环播放问题区间"}
+          className={`p-2 rounded-full transition flex-shrink-0 ${loopEnabled ? "bg-cyan-600 text-white" : isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-400" : "bg-slate-100 hover:bg-slate-200 text-slate-600"}`}
+        >
+          <Repeat size={16} />
         </button>
       ) : null}
     </div>

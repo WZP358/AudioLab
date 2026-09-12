@@ -22,7 +22,7 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm,
                 return
 
             # 若任务已经被标记为"用户取消"，则不再进入真正的分离流程
-            if task.status == TaskStatus.FAILED and (task.comment or "").startswith("任务已被用户取消"):
+            if task.status == TaskStatus.CANCELLED:
                 print_progress_text(f"[任务 {task_id}] 已被用户取消，跳过分离处理。")
                 return
 
@@ -91,7 +91,7 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm,
 
             # 再次刷新任务，避免覆盖可能在分离过程中被设置的"用户取消"状态
             await session.refresh(task)
-            if task.status == TaskStatus.FAILED and (task.comment or "").startswith("任务已被用户取消"):
+            if task.status == TaskStatus.CANCELLED:
                 print_progress_text(f"[任务 {task_id}] 在分离过程中被用户取消，跳过结果写入。")
                 return
 
@@ -125,8 +125,7 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm,
             task_for_check = await session.get(SeparationTask, task_id)
             is_user_cancel = "CANCELLED_BY_USER" in str(e) or (
                 task_for_check is not None
-                and task_for_check.status == TaskStatus.FAILED
-                and (task_for_check.comment or "").startswith("任务已被用户取消")
+                and task_for_check.status == TaskStatus.CANCELLED
             )
 
             if is_user_cancel:
@@ -143,7 +142,7 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm,
                 task = await session.get(SeparationTask, task_id)
                 if task:
                     await session.refresh(task)
-                    if not (task.status == TaskStatus.FAILED and (task.comment or "").startswith("任务已被用户取消")):
+                    if task.status != TaskStatus.CANCELLED:
                         task.status = TaskStatus.FAILED
                         # 将错误信息保存到 comment 字段，方便前端显示
                         task.comment = f"分离失败: {msg}"

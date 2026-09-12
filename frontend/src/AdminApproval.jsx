@@ -104,6 +104,22 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   });
   const [blindTaskId, setBlindTaskId] = useState("");
   const [generatingBlind, setGeneratingBlind] = useState(false);
+  const [qualitySummary, setQualitySummary] = useState(null);
+  const [qualitySummaryLoading, setQualitySummaryLoading] = useState(false);
+  const [experimentTaskIds, setExperimentTaskIds] = useState("");
+  const [experimentName, setExperimentName] = useState("");
+  const [creatingExperiment, setCreatingExperiment] = useState(false);
+
+  const fetchQualitySummary = async () => {
+    setQualitySummaryLoading(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/scores/quality-summary`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "评分质量分析失败");
+      setQualitySummary(data);
+    } catch (e) { showError?.(e.message || "评分质量分析失败"); }
+    finally { setQualitySummaryLoading(false); }
+  };
 
   const generateBlindSamples = async () => {
     if (!blindTaskId.trim()) { showError("请输入已完成的任务ID"); return; }
@@ -119,6 +135,32 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       showSuccess(`已生成/复用 ${data.created_or_existing || 0} 个 15 秒盲化样本`);
     } catch (e) { showError(e.message || "生成盲化样本失败"); }
     finally { setGeneratingBlind(false); }
+  };
+  const calculateClipMetrics = async () => {
+    if (!blindTaskId.trim()) { showError("请输入已完成的任务ID"); return; }
+    try {
+      const resp = await fetch(`${API_BASE}/api/blind-samples/tasks/${Number(blindTaskId.trim())}/objective-metrics-clips`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "片段指标计算失败");
+      showSuccess(`已自动计算 ${data.completed || 0}/${data.total || 0} 个 15 秒片段指标`);
+    } catch (e) { showError(e.message || "片段指标计算失败"); }
+  };
+  const createBlindExperiment = async () => {
+    const taskIds = experimentTaskIds.split(/[,\s]+/).map((v) => Number(v)).filter((v) => Number.isInteger(v) && v > 0);
+    if (taskIds.length < 2) { showError("请输入至少两个已完成任务ID，并确保它们属于不同算法"); return; }
+    setCreatingExperiment(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/blind-samples/experiments`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: experimentName.trim() || `算法对比实验 ${new Date().toLocaleDateString()}`, task_ids: taskIds }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "创建实验批次失败");
+      showSuccess(`实验批次已创建：${data.sample_count} 个样本，已分配 ${data.expert_count} 位专家`);
+      setExperimentTaskIds("");
+    } catch (e) { showError(e.message || "创建实验批次失败"); }
+    finally { setCreatingExperiment(false); }
   };
   const [, setEditingScore] = useState(null);
 
@@ -2202,6 +2244,40 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                     导出全部主观评分
                   </button>
                   <button
+                    onClick={async () => {
+                      try {
+                        const resp = await fetch(`${API_BASE}/api/scores/export-quality`, { headers: { Authorization: `Bearer ${token}` } });
+                        if (!resp.ok) throw new Error("导出评分质量报告失败");
+                        const blob = await resp.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a"); a.href = url; a.download = "score_quality_report.csv"; a.click(); URL.revokeObjectURL(url);
+                      } catch (e) { showError?.(e.message || "导出失败"); }
+                    }}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm"
+                  >
+                    导出一致性报告
+                  </button>
+                  <button
+                    onClick={fetchQualitySummary}
+                    disabled={qualitySummaryLoading}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm disabled:opacity-50"
+                  >
+                    {qualitySummaryLoading ? "分析中..." : "查看一致性分析"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const resp = await fetch(`${API_BASE}/api/scores/training-feedback`, { headers: { Authorization: `Bearer ${token}` } });
+                        if (!resp.ok) throw new Error("生成训练反馈清单失败");
+                        const blob = new Blob([JSON.stringify(await resp.json(), null, 2)], { type: "application/json;charset=utf-8" });
+                        const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "training_feedback_manifest.json"; a.click(); URL.revokeObjectURL(url);
+                      } catch (e) { showError?.(e.message || "导出失败"); }
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm"
+                  >
+                    导出训练反馈清单
+                  </button>
+                  <button
                     onClick={fetchScores}
                     className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm flex items-center gap-2"
                   >
@@ -2209,10 +2285,23 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                     查询
                   </button>
                 </div>
+                {qualitySummary && (
+                  <div className="mt-4 rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/20 p-4">
+                    <div className="flex items-center justify-between gap-3 mb-3"><div><h4 className="font-semibold text-sm text-slate-800 dark:text-slate-100">评分一致性分析</h4><p className="text-xs text-slate-500 mt-1">Kendall W 低于 {qualitySummary.thresholds?.low_agreement_kendall_w ?? 0.3} 的项目需要复评。</p></div><button type="button" onClick={() => setQualitySummary(null)} className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white">收起</button></div>
+                    <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-slate-500"><th className="py-2 pr-4">声源</th><th className="py-2 pr-4">维度</th><th className="py-2 pr-4">共同样本</th><th className="py-2 pr-4">Kendall W</th><th className="py-2 pr-4">有效均值</th><th className="py-2">状态</th></tr></thead><tbody>{(qualitySummary.items || []).filter((item) => item.rated_items > 0).map((item) => <tr key={`${item.stem_name}-${item.dimension}`} className="border-t border-indigo-100 dark:border-indigo-900/40"><td className="py-2 pr-4">{item.stem_name}</td><td className="py-2 pr-4">{item.dimension}</td><td className="py-2 pr-4">{item.rated_items}</td><td className="py-2 pr-4 font-mono">{Number(item.kendall_w || 0).toFixed(3)}</td><td className="py-2 pr-4 font-mono">{item.final_mean_excluding_2std == null ? "-" : Number(item.final_mean_excluding_2std).toFixed(2)} / 5</td><td className={`py-2 font-semibold ${item.rerating_required ? "text-amber-600" : "text-emerald-600"}`}>{item.rerating_required ? "需要复评" : "可用"}</td></tr>)}</tbody></table></div>
+                  </div>
+                )}
                 <div className="mt-4 px-4 pb-4 pt-4 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-2">
                   <span className="text-xs text-slate-500">生成 15 秒盲化样本</span>
                   <input value={blindTaskId} onChange={(e) => setBlindTaskId(e.target.value)} placeholder="已完成任务 ID" className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 text-sm" />
                   <button onClick={generateBlindSamples} disabled={generatingBlind} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm disabled:opacity-50">{generatingBlind ? "生成中..." : "生成盲化样本"}</button>
+                  <button onClick={calculateClipMetrics} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm">批量计算片段指标</button>
+                  <div className="basis-full border-t border-slate-200 dark:border-slate-800 pt-3 mt-1 flex flex-wrap gap-2 items-center">
+                    <span className="text-xs text-slate-500">创建跨算法实验批次</span>
+                    <input value={experimentName} onChange={(e) => setExperimentName(e.target.value)} placeholder="实验名称" className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 text-sm" />
+                    <input value={experimentTaskIds} onChange={(e) => setExperimentTaskIds(e.target.value)} placeholder="任务 ID（逗号或空格分隔）" className="min-w-[240px] flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 text-sm" />
+                    <button onClick={createBlindExperiment} disabled={creatingExperiment} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm disabled:opacity-50">{creatingExperiment ? "创建中..." : "创建并分配"}</button>
+                  </div>
                 </div>
               </div>
 

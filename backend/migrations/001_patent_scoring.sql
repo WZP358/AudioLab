@@ -2,6 +2,14 @@
 -- 对应：Score 盲化评分字段、BlindSample 15 秒样本、StandardLabel 标准化标签。
 SET NAMES utf8mb4;
 
+-- 取消与失败是不同业务结果，保留旧状态并增加 CANCELLED。
+SET @status_ddl := IF(
+  EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'separation_tasks' AND COLUMN_NAME = 'status'),
+  'ALTER TABLE separation_tasks MODIFY COLUMN status ENUM(''PENDING'',''PROCESSING'',''COMPLETED'',''FAILED'',''CANCELLED'') NULL',
+  'SELECT 1'
+);
+PREPARE status_stmt FROM @status_ddl; EXECUTE status_stmt; DEALLOCATE PREPARE status_stmt;
+
 -- 幂等加列存储过程
 DROP PROCEDURE IF EXISTS audiolab_add_column;
 DELIMITER $$
@@ -22,11 +30,22 @@ END$$
 DELIMITER ;
 
 CALL audiolab_add_column('scores', 'overall_acceptability', 'INT NULL');
+CALL audiolab_add_column('blind_samples', 'objective_metrics_json', 'TEXT NULL');
 CALL audiolab_add_column('scores', 'blind_sample_id', 'BIGINT NULL');
 CALL audiolab_add_column('scores', 'segment_start', 'FLOAT NULL');
 CALL audiolab_add_column('scores', 'segment_end', 'FLOAT NULL');
 CALL audiolab_add_column('scores', 'issue_tags', 'TEXT NULL');
+CALL audiolab_add_column('scores', 'issue_annotations', 'TEXT NULL');
 CALL audiolab_add_column('scores', 'reliability', 'INT NULL');
+CALL audiolab_add_column('scores', 'updated_at', 'DATETIME NULL');
+CALL audiolab_add_column('scores', 'version', 'INT NOT NULL DEFAULT 1');
+CALL audiolab_add_column('scores', 'last_modified_by', 'VARCHAR(255) NULL');
+CALL audiolab_add_column('scores', 'modification_reason', 'VARCHAR(500) NULL');
+CALL audiolab_add_column('scores', 'is_deleted', 'BOOLEAN NOT NULL DEFAULT FALSE');
+CALL audiolab_add_column('scores', 'deleted_at', 'DATETIME NULL');
+CALL audiolab_add_column('scores', 'deleted_by', 'VARCHAR(255) NULL');
+CALL audiolab_add_column('scores', 'delete_reason', 'VARCHAR(500) NULL');
+CALL audiolab_add_column('blind_samples', 'sample_group_key', 'VARCHAR(255) NULL');
 
 -- 幂等唯一索引
 SET @idx_exists := (
@@ -51,10 +70,37 @@ CREATE TABLE IF NOT EXISTS blind_samples (
   start_seconds FLOAT NOT NULL DEFAULT 0,
   end_seconds FLOAT NOT NULL DEFAULT 15,
   file_path VARCHAR(500) NOT NULL,
+  objective_metrics_json TEXT NULL,
+  sample_group_key VARCHAR(255) NULL,
+  experiment_id BIGINT NULL,
   created_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_blind_samples_code (blind_code),
   KEY ix_blind_samples_task (task_id),
   KEY ix_blind_samples_stem (stem_name)
+  ,KEY ix_blind_samples_group (sample_group_key)
+  ,KEY ix_blind_samples_experiment (experiment_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS blind_experiments (
+  id BIGINT NOT NULL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  created_by VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  created_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_blind_experiments_creator (created_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS blind_assignments (
+  id BIGINT NOT NULL PRIMARY KEY,
+  experiment_id BIGINT NOT NULL,
+  blind_sample_id BIGINT NOT NULL,
+  expert_id VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'assigned',
+  assigned_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at DATETIME NULL,
+  UNIQUE KEY uq_blind_assignment (experiment_id, blind_sample_id, expert_id),
+  KEY ix_blind_assignment_expert (expert_id),
+  KEY ix_blind_assignment_sample (blind_sample_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS standard_labels (

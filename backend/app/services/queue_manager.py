@@ -42,6 +42,7 @@ class TaskQueueManager:
             async with cls._lock:
                 if cls._instance is None:
                     cls._instance = cls()
+                    asyncio.create_task(cls._instance._restore_pending_tasks())
                     for i in range(cls._instance.num_workers):
                         asyncio.create_task(cls._instance._worker_loop(i))
                     logger.info(
@@ -50,6 +51,18 @@ class TaskQueueManager:
                         cls._instance.num_gpus,
                     )
         return cls._instance
+
+    async def _restore_pending_tasks(self):
+        """Rebuild the in-memory queue after an application restart."""
+        try:
+            async with AsyncSessionLocal() as session:
+                from sqlalchemy import select
+                result = await session.execute(select(SeparationTask).where(SeparationTask.status == TaskStatus.PENDING))
+                for task in result.scalars().all():
+                    if task.file_path and os.path.exists(task.file_path):
+                        await self.add_task(task.id, task.file_path, task.algorithm)
+        except Exception:
+            logger.exception("恢复待处理任务队列失败")
 
     async def add_task(self, task_id: int, file_path: str, algorithm):
         async with self._task_lock:
@@ -106,9 +119,7 @@ class TaskQueueManager:
 
                 async with AsyncSessionLocal() as session:
                     db_task = await session.get(SeparationTask, task['task_id'])
-                    if db_task and db_task.status == TaskStatus.FAILED and (
-                        (db_task.comment or "").startswith("任务已被用户取消")
-                    ):
+                    if db_task and db_task.status == TaskStatus.CANCELLED:
                         logger.info(f"任务 {task['task_id']} 已被取消，跳过处理")
                         async with self._task_lock:
                             self.processing_ids.discard(task['task_id'])

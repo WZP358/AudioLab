@@ -25,6 +25,11 @@ async def lifespan(_app: FastAPI):
         async with engine.begin() as conn:
             await conn.execute(text("ALTER TABLE separation_tasks ADD COLUMN metadata_json TEXT NULL"))
             print("[OK] Auto-added column separation_tasks.metadata_json")
+            try:
+                await conn.execute(text("ALTER TABLE blind_samples ADD COLUMN objective_metrics_json TEXT NULL"))
+            except Exception as exc:
+                if "duplicate column" not in str(exc).lower() and "already exists" not in str(exc).lower():
+                    logging.warning("补齐 blind_samples.objective_metrics_json 失败: %s", exc)
             # 清理头像相关字段（如果存在）
             try:
                 await conn.execute(text("ALTER TABLE users DROP COLUMN avatar_url"))

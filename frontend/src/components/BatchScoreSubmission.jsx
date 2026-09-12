@@ -19,9 +19,9 @@ const SCORE_DIMENSIONS = [
 
 export function BatchScoreSubmission({ taskId, algorithm, onSuccess, onError }) {
   const [scores, setScores] = useState(() => {
-    // 初始化所有源的评分为50
+    // 初始化所有源的评分为3（专利量表为1-5分）
     return REQUIRED_STEMS.reduce((acc, stem) => {
-      acc[stem] = { quality: 50, interference: 50, artifacts: 50 };
+      acc[stem] = { quality: 3, interference: 3, artifacts: 3 };
       return acc;
     }, {});
   });
@@ -35,7 +35,7 @@ export function BatchScoreSubmission({ taskId, algorithm, onSuccess, onError }) 
     return SCORE_DIMENSIONS.every(dim => {
       const value = scores[stemName][dim.key];
       return value !== undefined && value !== null && value !== '' &&
-             !isNaN(Number(value)) && Number(value) >= 0 && Number(value) <= 100;
+             !isNaN(Number(value)) && Number(value) >= 1 && Number(value) <= 5;
     });
   };
 
@@ -50,7 +50,7 @@ export function BatchScoreSubmission({ taskId, algorithm, onSuccess, onError }) 
       ...prev,
       [stemName]: {
         ...prev[stemName],
-        [dimension]: Math.max(0, Math.min(100, parseInt(value) || 0))
+        [dimension]: Math.max(1, Math.min(5, parseInt(value) || 1))
       }
     }));
     setValidationErrors([]);
@@ -72,8 +72,8 @@ export function BatchScoreSubmission({ taskId, algorithm, onSuccess, onError }) 
           errors.push(`${stem} 的 ${dim.label} 未填写`);
         } else {
           const numValue = Number(value);
-          if (isNaN(numValue) || numValue < 0 || numValue > 100) {
-            errors.push(`${stem} 的 ${dim.label} 必须在 0-100 之间`);
+          if (isNaN(numValue) || numValue < 1 || numValue > 5) {
+            errors.push(`${stem} 的 ${dim.label} 必须在 1-5 之间`);
           }
         }
       });
@@ -138,7 +138,7 @@ export function BatchScoreSubmission({ taskId, algorithm, onSuccess, onError }) 
         <h3>主观评分提交</h3>
         <p className="description">
           请为所有4个源（Vocals, Drums, Bass, Other）的分离结果进行评分。
-          每个源包含3个维度，评分范围 0-100。
+          每个源包含3个维度，评分范围 1-5 分。
         </p>
         <div className="progress-indicator">
           <div className="progress-bar">
@@ -188,9 +188,9 @@ export function BatchScoreSubmission({ taskId, algorithm, onSuccess, onError }) 
                   {/* 滑块 */}
                   <input
                     type="range"
-                    min="0"
-                    max="100"
-                    value={scores[stem]?.[dim.key] || 50}
+                    min="1"
+                    max="5"
+                    value={scores[stem]?.[dim.key] || 3}
                     onChange={(e) => updateScore(stem, dim.key, e.target.value)}
                     className="score-slider"
                   />
@@ -198,9 +198,9 @@ export function BatchScoreSubmission({ taskId, algorithm, onSuccess, onError }) 
                   {/* 数值输入 */}
                   <input
                     type="number"
-                    min="0"
-                    max="100"
-                    value={scores[stem]?.[dim.key] || 50}
+                    min="1"
+                    max="5"
+                    value={scores[stem]?.[dim.key] || 3}
                     onChange={(e) => updateScore(stem, dim.key, e.target.value)}
                     className="score-number"
                   />

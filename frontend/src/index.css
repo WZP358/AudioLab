@@ -31,7 +31,7 @@ body {
 }
 
 @media (min-width: 1024px) {
-  .app-main {
+  .dashboard-page {
     height: 100vh;
     overflow: hidden;
   }

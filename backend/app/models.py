@@ -10,6 +10,7 @@ class TaskStatus(str, enum.Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class Algorithm(str, enum.Enum):
@@ -142,15 +143,24 @@ class Score(Base):
     algorithm = Column(SQLEnum(Algorithm))
     # 主观评分维度：增加 stem_name，将评分细化到单一声源
     stem_name = Column(String(50), nullable=True, index=True)  # Vocals, Drums, Bass, Other
-    quality = Column(Integer)  # 0-100
-    interference = Column(Integer)  # 0-100
-    artifacts = Column(Integer)  # 0-100
-    overall_acceptability = Column(Integer, nullable=True)  # 0-100
+    quality = Column(Integer)  # 1-5
+    interference = Column(Integer)  # 1-5
+    artifacts = Column(Integer)  # 1-5
+    overall_acceptability = Column(Integer, nullable=True)  # 1-5
     segment_start = Column(Float, nullable=True)  # seconds within the 15-second clip
     segment_end = Column(Float, nullable=True)
     issue_tags = Column(Text, nullable=True)  # JSON array of standardized labels
-    reliability = Column(Integer, nullable=True)  # 0-100, expert confidence
+    issue_annotations = Column(Text, nullable=True)  # JSON array: tag/start/end/note per issue
+    reliability = Column(Integer, nullable=True)  # 1-5, expert confidence
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=func.now())
+    version = Column(Integer, nullable=False, default=1)
+    last_modified_by = Column(String(255), nullable=True)
+    modification_reason = Column(String(500), nullable=True)
+    is_deleted = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_by = Column(String(255), nullable=True)
+    delete_reason = Column(String(500), nullable=True)
 
 
 class BlindSample(Base):
@@ -163,8 +173,32 @@ class BlindSample(Base):
     stem_name = Column(String(50), nullable=False, index=True)
     start_seconds = Column(Float, nullable=False, default=0.0)
     end_seconds = Column(Float, nullable=False, default=15.0)
+    sample_group_key = Column(String(255), nullable=True, index=True)
     file_path = Column(String(500), nullable=False)
+    objective_metrics_json = Column(Text, nullable=True)  # 该15秒片段的客观指标
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class BlindExperiment(Base):
+    """A comparison batch that groups equivalent clips from multiple algorithms."""
+    __tablename__ = "blind_experiments"
+    id = Column(BigInteger, primary_key=True, index=True, default=generate_id)
+    name = Column(String(255), nullable=False)
+    created_by = Column(String(255), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="active")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class BlindAssignment(Base):
+    """One exact blind sample assigned to one expert in an experiment."""
+    __tablename__ = "blind_assignments"
+    id = Column(BigInteger, primary_key=True, index=True, default=generate_id)
+    experiment_id = Column(BigInteger, nullable=False, index=True)
+    blind_sample_id = Column(BigInteger, nullable=False, index=True)
+    expert_id = Column(String(255), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="assigned")
+    assigned_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class StandardLabel(Base):

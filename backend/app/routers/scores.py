@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+﻿from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, distinct
 from typing import List, Dict, Optional
@@ -7,6 +7,7 @@ import csv
 import io
 import math
 import random
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -36,36 +37,158 @@ async def export_scores_csv(
     """管理员批量导出全部专家主观评分，便于提交专利/实验材料。"""
     if current_user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="仅管理员可导出评分")
-    result = await db.execute(select(Score).order_by(Score.created_at.asc()))
+    result = await db.execute(select(Score).where(Score.is_deleted.is_(False)).order_by(Score.created_at.asc()))
     blind_result = await db.execute(select(BlindSample))
     blind_by_id = {item.id: item for item in blind_result.scalars().all()}
     output = io.StringIO(newline="")
     writer = csv.writer(output)
-    writer.writerow(["score_id", "user_id", "task_id", "blind_code", "algorithm", "stem_name", "quality", "interference", "artifacts", "overall_acceptability", "segment_start", "segment_end", "issue_tags", "reliability", "created_at"])
+    writer.writerow(["score_id", "user_id", "task_id", "blind_code", "algorithm", "stem_name", "quality", "interference", "artifacts", "overall_acceptability", "segment_start", "segment_end", "issue_tags", "issue_annotations", "reliability", "created_at"])
     for row in result.scalars().all():
         blind = blind_by_id.get(row.blind_sample_id)
-        writer.writerow([row.id, row.user_id, row.task_id, blind.blind_code if blind else "", row.algorithm.value if row.algorithm else "", row.stem_name or "", row.quality, row.interference, row.artifacts, row.overall_acceptability if row.overall_acceptability is not None else "", row.segment_start if row.segment_start is not None else "", row.segment_end if row.segment_end is not None else "", row.issue_tags or "[]", row.reliability if row.reliability is not None else "", row.created_at.isoformat() if row.created_at else ""])
+        writer.writerow([row.id, row.user_id, row.task_id, blind.blind_code if blind else "", row.algorithm.value if row.algorithm else "", row.stem_name or "", row.quality, row.interference, row.artifacts, row.overall_acceptability if row.overall_acceptability is not None else "", row.segment_start if row.segment_start is not None else "", row.segment_end if row.segment_end is not None else "", row.issue_tags or "[]", row.issue_annotations or "[]", row.reliability if row.reliability is not None else "", row.created_at.isoformat() if row.created_at else ""])
     from fastapi.responses import StreamingResponse
     return StreamingResponse(iter([output.getvalue().encode("utf-8-sig")]), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=subjective_scores.csv"})
 
-def _to_0_100(value: Optional[float]) -> float:
-    """
-    统一评分口径为 0~100。
-    兼容历史数据：若值疑似为 0~1（比例），则放大到 0~100。
-    """
+
+@router.get("/export-quality")
+async def export_score_quality_report(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export multi-rater agreement and outlier flags without deleting raw scores."""
+    if current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="仅管理员可导出评分质量报告")
+    result = await db.execute(select(Score).where(Score.is_deleted.is_(False)).order_by(Score.task_id, Score.stem_name, Score.created_at))
+    rows = list(result.scalars().all())
+    groups = {}
+    for row in rows:
+        key = (row.task_id, row.stem_name, row.blind_sample_id)
+        groups.setdefault(key, []).append(row)
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(["task_id", "stem_name", "blind_sample_id", "dimension", "score_id", "user_id", "value", "group_mean", "group_std", "is_outlier", "included_in_final"])
+    for (task_id, stem_name, blind_id), group in groups.items():
+        for dimension in ("quality", "interference", "artifacts", "overall_acceptability"):
+            values = [float(getattr(item, dimension)) for item in group if getattr(item, dimension) is not None]
+            mean = float(np.mean(values)) if values else 0.0
+            std = float(np.std(values)) if len(values) > 1 else 0.0
+            for item in group:
+                value = getattr(item, dimension)
+                outlier = bool(value is not None and len(values) >= 3 and std > 0 and abs(float(value) - mean) > 2 * std)
+                writer.writerow([task_id, stem_name or "", blind_id or "", dimension, item.id, item.user_id, value if value is not None else "", mean, std, outlier, not outlier])
+    output.seek(0)
+    return StreamingResponse(iter([output.getvalue().encode("utf-8-sig")]), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=score_quality_report.csv"})
+
+
+@router.get("/quality-summary")
+async def get_score_quality_summary(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """返回多专家一致性、低一致性复评提示及剔除异常值后的最终均值。"""
+    if current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="仅管理员可查看评分质量分析")
+    result = await db.execute(select(Score).where(Score.is_deleted.is_(False)).order_by(Score.created_at.asc()))
+    rows = list(result.scalars().all())
+    dimensions = ("quality", "interference", "artifacts", "overall_acceptability")
+    summary = []
+    for stem in sorted({row.stem_name or "ALL" for row in rows}):
+        for dimension in dimensions:
+            item_raters = {}
+            for row in rows:
+                if (row.stem_name or "ALL") != stem or row.blind_sample_id is None:
+                    continue
+                value = getattr(row, dimension)
+                if value is not None:
+                    item_raters.setdefault(str(row.blind_sample_id), {})[str(row.user_id)] = float(value)
+            common_items = {item: raters for item, raters in item_raters.items() if len(raters) >= 2}
+            users = sorted({user for raters in common_items.values() for user in raters})
+            complete_users = [user for user in users if all(user in raters for raters in common_items.values())]
+            matrix = np.array([[common_items[item][user] for item in common_items] for user in complete_users], dtype=float) if complete_users else np.empty((0, 0))
+            agreement = _kendall_w(matrix)
+            all_values = [value for raters in common_items.values() for value in raters.values()]
+            mean = float(np.mean(all_values)) if all_values else None
+            std = float(np.std(all_values)) if len(all_values) > 1 else 0.0
+            kept = [value for value in all_values if not (len(all_values) >= 3 and std > 0 and abs(value - mean) > 2 * std)]
+            summary.append({
+                "stem_name": stem,
+                "dimension": dimension,
+                "rated_items": len(common_items),
+                "raters": len(complete_users),
+                "kendall_w": round(agreement, 6),
+                "low_agreement": bool(len(complete_users) >= 2 and agreement < 0.3),
+                "rerating_required": bool(len(complete_users) >= 2 and agreement < 0.3),
+                "raw_mean": mean,
+                "raw_std": std,
+                "final_mean_excluding_2std": float(np.mean(kept)) if kept else None,
+                "outliers_removed": len(all_values) - len(kept),
+            })
+    return {"thresholds": {"low_agreement_kendall_w": 0.3, "outlier_sigma": 2}, "items": summary}
+
+
+@router.get("/training-feedback")
+async def export_training_feedback_manifest(
+    current_user: User = Depends(get_current_user),
+    stem_name: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """生成可供训练脚本消费的主观反馈清单，不声称已经完成模型训练。"""
+    if current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="仅管理员可生成训练反馈清单")
+    result = await db.execute(select(Score, BlindSample).join(BlindSample, BlindSample.id == Score.blind_sample_id).where(Score.is_deleted.is_(False)).order_by(Score.created_at.asc()))
+    examples = []
+    tag_counts = {}
+    for score, sample in result.all():
+        if stem_name and score.stem_name != stem_name:
+            continue
+        try:
+            tags = json.loads(score.issue_tags or "[]")
+            tags = tags if isinstance(tags, list) else []
+        except Exception:
+            tags = []
+        try:
+            annotations = json.loads(score.issue_annotations or "[]")
+            annotations = annotations if isinstance(annotations, list) else []
+        except Exception:
+            annotations = []
+        values = [score.quality, score.interference, score.artifacts, score.overall_acceptability]
+        present_values = [value for value in values if value is not None]
+        # A malformed/legacy row must not crash the whole manifest or receive
+        # a fabricated training weight.
+        if not present_values:
+            continue
+        mean_score = float(np.mean(present_values))
+        priority = max(0.1, min(1.0, (5.0 - mean_score) / 4.0 + min(0.4, 0.08 * len(tags))))
+        for tag in tags:
+            tag_counts[str(tag)] = tag_counts.get(str(tag), 0) + 1
+        examples.append({
+            "blind_code": sample.blind_code,
+            "task_id": str(score.task_id),
+            "stem_name": score.stem_name,
+            "segment_start": score.segment_start,
+            "segment_end": score.segment_end,
+            "issue_tags": tags,
+            "issue_annotations": annotations,
+            "scores": {"quality": score.quality, "interference": score.interference, "artifacts": score.artifacts, "overall_acceptability": score.overall_acceptability},
+            "reliability": score.reliability,
+            "recommended_weight": round(priority, 6),
+            "training_candidate": bool(mean_score <= 3.0 and (score.reliability is None or score.reliability >= 3)),
+        })
+    return {"schema_version": "1.0", "scale": "1-5", "objective": "将低主观质量且可靠性合格的 15 秒片段优先作为训练/微调候选", "tag_counts": tag_counts, "total_examples": len(examples), "examples": examples}
+
+def _to_1_5(value: Optional[float]) -> float:
+    """统一输出专利要求的 1~5，兼容历史 0~1 或 0~100 数据。"""
     if value is None:
         return 0.0
     try:
         v = float(value)
     except Exception:
         return 0.0
-    if v <= 1.0:
-        v *= 100.0
-    if v < 0:
-        return 0.0
-    if v > 100:
-        return 100.0
-    return v
+    if 0 < v <= 1.0:
+        v *= 5.0
+    elif v > 5.0:
+        v /= 20.0
+    return max(1.0, min(5.0, v)) if v > 0 else 0.0
 
 
 def _extract_si_sdr(metadata_json: Optional[str], comment: Optional[str]) -> Optional[float]:
@@ -107,6 +230,18 @@ def _extract_soc(metadata_json: Optional[str], comment: Optional[str], stem_name
     return None
 
 
+def _extract_clip_metric(raw: Optional[str], name: str) -> Optional[float]:
+    """Read a metric calculated for the exact blind 15-second interval."""
+    if not raw:
+        return None
+    try:
+        data = json.loads(str(raw))
+        value = data.get(name) if isinstance(data, dict) else None
+        return float(value) if value is not None else None
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+
 def _rankdata_average(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     """
     将 x 转为"平均秩"（tie 使用平均秩）。
@@ -146,6 +281,18 @@ def _spearmanr_rho(x: np.ndarray, y: np.ndarray) -> float:
     if math.isnan(rho) or math.isinf(rho):
         return 0.0
     return rho
+
+
+def _kendall_w(matrix: np.ndarray) -> float:
+    """计算多评审者 Kendall 协调系数 W；输入形状为评审者 x 样本。"""
+    values = np.asarray(matrix, dtype=np.float64)
+    if values.ndim != 2 or values.shape[0] < 2 or values.shape[1] < 2:
+        return 0.0
+    ranked = np.vstack([_rankdata_average(row) for row in values])
+    sums = ranked.sum(axis=0)
+    centered = sums - sums.mean()
+    denominator = values.shape[0] ** 2 * (values.shape[1] ** 3 - values.shape[1])
+    return float(max(0.0, min(1.0, 12.0 * float(np.sum(centered ** 2)) / denominator))) if denominator else 0.0
 
 
 def _permutation_p_one_sided_spearman(
@@ -207,7 +354,7 @@ async def create_score_batch(
     要求：
     - 仅专家可用
     - 必须同时提交 Vocals, Drums, Bass, Other 四个源的评分
-    - 每个源的评分维度：quality, interference, artifacts（0-100）
+    - 每个源的评分维度：quality, interference, artifacts（1-5）
 
     优点：
     - 确保评分完整性，避免遗漏
@@ -243,6 +390,7 @@ async def create_score_batch(
     # 检查是否已经提交过评分（避免重复提交）
     existing_scores = await db.execute(
         select(Score).where(
+            Score.is_deleted.is_(False),
             (Score.user_id == str(current_user.id))
             & (Score.task_id == score_data.task_id)
             & (Score.algorithm == score_data.algorithm)
@@ -314,13 +462,13 @@ async def create_score(
     if task.algorithm != score_data.algorithm:
         raise HTTPException(status_code=400, detail="评分算法与分离任务实际算法不一致")
 
-    # 简单数值校验：评分应在 0~100 之间，防止前端异常数据写入
+    # 简单数值校验：评分应在 1~5 之间，防止前端异常数据写入
     for field in ("quality", "interference", "artifacts"):
         value = getattr(score_data, field, None)
-        if value is None or not (0 <= value <= 100):
+        if value is None or not (1 <= value <= 5):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"{field} 评分应在 0~100 之间",
+                detail=f"{field} 评分应在 1~5 之间",
             )
 
     score = Score(
@@ -363,7 +511,7 @@ async def get_scores(
 
     from sqlalchemy import select
 
-    q = select(Score)
+    q = select(Score).where(Score.is_deleted.is_(False))
     if user_id is not None:
         q = q.where(Score.user_id == str(user_id))
     if task_id is not None:
@@ -393,7 +541,7 @@ async def get_my_scores(
     if current_user.role not in (Role.EXPERT, Role.ADMIN):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限查看评分记录")
 
-    q = select(Score).where(Score.user_id == str(current_user.id))
+    q = select(Score).where(Score.user_id == str(current_user.id), Score.is_deleted.is_(False))
     if task_id is not None:
         q = q.where(Score.task_id == task_id)
     if algorithm is not None:
@@ -408,11 +556,12 @@ async def get_my_scores(
 @router.delete("/{score_id}")
 async def delete_score(
     score_id: int,
+    reason: Optional[str] = Query(None, max_length=500),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """删除单条评分记录（专家仅可删除自己的记录；管理员可删除任意记录）"""
-    result = await db.execute(select(Score).where(Score.id == score_id))
+    result = await db.execute(select(Score).where(Score.id == score_id, Score.is_deleted.is_(False)))
     score = result.scalars().first()
     if not score:
         raise HTTPException(status_code=404, detail="评分记录不存在")
@@ -426,7 +575,11 @@ async def delete_score(
     else:
         raise HTTPException(status_code=403, detail="无权限删除评分记录")
 
-    await db.delete(score)
+    score.is_deleted = True
+    score.deleted_at = datetime.now(timezone.utc)
+    score.deleted_by = str(current_user.id)
+    score.delete_reason = (reason or "未填写").strip()
+    score.version = int(score.version or 1) + 1
     await db.commit()
     return {"message": "评分记录已删除", "score_id": str(score_id)}
 
@@ -441,7 +594,7 @@ async def update_score(
     """更新评分记录（专家仅可修改自己的记录；管理员可修改任意记录）"""
     from sqlalchemy import select
 
-    result = await db.execute(select(Score).where(Score.id == score_id))
+    result = await db.execute(select(Score).where(Score.id == score_id, Score.is_deleted.is_(False)))
     score = result.scalars().first()
     if not score:
         raise HTTPException(status_code=404, detail="评分记录不存在")
@@ -456,10 +609,14 @@ async def update_score(
         raise HTTPException(status_code=403, detail="无权限修改评分记录")
 
     data = score_data.dict(exclude_unset=True)
+    reason = str(data.pop("reason", "") or "未填写").strip()[:500]
     for field, value in data.items():
         if field == "issue_tags" and isinstance(value, list):
             value = json.dumps(value, ensure_ascii=False)
         setattr(score, field, value)
+    score.version = int(score.version or 1) + 1
+    score.last_modified_by = str(current_user.id)
+    score.modification_reason = reason
 
     await db.commit()
     await db.refresh(score)
@@ -485,7 +642,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
             func.avg(Score.interference).label("avg_interference"),
             func.avg(Score.artifacts).label("avg_artifacts"),
             func.count(Score.id).label("total_scores"),
-        ).group_by(Score.algorithm, Score.stem_name)
+        ).where(Score.is_deleted.is_(False)).group_by(Score.algorithm, Score.stem_name)
     )
 
     stats_list: list[StatsResponse] = []
@@ -495,9 +652,9 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
                 StatsResponse(
                     algorithm=row.algorithm,
                     stem_name=row.stem_name or "ALL",
-                    avg_quality=_to_0_100(row.avg_quality),
-                    avg_interference=_to_0_100(row.avg_interference),
-                    avg_artifacts=_to_0_100(row.avg_artifacts),
+                    avg_quality=_to_1_5(row.avg_quality),
+                    avg_interference=_to_1_5(row.avg_interference),
+                    avg_artifacts=_to_1_5(row.avg_artifacts),
                     total_scores=int(row.total_scores),
                 )
             )
@@ -523,7 +680,7 @@ async def get_detailed_stats(db: AsyncSession = Depends(get_db)):
             func.avg(Score.artifacts).label("avg_artifacts"),
             func.count(Score.id).label("total_scores"),
             func.count(distinct(Score.user_id)).label("unique_experts"),
-        ).group_by(Score.algorithm, stem_name_expr)
+        ).where(Score.is_deleted.is_(False)).group_by(Score.algorithm, stem_name_expr)
     )
 
     stats_list: list[DetailedStatsResponse] = []
@@ -533,9 +690,9 @@ async def get_detailed_stats(db: AsyncSession = Depends(get_db)):
                 DetailedStatsResponse(
                     algorithm=row.algorithm,
                     stem_name=row.stem_name or "ALL",
-                    avg_quality=_to_0_100(row.avg_quality),
-                    avg_interference=_to_0_100(row.avg_interference),
-                    avg_artifacts=_to_0_100(row.avg_artifacts),
+                    avg_quality=_to_1_5(row.avg_quality),
+                    avg_interference=_to_1_5(row.avg_interference),
+                    avg_artifacts=_to_1_5(row.avg_artifacts),
                     total_scores=int(row.total_scores),
                     unique_experts=int(row.unique_experts or 0),
                 )
@@ -575,7 +732,7 @@ async def get_algorithm_comparison(db: AsyncSession = Depends(get_db)):
             func.avg(Score.interference).label("avg_interference"),
             func.avg(Score.artifacts).label("avg_artifacts"),
             func.count(Score.id).label("total_scores"),
-        ).group_by(Score.algorithm)
+        ).where(Score.is_deleted.is_(False)).group_by(Score.algorithm)
     )
 
     # 获取按算法和stem的详细统计
@@ -588,7 +745,7 @@ async def get_algorithm_comparison(db: AsyncSession = Depends(get_db)):
             func.avg(Score.interference).label("avg_interference"),
             func.avg(Score.artifacts).label("avg_artifacts"),
             func.count(Score.id).label("total_scores"),
-        ).group_by(Score.algorithm, stem_name_expr)
+        ).where(Score.is_deleted.is_(False)).group_by(Score.algorithm, stem_name_expr)
     )
 
     # 构建stem统计字典
@@ -602,9 +759,9 @@ async def get_algorithm_comparison(db: AsyncSession = Depends(get_db)):
                 StatsResponse(
                     algorithm=row.algorithm,
                     stem_name=row.stem_name or "ALL",
-                    avg_quality=_to_0_100(row.avg_quality),
-                    avg_interference=_to_0_100(row.avg_interference),
-                    avg_artifacts=_to_0_100(row.avg_artifacts),
+                    avg_quality=_to_1_5(row.avg_quality),
+                    avg_interference=_to_1_5(row.avg_interference),
+                    avg_artifacts=_to_1_5(row.avg_artifacts),
                     total_scores=int(row.total_scores),
                 )
             )
@@ -617,9 +774,9 @@ async def get_algorithm_comparison(db: AsyncSession = Depends(get_db)):
             comparison_list.append(
                 AlgorithmComparisonResponse(
                     algorithm=row.algorithm,
-                    overall_avg_quality=_to_0_100(row.avg_quality),
-                    overall_avg_interference=_to_0_100(row.avg_interference),
-                    overall_avg_artifacts=_to_0_100(row.avg_artifacts),
+                    overall_avg_quality=_to_1_5(row.avg_quality),
+                    overall_avg_interference=_to_1_5(row.avg_interference),
+                    overall_avg_artifacts=_to_1_5(row.avg_artifacts),
                     total_scores=int(row.total_scores),
                     stem_breakdown=stem_stats_dict.get(algo_key, []),
                 )
@@ -646,7 +803,8 @@ async def get_subjective_objective_points(
     - 支持按 algorithm / stem_name 过滤。
 
     说明：
-    - 仅返回存在任务级 sdr 的样本（即对应 SeparationTask.sdr 非空）。
+    - 盲化评分优先关联 BlindSample.objective_metrics_json 中同一 15 秒片段的指标；
+      没有片段指标时才回退到任务级指标，并在返回值中保留可识别的任务级口径。
     """
     limit = max(50, min(5000, int(limit or 500)))
 
@@ -658,6 +816,7 @@ async def get_subjective_objective_points(
             Score.quality,
             Score.interference,
             Score.artifacts,
+            BlindSample.objective_metrics_json,
             SeparationTask.sdr,
             SeparationTask.sir,
             SeparationTask.sar,
@@ -665,11 +824,18 @@ async def get_subjective_objective_points(
             SeparationTask.comment,
         )
         .join(
+            BlindSample,
+            BlindSample.id == Score.blind_sample_id,
+        )
+        .join(
             SeparationTask,
             (SeparationTask.id == Score.task_id)
             & (SeparationTask.algorithm == Score.algorithm),
         )
-        .where(SeparationTask.sdr.isnot(None))
+        .where(
+            BlindSample.objective_metrics_json.isnot(None)
+            | SeparationTask.sdr.isnot(None)
+        )
     )
 
     if algorithm is not None:
@@ -689,14 +855,14 @@ async def get_subjective_objective_points(
                 task_id=row.task_id,
                 algorithm=row.algorithm,
                 stem_name=row.stem_name,
-                quality=_to_0_100(row.quality),
-                interference=_to_0_100(row.interference),
-                artifacts=_to_0_100(row.artifacts),
+                quality=_to_1_5(row.quality),
+                interference=_to_1_5(row.interference),
+                artifacts=_to_1_5(row.artifacts),
                 soc=_extract_soc(row.metadata_json, row.comment, row.stem_name),
-                sdr=float(row.sdr) if row.sdr is not None else None,
-                sir=float(row.sir) if row.sir is not None else None,
-                sar=float(row.sar) if row.sar is not None else None,
-                si_sdr=_extract_si_sdr(row.metadata_json, row.comment),
+                sdr=_extract_clip_metric(row.objective_metrics_json, "sdr") if _extract_clip_metric(row.objective_metrics_json, "sdr") is not None else (float(row.sdr) if row.sdr is not None else None),
+                sir=_extract_clip_metric(row.objective_metrics_json, "sir") if _extract_clip_metric(row.objective_metrics_json, "sir") is not None else (float(row.sir) if row.sir is not None else None),
+                sar=_extract_clip_metric(row.objective_metrics_json, "sar") if _extract_clip_metric(row.objective_metrics_json, "sar") is not None else (float(row.sar) if row.sar is not None else None),
+                si_sdr=_extract_clip_metric(row.objective_metrics_json, "si_sdr") if _extract_clip_metric(row.objective_metrics_json, "si_sdr") is not None else _extract_si_sdr(row.metadata_json, row.comment),
             )
         )
 
@@ -733,15 +899,24 @@ async def get_soc_quality_correlation(
             Score.quality,
             Score.interference,
             Score.artifacts,
+            BlindSample.objective_metrics_json,
+            SeparationTask.sdr,
             SeparationTask.metadata_json,
             SeparationTask.comment,
+        )
+        .join(
+            BlindSample,
+            BlindSample.id == Score.blind_sample_id,
         )
         .join(
             SeparationTask,
             (SeparationTask.id == Score.task_id)
             & (SeparationTask.algorithm == Score.algorithm),
         )
-        .where(SeparationTask.sdr.isnot(None))
+        .where(
+            BlindSample.objective_metrics_json.isnot(None)
+            | SeparationTask.sdr.isnot(None)
+        )
     )
     if algorithm is not None:
         stmt = stmt.where(Score.algorithm == algorithm)
@@ -761,7 +936,7 @@ async def get_soc_quality_correlation(
         soc = _extract_soc(row.metadata_json, row.comment, row.stem_name)
         if soc is None:
             continue
-        q = _to_0_100(float(row.quality))
+        q = _to_1_5(float(row.quality))
         soc_list.append(float(soc))
         q_list.append(float(q))
 

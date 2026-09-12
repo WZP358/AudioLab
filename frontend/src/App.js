@@ -63,6 +63,7 @@ const VIEW_TO_PATH = {
   dashboard: "/",
   stats: "/stats",
   manual: "/manual",
+  blind: "/blind-score",
 };
 const normalizePathname = (pathname) => {
   if (typeof pathname !== "string") return "/";
@@ -78,6 +79,81 @@ const normalizePathname = (pathname) => {
 const PATH_TO_VIEW = Object.fromEntries(
   Object.entries(VIEW_TO_PATH).map(([view, path]) => [path, view]),
 );
+
+function BlindScoringPage({ isDark, authToken, blindSamples, setBlindSamples, standardLabels, apiBase, showError, showSuccess }) {
+  const [selectedCode, setSelectedCode] = useState(blindSamples[0]?.blind_code || "");
+  const [audioUrl, setAudioUrl] = useState("");
+  const [loopEnabled, setLoopEnabled] = useState(false);
+  const [form, setForm] = useState({ quality: 3, interference: 3, artifacts: 3, overall_acceptability: 3, segment_start: 0, segment_end: 15, issue_tags: [], issue_annotations: [], reliability: 3 });
+  const sample = blindSamples.find((item) => item.blind_code === selectedCode) || blindSamples[0];
+  const stemName = sample?.stem_name || "Other";
+  const tags = standardLabels[stemName]?.length ? standardLabels[stemName] : (STANDARD_ISSUE_TAGS[stemName] || STANDARD_ISSUE_TAGS.Other);
+  const inputClass = `rounded border ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-800"}`;
+
+  useEffect(() => {
+    if (!sample?.blind_code) return;
+    setSelectedCode(sample.blind_code);
+  }, [sample?.blind_code]);
+
+  useEffect(() => {
+    let objectUrl = "";
+    if (!selectedCode || !authToken) return undefined;
+    fetch(`${apiBase}/api/blind-samples/${encodeURIComponent(selectedCode)}/audio`, { headers: { Authorization: `Bearer ${authToken}` } })
+      .then((response) => { if (!response.ok) throw new Error("音频加载失败"); return response.blob(); })
+      .then((blob) => { objectUrl = URL.createObjectURL(blob); setAudioUrl(objectUrl); })
+      .catch(() => setAudioUrl(""));
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [apiBase, authToken, selectedCode]);
+
+  useEffect(() => {
+    setLoopEnabled(false);
+    setForm({ quality: 3, interference: 3, artifacts: 3, overall_acceptability: 3, segment_start: 0, segment_end: 15, issue_tags: [], issue_annotations: [], reliability: 3 });
+  }, [selectedCode]);
+
+  const updateForm = (patch) => setForm((previous) => ({ ...previous, ...patch }));
+  const setTimeRange = (key, value) => {
+    const numeric = Math.max(0, Math.min(15, Number(value)));
+    updateForm({ [key]: numeric });
+  };
+  const toggleTag = (tag) => {
+    const active = form.issue_tags.includes(tag);
+    updateForm({
+      issue_tags: active ? form.issue_tags.filter((item) => item !== tag) : [...form.issue_tags, tag],
+      issue_annotations: active ? form.issue_annotations.filter((item) => item.tag !== tag) : [...form.issue_annotations, { tag, start: form.segment_start, end: form.segment_end, note: "" }],
+    });
+  };
+  const updateAnnotation = (index, patch) => updateForm({ issue_annotations: form.issue_annotations.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) });
+  const submit = async () => {
+    if (!sample?.blind_code) return;
+    if (form.segment_start >= form.segment_end) { showError("问题开始时间必须早于结束时间"); return; }
+    const response = await fetch(`${apiBase}/api/blind-samples/score`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` }, body: JSON.stringify({ blind_code: sample.blind_code, ...form }) });
+    if (!response.ok) { showError(`盲化评分未保存：${await response.text()}`); return; }
+    setBlindSamples((items) => items.filter((item) => item.blind_code !== sample.blind_code));
+    showSuccess("盲化评分已提交");
+  };
+
+  return <main className={`min-h-screen pt-24 pb-10 px-4 ${isDark ? "bg-slate-900 text-slate-100" : "bg-slate-50 text-slate-800"}`}>
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-5"><div className="text-xs uppercase tracking-widest text-cyan-500">Blind evaluation</div><h1 className="text-2xl font-bold mt-1">盲化专家评分</h1><p className="text-sm mt-2 text-slate-500">只显示盲化编号和目标声源，不显示算法、任务编号或原始文件名。</p></div>
+      {!sample ? <div className={`rounded-xl border p-8 text-center ${isDark ? "border-slate-700 bg-slate-800/60" : "border-slate-200 bg-white"}`}>暂无待评分的 15 秒盲化样本</div> : <div className="grid gap-5 lg:grid-cols-[1fr_1.15fr]">
+        <section className={`rounded-xl border p-5 ${isDark ? "border-slate-700 bg-slate-800/60" : "border-slate-200 bg-white"}`}>
+          <label className="block text-sm font-semibold">盲化样本<select value={sample.blind_code} onChange={(event) => setSelectedCode(event.target.value)} className={`mt-2 w-full rounded border px-3 py-2 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`}>{blindSamples.map((item) => <option key={item.blind_code} value={item.blind_code}>{item.blind_code}</option>)}</select></label>
+          <div className="mt-5 flex items-center justify-between"><span className="text-sm text-slate-500">目标声源</span><strong>{stemName}</strong></div>
+          {audioUrl && <StemPlayer name="盲化样本" src={audioUrl} showDownload={false} loopStart={form.segment_start} loopEnd={form.segment_end} loopEnabled={loopEnabled} onLoopToggle={() => setLoopEnabled((value) => !value)} />}
+          <p className="text-xs text-slate-500 mt-3">设置问题时间范围后点击播放器的循环按钮，可反复试听该区间。</p>
+        </section>
+        <section className={`rounded-xl border p-5 ${isDark ? "border-slate-700 bg-slate-800/60" : "border-slate-200 bg-white"}`}>
+          <div className="grid grid-cols-2 gap-3">{[["quality","声源完整性"],["interference","非目标声源干扰抑制"],["artifacts","算法伪影控制"],["overall_acceptability","整体可接受度"]].map(([key,label]) => <label key={key} className="text-sm">{label}<div className="flex items-center gap-2 mt-1"><input type="range" min="1" max="5" value={form[key]} onChange={(event) => updateForm({ [key]: Number(event.target.value) })} className="w-full accent-cyan-500" /><span className="w-8 text-right font-mono text-cyan-500">{form[key]} / 5</span></div></label>)}</div>
+          <div className="grid grid-cols-2 gap-3 mt-5"><label className="text-xs">问题开始（秒）<input type="number" min="0" max="15" step="0.1" value={form.segment_start} onChange={(event) => setTimeRange("segment_start", event.target.value)} className={`mt-1 w-full rounded border px-2 py-2 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} /></label><label className="text-xs">问题结束（秒）<input type="number" min="0" max="15" step="0.1" value={form.segment_end} onChange={(event) => setTimeRange("segment_end", event.target.value)} className={`mt-1 w-full rounded border px-2 py-2 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} /></label></div>
+          <div className="mt-5"><div className="text-xs mb-2">标准化听感问题（可多选）</div><div className="flex flex-wrap gap-2">{tags.map((tag) => <button type="button" key={tag} onClick={() => toggleTag(tag)} className={`px-2 py-1 text-xs rounded border ${form.issue_tags.includes(tag) ? "bg-cyan-600 border-cyan-500 text-white" : "border-slate-300 text-slate-600"}`}>{tag}</button>)}</div></div>
+          {form.issue_annotations.length > 0 && <div className="mt-4 space-y-2">{form.issue_annotations.map((item,index) => <div key={`${item.tag}-${index}`} className={`rounded border p-2 ${isDark ? "border-slate-700 bg-slate-900/50" : "border-slate-200 bg-slate-50"}`}><div className="flex justify-between text-xs font-semibold"><span>{item.tag}</span><button type="button" onClick={() => toggleTag(item.tag)} className="text-red-500">删除</button></div><div className="grid grid-cols-2 gap-2 mt-2"><input type="number" min="0" max="15" step="0.1" value={item.start} onChange={(event) => updateAnnotation(index, { start: Number(event.target.value) })} className={`${inputClass} px-2 py-1 text-xs`} /><input type="number" min="0" max="15" step="0.1" value={item.end} onChange={(event) => updateAnnotation(index, { end: Number(event.target.value) })} className={`${inputClass} px-2 py-1 text-xs`} /></div><input value={item.note || ""} onChange={(event) => updateAnnotation(index, { note: event.target.value })} placeholder="备注（可选）" className={`mt-2 w-full ${inputClass} px-2 py-1 text-xs`} /></div>)}</div>}
+          <label className="block text-sm mt-5">主观评分可靠性：{form.reliability} / 5<input type="range" min="1" max="5" value={form.reliability} onChange={(event) => updateForm({ reliability: Number(event.target.value) })} className="mt-2 w-full accent-cyan-500" /></label>
+          <button type="button" onClick={submit} className="w-full mt-6 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-3">提交盲化评分</button>
+        </section>
+      </div>}
+    </div>
+  </main>;
+}
 
 const STANDARD_ISSUE_TAGS = {
   Vocals: ["音色变薄", "齿音异常", "人声残留", "伴奏残留", "尾音截断", "声像不稳定"],
@@ -3213,7 +3289,7 @@ export default function AudioLabApp() {
     try {
       // 1) 获取任务信息，确认任务存在且已完成
       const taskUrl = `${API_BASE}/api/tasks/${encodeURIComponent(taskIdStr)}`;
-      const taskResp = await fetch(taskUrl);
+      const taskResp = await fetch(taskUrl, { headers: { Authorization: `Bearer ${authToken}` } });
       let taskText = await taskResp.text();
       if (!taskResp.ok) {
         throw new Error(taskText || "加载历史任务失败");
@@ -3233,6 +3309,7 @@ export default function AudioLabApp() {
       // 2) 拉取 stems 列表
       const stemsResp = await fetch(
         `${API_BASE}/api/tasks/${encodeURIComponent(taskIdStr)}/stems`,
+        { headers: { Authorization: `Bearer ${authToken}` } },
       );
       if (!stemsResp.ok) throw new Error(await stemsResp.text());
 
@@ -3261,7 +3338,7 @@ export default function AudioLabApp() {
       const stemsWithFiles = await Promise.all(
         stemsMapped.map(async (s) => {
           try {
-            const resp = await fetch(s.src);
+            const resp = await fetch(s.src, { headers: { Authorization: `Bearer ${authToken}` } });
             if (!resp.ok) throw new Error(`fetch stem failed: ${resp.status}`);
             const blob = await resp.blob();
             const ext = blob.type?.includes("mpeg")
@@ -4319,7 +4396,7 @@ export default function AudioLabApp() {
       // 开始轮询队列位置
       const pollQueuePosition = async () => {
         try {
-          const resp = await fetch(`${API_BASE}/api/tasks/queue/${taskIdStr}/position`);
+          const resp = await fetch(`${API_BASE}/api/tasks/queue/${taskIdStr}/position`, { headers: { Authorization: `Bearer ${authToken}` } });
           if (resp.ok) {
             const positionInfo = await resp.json();
             setQueuePosition(positionInfo);
@@ -4378,7 +4455,7 @@ export default function AudioLabApp() {
         const url = `${API_BASE}/api/tasks/${taskIdStr}`;
         
         try {
-          const r = await fetch(url);
+          const r = await fetch(url, { headers: { Authorization: `Bearer ${authToken}` } });
           let responseText = await r.text();
           
           if (!r.ok) {
@@ -4427,6 +4504,7 @@ export default function AudioLabApp() {
           try {
             await fetch(`${API_BASE}/api/tasks/${taskIdStr}/cancel`, {
               method: "POST",
+              headers: { Authorization: `Bearer ${authToken}` },
             });
           } catch (e) {
             console.error("取消任务失败:", e);
@@ -4490,7 +4568,7 @@ export default function AudioLabApp() {
       setProgressText("处理完成，正在加载结果...");
 
       // 3) 拉取 stems 列表，并用下载链接作为播放源
-      const stemsResp = await fetch(`${API_BASE}/api/tasks/${taskIdStr}/stems`);
+      const stemsResp = await fetch(`${API_BASE}/api/tasks/${taskIdStr}/stems`, { headers: { Authorization: `Bearer ${authToken}` } });
       if (!stemsResp.ok) throw new Error(await stemsResp.text());
       
       // 修复 stem ID 精度问题（与 task ID 相同）
@@ -4523,7 +4601,7 @@ export default function AudioLabApp() {
         stemsMapped.map(async (s) => {
           try {
             console.log(`[runSeparation] 正在预取 stem: ${s.name}, URL: ${s.src}`);
-            const resp = await fetch(s.src);
+            const resp = await fetch(s.src, { headers: { Authorization: `Bearer ${authToken}` } });
             if (!resp.ok) throw new Error(`fetch stem failed: ${resp.status}`);
             const blob = await resp.blob();
             console.log(`[runSeparation] 预取成功: ${s.name}`, {
@@ -4588,6 +4666,7 @@ export default function AudioLabApp() {
       try {
         const aResp = await fetch(
           `${API_BASE}/api/tasks/${taskIdStr}/analysis?target=Vocals&include_all_stems=true`,
+          { headers: { Authorization: `Bearer ${authToken}` } },
         );
         if (aResp.ok) {
           // 修复分析数据中的 task_id 精度问题
@@ -4950,14 +5029,15 @@ export default function AudioLabApp() {
     // 当前 stem 的主观评分（滑条）
     const currentScore =
       stemScores[currentStemName] || {
-        quality: 50,
-        interference: 50,
-        artifacts: 50,
-        overall_acceptability: 50,
+        quality: 3,
+        interference: 3,
+        artifacts: 3,
+        overall_acceptability: 3,
         segment_start: 0,
         segment_end: 15,
-        issue_tags: [],
-        reliability: 80,
+          issue_tags: [],
+          issue_annotations: [],
+          reliability: 3,
       };
 
     // 当前任务的客观指标（来自后端任务结果），与该 stem 的主观评分一并存储
@@ -4980,6 +5060,7 @@ export default function AudioLabApp() {
           segment_start: currentScore.segment_start,
           segment_end: currentScore.segment_end,
           issue_tags: currentScore.issue_tags || [],
+          issue_annotations: currentScore.issue_annotations || [],
           reliability: currentScore.reliability,
         }),
       });
@@ -5016,12 +5097,11 @@ export default function AudioLabApp() {
 
   // Aggregated Stats for Chart（仅基于后端“全站”统计；不再混入本地浏览器历史评分）
   const radarModel = useMemo(() => {
-    const to0to100 = (value) => {
+    const to1to5 = (value) => {
       const v = Number(value);
       if (!Number.isFinite(v)) return 0;
-      // 兼容历史/异常口径：若是 0~1，转为 0~100
-      const scaled = v <= 1 ? v * 100 : v;
-      return Math.max(0, Math.min(100, scaled));
+      const scaled = v > 5 ? v / 20 : (v > 0 && v <= 1 ? v * 5 : v);
+      return Math.max(0, Math.min(5, scaled));
     };
 
     // 颜色映射（不在映射表内的算法用 fallback 配色）
@@ -5096,7 +5176,7 @@ export default function AudioLabApp() {
       const data = metrics.map((metric) => {
         const row = {
           subject: metric.subject,
-          fullMark: 100,
+          fullMark: 5,
         };
         effectiveSelection.forEach((algoName) => {
           const base = statsByName[algoName];
@@ -5125,7 +5205,7 @@ export default function AudioLabApp() {
             }
           }
 
-          row[algoName] = source ? to0to100(source[metric.key]) : 0;
+          row[algoName] = source ? to1to5(source[metric.key]) : 0;
         });
         return row;
       });
@@ -5196,6 +5276,7 @@ export default function AudioLabApp() {
             {[
               { id: "dashboard", label: "工作台", icon: Layers },
               { id: "stats", label: "实验统计", icon: BarChart2 },
+              ...(user.role === "expert" ? [{ id: "blind", label: "盲化评分", icon: Headphones }] : []),
             ].map((item) => (
               <button
                 key={item.id}
@@ -5260,7 +5341,9 @@ export default function AudioLabApp() {
         />
       )}
 
-      <main className="app-main pt-20 pb-8 px-3 sm:px-4 max-w-7xl mx-auto">
+      {currentView === "blind" ? (
+        <BlindScoringPage isDark={isDark} authToken={authToken} blindSamples={blindSamples} setBlindSamples={setBlindSamples} standardLabels={standardLabels} apiBase={API_BASE} showError={showError} showSuccess={showSuccess} />
+      ) : <main className={`app-main ${currentView === "dashboard" ? "dashboard-page" : "scroll-page"} pt-20 pb-8 px-3 sm:px-4 max-w-7xl mx-auto`}>
         {currentView === "manual" && (
           <UserManual onBack={() => setCurrentView("dashboard")} />
         )}
@@ -6609,14 +6692,14 @@ export default function AudioLabApp() {
                         const stemName = currentStem?.name || "GLOBAL";
                         const currentScore =
                           stemScores[stemName] || {
-                            quality: 50,
-                            interference: 50,
-                            artifacts: 50,
-                            overall_acceptability: 50,
+                            quality: 3,
+                            interference: 3,
+                            artifacts: 3,
+                            overall_acceptability: 3,
                             segment_start: 0,
                             segment_end: 15,
                             issue_tags: [],
-                            reliability: 80,
+                            reliability: 3,
                           };
                         const metrics = [
                           {
@@ -6638,14 +6721,14 @@ export default function AudioLabApp() {
                             <div className="flex justify-between text-sm mb-2">
                               <span className={isDark ? "text-slate-300" : "text-slate-700"}>{m.label}</span>
                               <span className={isDark ? "font-mono text-cyan-400" : "font-mono text-cyan-600"}>
-                                {currentScore[m.key]}
+                                {currentScore[m.key]} / 5
                               </span>
                             </div>
                             <div className="flex items-center gap-3">
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const next = Math.max(0, (currentScore[m.key] ?? 0) - 1);
+                                  const next = Math.max(1, (currentScore[m.key] ?? 1) - 1);
                                   setStemScores((prev) => ({
                                     ...prev,
                                     [stemName]: {
@@ -6663,8 +6746,8 @@ export default function AudioLabApp() {
                               </button>
                               <input
                                 type="range"
-                                min="0"
-                                max="100"
+                                min="1"
+                                max="5"
                                 value={currentScore[m.key]}
                                 onChange={(e) => {
                                   const v = parseInt(e.target.value, 10);
@@ -6684,7 +6767,7 @@ export default function AudioLabApp() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const next = Math.min(100, (currentScore[m.key] ?? 0) + 1);
+                                  const next = Math.min(5, (currentScore[m.key] ?? 1) + 1);
                                   setStemScores((prev) => ({
                                     ...prev,
                                     [stemName]: {
@@ -6707,7 +6790,7 @@ export default function AudioLabApp() {
 
                       {(() => {
                         const stemName = currentStem?.name || "GLOBAL";
-                        const currentScore = stemScores[stemName] || { quality: 50, interference: 50, artifacts: 50, overall_acceptability: 50, segment_start: 0, segment_end: 15, issue_tags: [], reliability: 80 };
+                        const currentScore = stemScores[stemName] || { quality: 3, interference: 3, artifacts: 3, overall_acceptability: 3, segment_start: 0, segment_end: 15, issue_tags: [], issue_annotations: [], reliability: 3 };
                         const update = (patch) => setStemScores((prev) => ({ ...prev, [stemName]: { ...currentScore, ...patch } }));
                         const tags = standardLabels[stemName]?.length ? standardLabels[stemName] : (STANDARD_ISSUE_TAGS[stemName] || STANDARD_ISSUE_TAGS.Other);
                         return (
@@ -6718,10 +6801,11 @@ export default function AudioLabApp() {
                             </div>
                             <div>
                               <div className="text-xs mb-2">标准化评语标签（可多选）</div>
-                              <div className="flex flex-wrap gap-2">{tags.map((tag) => { const active = currentScore.issue_tags?.includes(tag); return <button type="button" key={tag} onClick={() => update({ issue_tags: active ? currentScore.issue_tags.filter((x) => x !== tag) : [...(currentScore.issue_tags || []), tag] })} className={`px-2 py-1 text-xs rounded border ${active ? "bg-cyan-600 border-cyan-500 text-white" : isDark ? "border-slate-600 text-slate-300" : "border-slate-300 text-slate-700"}`}>{tag}</button>; })}</div>
+                              <div className="flex flex-wrap gap-2">{tags.map((tag) => { const active = currentScore.issue_tags?.includes(tag); const annotation = (currentScore.issue_annotations || []).find((item) => item.tag === tag); return <button type="button" key={tag} onClick={() => update({ issue_tags: active ? currentScore.issue_tags.filter((x) => x !== tag) : [...(currentScore.issue_tags || []), tag], issue_annotations: active ? (currentScore.issue_annotations || []).filter((item) => item.tag !== tag) : [...(currentScore.issue_annotations || []), { tag, start: currentScore.segment_start, end: currentScore.segment_end, note: "" }] })} className={`px-2 py-1 text-xs rounded border ${annotation ? "bg-cyan-600 border-cyan-500 text-white" : isDark ? "border-slate-600 text-slate-300" : "border-slate-300 text-slate-700"}`}>{tag}</button>; })}</div>
+                              {(currentScore.issue_annotations || []).length > 0 && <div className="mt-3 space-y-1">{currentScore.issue_annotations.map((item, index) => <div key={`${item.tag}-${index}`} className={`flex items-center justify-between gap-2 rounded border px-2 py-1 text-[11px] ${isDark ? "border-slate-700 bg-slate-900/60 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-700"}`}><span className="truncate">{item.tag}</span><span className="font-mono">{Number(item.start).toFixed(1)}s-{Number(item.end).toFixed(1)}s</span></div>)}</div>}
                               <input type="text" placeholder="补充本次评分的自定义标签，回车确认" className={`mt-3 w-full rounded border px-2 py-2 text-xs ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} onKeyDown={(e) => { if (e.key === "Enter" && e.currentTarget.value.trim()) { e.preventDefault(); const custom = e.currentTarget.value.trim(); if (!currentScore.issue_tags?.includes(custom)) update({ issue_tags: [...(currentScore.issue_tags || []), custom] }); e.currentTarget.value = ""; } }} />
                             </div>
-                            <label className="block text-xs">主观可靠性：{currentScore.reliability}%<input type="range" min="0" max="100" value={currentScore.reliability} onChange={(e) => update({ reliability: Number(e.target.value) })} className="mt-2 w-full accent-cyan-500" /></label>
+                            <label className="block text-xs">主观可靠性：{currentScore.reliability} / 5<input type="range" min="1" max="5" value={currentScore.reliability} onChange={(e) => update({ reliability: Number(e.target.value) })} className="mt-2 w-full accent-cyan-500" /></label>
                           </div>
                         );
                       })()}
@@ -6956,7 +7040,7 @@ export default function AudioLabApp() {
                                   />
                                   <PolarRadiusAxis
                                     angle={30}
-                                    domain={[0, 100]}
+                                    domain={[0, 5]}
                                     tick={false}
                                     axisLine={false}
                                   />
@@ -7002,7 +7086,7 @@ export default function AudioLabApp() {
             </div>
           </div>
           <nav className={`mt-4 lg:hidden flex gap-1 overflow-x-auto p-1 rounded-lg border ${isDark ? "bg-slate-800/70 border-slate-700/60" : "bg-slate-100 border-slate-200"}`} aria-label="页面导航">
-            {[{ id: "dashboard", label: "工作台", icon: Layers }, { id: "stats", label: "实验统计", icon: BarChart2 }].map((item) => (
+            {[{ id: "dashboard", label: "工作台", icon: Layers }, { id: "stats", label: "实验统计", icon: BarChart2 }, ...(user.role === "expert" ? [{ id: "blind", label: "盲化评分", icon: Headphones }] : [])].map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -7791,7 +7875,7 @@ export default function AudioLabApp() {
                           <BarChart data={chartData}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                             <XAxis dataKey="stem" stroke="#94a3b8" fontSize={10} />
-                            <YAxis stroke="#94a3b8" domain={[0, 100]} />
+                            <YAxis stroke="#94a3b8" domain={[0, 5]} />
                             <RechartsTooltip
                               contentStyle={{
                                 backgroundColor: "#0f172a",
@@ -7923,7 +8007,7 @@ export default function AudioLabApp() {
                               {algo.algorithm}
                             </h4>
                             <p className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                              总体评分: {(algo.overall_avg_quality ?? 0).toFixed(1)} / 100 | 
+                              总体评分: {(algo.overall_avg_quality ?? 0).toFixed(1)} / 5 |
                               共 {algo.total_scores} 份评分
                             </p>
                           </div>
@@ -7977,7 +8061,7 @@ export default function AudioLabApp() {
             </div>
           </div>
         )}
-      </main>
+      </main>}
 
       {/* 音频资源选择器 */}
       {showResourceSelector && (
@@ -8012,6 +8096,7 @@ export default function AudioLabApp() {
             try {
               await fetch(`${API_BASE}/api/tasks/${taskId}/cancel`, {
                 method: "POST",
+                headers: { Authorization: `Bearer ${authToken}` },
               });
             } catch (e) {
               console.error("取消任务失败:", e);

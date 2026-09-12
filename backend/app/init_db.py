@@ -21,6 +21,8 @@ from app.models import (
     SystemConfig,
     Notification,
     ExpertMessage,
+    BlindExperiment,
+    BlindAssignment,
 )
 
 
@@ -55,12 +57,24 @@ async def init_db():
                     print(f"⚠️  修改 username collation 时出现警告（可忽略）: {e}")
             # 评分增强字段：对已有数据库幂等补列
             for ddl in (
+                "ALTER TABLE separation_tasks MODIFY COLUMN status ENUM('PENDING','PROCESSING','COMPLETED','FAILED','CANCELLED') NULL",
                 "ALTER TABLE scores ADD COLUMN overall_acceptability INT NULL",
                 "ALTER TABLE scores ADD COLUMN blind_sample_id BIGINT NULL",
                 "ALTER TABLE scores ADD COLUMN segment_start FLOAT NULL",
                 "ALTER TABLE scores ADD COLUMN segment_end FLOAT NULL",
                 "ALTER TABLE scores ADD COLUMN issue_tags TEXT NULL",
+                "ALTER TABLE scores ADD COLUMN issue_annotations TEXT NULL",
                 "ALTER TABLE scores ADD COLUMN reliability INT NULL",
+                "ALTER TABLE scores ADD COLUMN updated_at DATETIME NULL",
+                "ALTER TABLE scores ADD COLUMN version INT NOT NULL DEFAULT 1",
+                "ALTER TABLE scores ADD COLUMN last_modified_by VARCHAR(255) NULL",
+                "ALTER TABLE scores ADD COLUMN modification_reason VARCHAR(500) NULL",
+                "ALTER TABLE scores ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT FALSE",
+                "ALTER TABLE scores ADD COLUMN deleted_at DATETIME NULL",
+                "ALTER TABLE scores ADD COLUMN deleted_by VARCHAR(255) NULL",
+                "ALTER TABLE scores ADD COLUMN delete_reason VARCHAR(500) NULL",
+                "ALTER TABLE blind_samples ADD COLUMN sample_group_key VARCHAR(255) NULL",
+                "ALTER TABLE blind_samples ADD COLUMN experiment_id BIGINT NULL",
                 "ALTER TABLE scores ADD UNIQUE INDEX uq_scores_user_blind_sample (user_id, blind_sample_id)",
             ):
                 try:
