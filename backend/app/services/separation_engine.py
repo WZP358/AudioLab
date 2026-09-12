@@ -129,7 +129,7 @@ class SeparationResult:
 
 class SeparationEngine:
     async def separate(
-        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None
+        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None, gpu_id: Optional[int] = None
     ) -> SeparationResult:
         raise NotImplementedError
 
@@ -150,7 +150,7 @@ class _MSSModelSpec:
 
 class MockSeparationEngine(SeparationEngine):
     async def separate(
-        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None
+        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None, gpu_id: Optional[int] = None
     ) -> SeparationResult:
         task_prefix = f"[任务 {task_id}]" if task_id else "[Mock]"
         print_progress_text(f"{task_prefix} 开始 Mock 分离处理...")
@@ -376,7 +376,7 @@ class MSSLocalEngine(SeparationEngine):
         return spec, config_path, ckpt_path
 
     async def separate(
-        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None
+        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None, gpu_id: Optional[int] = None
     ) -> SeparationResult:
         """
         使用 MSS 仓库的 inference.py 对单个音频文件做分离。
@@ -387,6 +387,8 @@ class MSSLocalEngine(SeparationEngine):
         3. 扫描 results_dir 下生成的 `<file_name>/<instr>.wav`，
            统一整理为 Vocals/Drums/Bass/Other 等 stem 名。
         """
+        if gpu_id is not None:
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
         task_prefix = f"[任务 {task_id}]" if task_id else "[MSS]"
         results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -699,7 +701,7 @@ class HttpSeparationEngine(SeparationEngine):
         logger.info(f"HttpSeparationEngine 初始化: url={url}, timeout={timeout_s}s")
 
     async def separate(
-        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None
+        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None, gpu_id: Optional[int] = None
     ) -> SeparationResult:
         """
         调用远程 HTTP API 进行音频分离
@@ -852,7 +854,7 @@ class LocalSeparationEngine(SeparationEngine):
         self._command = command
 
     async def separate(
-        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None
+        self, *, input_path: Path, algorithm: Algorithm, results_dir: Path, task_id: Optional[int] = None, gpu_id: Optional[int] = None
     ) -> SeparationResult:
         """
         保持向后兼容：如果你已经有现成的本地脚本（例如调用 ByteDance 的 music_source_separation），

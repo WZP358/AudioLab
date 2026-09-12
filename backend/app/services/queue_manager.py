@@ -1,9 +1,12 @@
 """
 任务队列管理器
-用于管理音频分离任务的排队和处理，防止并发任务过多导致系统崩溃
+用于管理音频分离任务的排队和处理。支持多卡并发：默认启动 N 个 worker（N=显卡数），
+每个 worker 固定绑定一张 GPU，通过 process_separation 的 gpu_id 把 CUDA_VISIBLE_DEVICES
+传给分离子进程，从而同时吃满多张 GPU。
 """
 import asyncio
 import logging
+import os
 from typing import Optional, Dict
 from collections import deque
 from app.models import SeparationTask, TaskStatus
@@ -14,112 +17,93 @@ logger = logging.getLogger(__name__)
 
 
 class TaskQueueManager:
-    """任务队列管理器（单例模式）"""
-    
+    """任务队列管理器（单例模式，进程内多 worker 并发）"""
+
     _instance: Optional['TaskQueueManager'] = None
     _lock = asyncio.Lock()
-    
+
     def __init__(self):
-        self.queue: deque = deque()  # 任务队列
-        self.processing: Optional[int] = None  # 当前正在处理的任务ID
-        self.is_processing = False  # 是否正在处理任务
-        self._task_lock = asyncio.Lock()  # 队列操作锁
-        
+        self.queue: deque = deque()
+        self.processing_ids: set = set()
+        self._task_lock = asyncio.Lock()
+        self.num_gpus = self._env_int("GPU_COUNT", 2)
+        self.num_workers = self._env_int("SEPARATION_WORKERS", self.num_gpus)
+
+    @staticmethod
+    def _env_int(name: str, default: int) -> int:
+        try:
+            return max(1, int(os.getenv(name, str(default))))
+        except (TypeError, ValueError):
+            return default
+
     @classmethod
     async def get_instance(cls) -> 'TaskQueueManager':
-        """获取单例实例"""
         if cls._instance is None:
             async with cls._lock:
                 if cls._instance is None:
                     cls._instance = cls()
-                    # 启动队列处理器
-                    asyncio.create_task(cls._instance._process_queue())
+                    for i in range(cls._instance.num_workers):
+                        asyncio.create_task(cls._instance._worker_loop(i))
+                    logger.info(
+                        "任务队列已启动 %d 个 worker，共 %d 张 GPU",
+                        cls._instance.num_workers,
+                        cls._instance.num_gpus,
+                    )
         return cls._instance
-    
+
     async def add_task(self, task_id: int, file_path: str, algorithm):
-        """将任务添加到队列"""
         async with self._task_lock:
-            # 检查任务是否已在队列中
-            if any(t['task_id'] == task_id for t in self.queue):
-                logger.warning(f"任务 {task_id} 已在队列中，跳过重复添加")
+            if any(t['task_id'] == task_id for t in self.queue) or task_id in self.processing_ids:
+                logger.warning(f"任务 {task_id} 已在队列/处理中，跳过重复添加")
                 return
-            
             self.queue.append({
                 'task_id': task_id,
                 'file_path': file_path,
                 'algorithm': algorithm,
             })
             logger.info(f"任务 {task_id} 已加入队列，当前队列长度: {len(self.queue)}")
-    
+
     async def get_queue_position(self, task_id: int) -> Optional[Dict]:
-        """
-        获取任务在队列中的位置信息
-        返回: {
-            'position': 位置（从1开始，0表示正在处理）,
-            'queue_length': 队列总长度（包括正在处理的任务）,
-            'is_processing': 是否正在处理
-        }
-        """
         async with self._task_lock:
-            # 如果正在处理该任务
-            if self.processing == task_id:
+            if task_id in self.processing_ids:
                 return {
                     'position': 0,
-                    'queue_length': len(self.queue) + 1,  # 包括正在处理的任务
+                    'queue_length': len(self.queue) + len(self.processing_ids),
                     'is_processing': True,
                 }
-            
-            # 查找任务在队列中的位置
-            position = None
             for idx, task in enumerate(self.queue):
                 if task['task_id'] == task_id:
-                    position = idx + 1  # 位置从1开始
-                    break
-            
-            if position is None:
-                # 任务不在队列中，可能已完成或失败
-                return None
-            
-            return {
-                'position': position,
-                'queue_length': len(self.queue) + (1 if self.processing else 0),
-                'is_processing': False,
-            }
-    
+                    return {
+                        'position': idx + 1,
+                        'queue_length': len(self.queue) + len(self.processing_ids),
+                        'is_processing': False,
+                    }
+            return None
+
     async def remove_task(self, task_id: int):
-        """从队列中移除任务（用于取消任务）"""
         async with self._task_lock:
-            # 如果正在处理该任务，标记为取消
-            if self.processing == task_id:
+            if task_id in self.processing_ids:
                 logger.info(f"任务 {task_id} 正在处理中，无法从队列移除，但已标记为取消")
                 return
-            
-            # 从队列中移除
             self.queue = deque([t for t in self.queue if t['task_id'] != task_id])
             logger.info(f"任务 {task_id} 已从队列中移除")
-    
-    async def _process_queue(self):
-        """队列处理器：按顺序处理队列中的任务"""
-        logger.info("任务队列处理器已启动")
-        
+
+    async def _worker_loop(self, worker_index: int):
+        gpu_id = worker_index % self.num_gpus
+        logger.info(f"分离 worker {worker_index} 已启动，绑定 GPU {gpu_id}")
         while True:
+            task = None
             try:
-                # 等待队列中有任务
-                while len(self.queue) == 0 or self.is_processing:
-                    await asyncio.sleep(1)
-                
-                # 从队列中取出任务
                 async with self._task_lock:
-                    if len(self.queue) == 0 or self.is_processing:
-                        continue
-                    
-                    task = self.queue.popleft()
-                    self.processing = task['task_id']
-                    self.is_processing = True
-                
-                logger.info(f"开始处理任务 {task['task_id']}，队列中剩余 {len(self.queue)} 个任务")
-                
-                # 检查任务状态，如果已被取消则跳过
+                    if self.queue:
+                        task = self.queue.popleft()
+                        self.processing_ids.add(task['task_id'])
+                if task is None:
+                    await asyncio.sleep(1)
+                    continue
+
+                logger.info(f"worker {worker_index} (GPU {gpu_id}) 开始处理任务 {task['task_id']}")
+
                 async with AsyncSessionLocal() as session:
                     db_task = await session.get(SeparationTask, task['task_id'])
                     if db_task and db_task.status == TaskStatus.FAILED and (
@@ -127,30 +111,27 @@ class TaskQueueManager:
                     ):
                         logger.info(f"任务 {task['task_id']} 已被取消，跳过处理")
                         async with self._task_lock:
-                            self.processing = None
-                            self.is_processing = False
+                            self.processing_ids.discard(task['task_id'])
                         continue
-                
-                # 处理任务
+
                 try:
                     await process_separation(
                         task['task_id'],
                         task['file_path'],
-                        task['algorithm']
+                        task['algorithm'],
+                        gpu_id=gpu_id,
                     )
                 except Exception as e:
                     logger.error(f"处理任务 {task['task_id']} 时发生错误: {e}", exc_info=True)
                 finally:
-                    # 标记任务处理完成
                     async with self._task_lock:
-                        self.processing = None
-                        self.is_processing = False
-                    
+                        self.processing_ids.discard(task['task_id'])
                     logger.info(f"任务 {task['task_id']} 处理完成")
-                
-                # 短暂延迟，避免连续处理导致系统负载过高
+
                 await asyncio.sleep(0.5)
-                
             except Exception as e:
-                logger.error(f"队列处理器发生错误: {e}", exc_info=True)
-                await asyncio.sleep(5)  # 发生错误时等待更长时间再重试
+                logger.error(f"worker {worker_index} 发生错误: {e}", exc_info=True)
+                if task is not None:
+                    async with self._task_lock:
+                        self.processing_ids.discard(task['task_id'])
+                await asyncio.sleep(5)

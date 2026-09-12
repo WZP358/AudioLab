@@ -1,6 +1,7 @@
 ﻿from pathlib import Path
 import logging
 import os
+from typing import Optional
 
 from app.models import SeparationTask, StemFile, TaskStatus, Algorithm
 from app.database import AsyncSessionLocal
@@ -11,7 +12,7 @@ from app.utils.config_helper import get_config_value
 logger = logging.getLogger(__name__)
 
 
-async def process_separation(task_id: int, file_path: str, algorithm: Algorithm):
+async def process_separation(task_id: int, file_path: str, algorithm: Algorithm, gpu_id: Optional[int] = None):
     """处理音频分离任务（支持通过系统配置切换 CPU / GPU 运行模式）"""
     async with AsyncSessionLocal() as session:
         try:
@@ -79,7 +80,7 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm)
                 
                 print_progress_text(f"[任务 {task_id}] 开始执行分离...")
                 result = await engine.separate(
-                    input_path=Path(file_path), algorithm=algorithm, results_dir=results_dir, task_id=task_id
+                    input_path=Path(file_path), algorithm=algorithm, results_dir=results_dir, task_id=task_id, gpu_id=gpu_id
                 )
             finally:
                 # 恢复 CUDA_VISIBLE_DEVICES，避免影响后续任务/其他代码
