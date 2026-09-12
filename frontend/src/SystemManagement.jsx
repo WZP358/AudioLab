@@ -1125,11 +1125,11 @@ function SystemSettings({ token }) {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2 text-slate-400 text-sm">
             <Settings size={18} className="text-cyan-400" />
-            <span>系统配置管理</span>
+            <span>系统配置管理（只读，由代码固定）</span>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={handleInitDefaults}
+              onClick={() => showError("系统配置已锁定为只读，不能在管理界面修改")}
               disabled={initializing}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -1146,7 +1146,7 @@ function SystemSettings({ token }) {
               )}
             </button>
             <button
-              onClick={() => setShowCreate(true)}
+              onClick={() => showError("系统配置已锁定为只读，不能在管理界面修改")}
               className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg flex items-center gap-2"
             >
               <Plus size={16} />
@@ -1631,7 +1631,7 @@ function Notifications({ token }) {
             )}
           </div>
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => showError("系统配置已锁定为只读，不能在管理界面修改")}
             className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg flex items-center gap-2"
           >
             <Plus size={16} />

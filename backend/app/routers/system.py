@@ -568,7 +568,8 @@ async def create_system_config(
     current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """创建系统配置（如果 key 已存在则报错）"""
+    """创建系统配置（已锁定）"""
+    raise HTTPException(status_code=403, detail="系统配置已锁定，不允许在管理界面修改")
     try:
         # 验证配置键格式
         validate_config_key(key)
@@ -682,7 +683,8 @@ async def update_system_config(
     current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """更新系统配置（如果不存在则创建）"""
+    """更新系统配置（已锁定）"""
+    raise HTTPException(status_code=403, detail="系统配置已锁定，不允许在管理界面修改")
     try:
         # 验证配置键格式
         validate_config_key(key)
@@ -783,7 +785,8 @@ async def init_default_configs(
     current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """初始化默认系统配置项"""
+    """初始化默认系统配置项（已锁定）"""
+    raise HTTPException(status_code=403, detail="系统配置已锁定，不允许在管理界面修改")
     try:
         from app.init_system_configs import DEFAULT_CONFIGS
         
