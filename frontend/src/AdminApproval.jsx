@@ -924,7 +924,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
 
   const content = (
     <div
-      className={`${embedded ? '' : 'bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700'} w-full ${
+      className={`${embedded ? 'admin-shell' : 'bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700'} w-full ${
         embedded ? '' : 'max-w-7xl max-h-[90vh]'
       } overflow-hidden flex flex-col`}
     >
@@ -1018,7 +1018,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {activeTab === "users" ? (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {experimentOverview && (
                 <div className="rounded-xl border border-cyan-200 dark:border-cyan-900/60 bg-cyan-50/70 dark:bg-cyan-950/20 p-5">
                   <div className="flex items-center justify-between mb-4">
@@ -1446,7 +1446,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               </div>
             </div>
           ) : activeTab === "audio" ? (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* 音频统计 */}
               {audioStats && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -2104,7 +2104,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
               )}
             </div>
           ) : activeTab === "scores" ? (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* 评分筛选器 */}
               <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">

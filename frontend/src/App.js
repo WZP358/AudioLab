@@ -5260,7 +5260,7 @@ export default function AudioLabApp() {
         />
       )}
 
-      <main className="pt-24 pb-12 px-4 max-w-7xl mx-auto">
+      <main className="app-main pt-20 pb-8 px-3 sm:px-4 max-w-7xl mx-auto">
         {currentView === "manual" && (
           <UserManual onBack={() => setCurrentView("dashboard")} />
         )}
@@ -5276,9 +5276,9 @@ export default function AudioLabApp() {
             </div>
             <p className={`mt-1 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>先完成左侧步骤，再进行客观指标计算或专家主观评分。</p>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Left Panel: Controls */}
-            <div className="lg:col-span-4 space-y-6">
+            <div className="lg:col-span-4 space-y-4">
               {/* Upload Section */}
               <div
                 className={`rounded-xl p-6 border ${panelClass}`}
@@ -7001,6 +7001,18 @@ export default function AudioLabApp() {
               )}
             </div>
           </div>
+          <nav className={`mt-4 lg:hidden flex gap-1 overflow-x-auto p-1 rounded-lg border ${isDark ? "bg-slate-800/70 border-slate-700/60" : "bg-slate-100 border-slate-200"}`} aria-label="页面导航">
+            {[{ id: "dashboard", label: "工作台", icon: Layers }, { id: "stats", label: "实验统计", icon: BarChart2 }].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => navigate(VIEW_TO_PATH[item.id] || "/")}
+                className={`flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-md text-sm ${currentView === item.id ? "bg-cyan-600 text-white" : (isDark ? "text-slate-300 hover:bg-slate-700" : "text-slate-600 hover:bg-white")}`}
+              >
+                <item.icon size={14} />{item.label}
+              </button>
+            ))}
+          </nav>
           </>
         )}
 

@@ -9,5 +9,44 @@ body {
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* (removed) progress-bar shimmer animation */
+/* Keep dense work surfaces within the first viewport while retaining readable touch targets. */
+.app-main,
+.admin-main {
+  min-width: 0;
+}
 
+.admin-shell > div:first-child {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: inherit;
+}
+
+@media (min-width: 1024px) {
+  .app-main > div:first-child {
+    margin-bottom: 1rem;
+  }
+
+  .app-main .rounded-xl.p-6,
+  .admin-main .rounded-xl.p-6 {
+    padding: 1rem;
+  }
+
+  .admin-main table th,
+  .admin-main table td {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .admin-main {
+    overflow-x: hidden;
+  }
+
+  .admin-main table {
+    min-width: 760px;
+  }
+}
+
+/* (removed) progress-bar shimmer animation */

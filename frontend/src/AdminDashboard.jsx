@@ -55,10 +55,10 @@ export default function AdminDashboard({ user, authToken, onLogout }) {
         ref={headerRef}
         className="fixed top-0 left-0 right-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 z-50"
       >
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Shield size={24} className="text-cyan-400" />
-            <h1 className="text-xl font-bold text-slate-800 dark:text-white">AudioLab 管理后台</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white whitespace-nowrap">AudioLab 管理后台</h1>
             <span className="ml-2 text-[10px] uppercase bg-red-500/20 text-red-300 px-2 py-0.5 rounded">
               管理员模式
             </span>
@@ -88,7 +88,7 @@ export default function AdminDashboard({ user, authToken, onLogout }) {
 
       {/* Main Content */}
       <main 
-        className="pb-12 px-4 max-w-7xl mx-auto"
+        className="admin-main pb-8 px-3 sm:px-4 max-w-7xl mx-auto"
         style={{ paddingTop: `${headerHeight + 16}px` }}
       >
           <div className="animate-in fade-in">

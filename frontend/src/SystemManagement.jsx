@@ -1384,10 +1384,6 @@ function SystemSettings({ token }) {
         </div>
       )}
 
-      {/* 系统配置已隐藏：由代码固定，不在此页面展示 */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-sm text-slate-500 dark:text-slate-400">
-        系统配置已锁定并由代码固定，不再在此页面展示。
-      </div>
     </div>
   );
 }
