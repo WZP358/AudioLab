@@ -70,8 +70,12 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm)
                 engine_type = type(engine).__name__
                 print_progress_text(f"[任务 {task_id}] 引擎类型: {engine_type}")
 
-                # 结果目录（与 tasks.py 保持一致）
-                results_dir = Path("/app/results") / str(task_id)
+                # 结果目录（与 tasks.py 保持一致）。旧版本写死 /app，
+                # 在 Windows 或非 Docker 部署会直接触发 PermissionError。
+                configured_results = Path(os.getenv("RESULTS_DIR", str(Path(__file__).resolve().parents[1] / "results")))
+                if not configured_results.is_absolute():
+                    configured_results = Path(__file__).resolve().parents[1] / configured_results
+                results_dir = configured_results / str(task_id)
                 
                 print_progress_text(f"[任务 {task_id}] 开始执行分离...")
                 result = await engine.separate(

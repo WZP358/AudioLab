@@ -37,6 +37,7 @@ async def init_db():
         except Exception:
             pass
     try:
+        print("数据库初始化：模型建表后请执行 backend/migrations/001_patent_scoring.sql 以复现专利评分结构")
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             

@@ -5265,6 +5265,17 @@ export default function AudioLabApp() {
           <UserManual onBack={() => setCurrentView("dashboard")} />
         )}
         {currentView === "dashboard" && (
+          <>
+          <div className={`mb-5 rounded-xl border px-4 py-3 ${isDark ? "border-cyan-900/50 bg-cyan-950/20" : "border-cyan-200 bg-cyan-50"}`}>
+            <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-sm ${isDark ? "text-slate-200" : "text-slate-700"}`}>
+              <span className="font-semibold text-cyan-400">实验流程</span>
+              <span className={isDark ? "text-slate-500" : "text-slate-400"}>选择音频</span><span className="text-cyan-500">→</span>
+              <span className={isDark ? "text-slate-500" : "text-slate-400"}>运行算法</span><span className="text-cyan-500">→</span>
+              <span className={isDark ? "text-slate-500" : "text-slate-400"}>试听声源</span><span className="text-cyan-500">→</span>
+              <span className={isDark ? "text-slate-500" : "text-slate-400"}>完成盲化评分</span>
+            </div>
+            <p className={`mt-1 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>先完成左侧步骤，再进行客观指标计算或专家主观评分。</p>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Left Panel: Controls */}
             <div className="lg:col-span-4 space-y-6">
@@ -5277,7 +5288,7 @@ export default function AudioLabApp() {
                   className={panelTitleClass}
                   onClick={() => toggleSection('inputSource')}
                 >
-                  <Upload size={14} /> 1. Input Source
+                  <Upload size={14} /> 1. 实验音频
                   {collapsedSections.inputSource ? (
                     <ChevronRight size={16} className="ml-auto" />
                   ) : (
@@ -5332,7 +5343,7 @@ export default function AudioLabApp() {
                 {audioUrl && (
                   <div className={`mt-2 overflow-hidden rounded-lg border ${isDark ? "border-slate-700/60 bg-slate-900/60" : "border-slate-200 bg-slate-50"}`}>
                     <StemPlayer
-                      name="Input Source"
+                      name="实验音频"
                       src={audioUrl}
                       onSelect={() => {}}
                       theme="cyan"
@@ -5397,7 +5408,7 @@ export default function AudioLabApp() {
                   className={panelTitleClass}
                   onClick={() => toggleSection('goldStandard')}
                 >
-                    <Upload size={14} /> 2. Gold Standard Stem
+                    <Upload size={14} /> 2. 参考音轨
                     {collapsedSections.goldStandard ? (
                       <ChevronRight size={16} className="ml-auto" />
                     ) : (
@@ -5510,7 +5521,7 @@ export default function AudioLabApp() {
                   className={panelTitleClass}
                   onClick={() => toggleSection('algorithm')}
                 >
-                  <Layers size={14} /> 3. Algorithm
+                  <Layers size={14} /> 3. 选择算法并运行
                   {collapsedSections.algorithm ? (
                     <ChevronRight size={16} className="ml-auto" />
                   ) : (
@@ -5623,7 +5634,7 @@ export default function AudioLabApp() {
                   className={isDark ? "text-sm font-bold text-slate-400 uppercase mb-3 flex items-center gap-2 cursor-pointer hover:text-slate-300 transition" : "text-sm font-bold text-slate-600 uppercase mb-3 flex items-center gap-2 cursor-pointer hover:text-slate-800 transition"}
                   onClick={() => toggleSection('stemSource')}
                 >
-                  <Layers size={14} /> 4. Stem Source
+                  <Layers size={14} /> 4. 选择分离声源
                   {collapsedSections.stemSource ? (
                     <ChevronRight size={16} className="ml-auto" />
                   ) : (
@@ -5906,7 +5917,7 @@ export default function AudioLabApp() {
                     }`}
                     onClick={() => toggleSection('objectiveMetrics')}
                   >
-                    <Award size={14} /> Objective Metrics
+                    <Award size={14} /> 客观指标（SDR / SIR / SAR）
                     {collapsedSections.objectiveMetrics ? (
                       <ChevronRight size={16} className="ml-auto" />
                     ) : (
@@ -6561,7 +6572,7 @@ export default function AudioLabApp() {
                 </div>
               </div>
 
-              {/* 4. Subjective Evaluation Panel - 仅专家可见 */}
+              {/* 5. Subjective Evaluation Panel - 仅专家可见 */}
               {user?.role === "expert" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800/30 border-slate-700/50" : "bg-white border-slate-200 shadow-sm"}`}>
@@ -6990,6 +7001,7 @@ export default function AudioLabApp() {
               )}
             </div>
           </div>
+          </>
         )}
 
         {/* 我的分离历史独立页面 */}

@@ -20,7 +20,6 @@ import {
   FileAudio,
   Filter,
   Award,
-  Bell,
   BarChart3,
   MessageCircle,
   Grid,
@@ -52,6 +51,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
     page_size: 20,
   });
   const [userStats, setUserStats] = useState(null);
+  const [experimentOverview, setExperimentOverview] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [userTotal, setUserTotal] = useState(0);
   
@@ -237,6 +237,17 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       showError(formatErrorMessage(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchExperimentOverview = async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/admin/overview`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      setExperimentOverview(await resp.json());
+    } catch (err) {
+      console.error("获取实验状态总览失败:", err);
+      setExperimentOverview(null);
     }
   };
 
@@ -871,6 +882,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
       fetchUsers();
       fetchUserStats();
       fetchPendingUsers();
+      fetchExperimentOverview();
     } else if (activeTab === "audio") {
       fetchAudioResources();
       fetchAudioStats();
@@ -921,7 +933,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">管理员后台</h2>
-            <p className="text-sm text-slate-400 mt-1">用户管理 / 音频资源管理 / 评分管理 / 系统管理</p>
+            <p className="text-sm text-slate-400 mt-1">实验数据 / 用户权限 / 评分导出 / 系统设置</p>
           </div>
           <button
             onClick={onClose}
@@ -954,7 +966,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           }`}
         >
           <Music size={18} />
-          音频资源管理
+          实验音频
         </button>
         <button
           onClick={() => navigate("/admin/scores")}
@@ -965,7 +977,7 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           }`}
         >
           <Award size={18} />
-          评分管理
+          评分与导出
         </button>
         <button
           onClick={() => handleSystemNavClick("/admin/system/settings")}
@@ -977,17 +989,6 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
         >
           <Settings size={18} />
           系统设置
-        </button>
-        <button
-          onClick={() => handleSystemNavClick("/admin/system/notifications")}
-          className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
-            (location.pathname || "").startsWith("/admin/system/notifications")
-              ? "text-cyan-400 border-b-2 border-cyan-400"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
-          }`}
-        >
-          <Bell size={18} />
-          通知中心
         </button>
         <button
           onClick={() => handleSystemNavClick("/admin/system/analytics")}
@@ -1018,6 +1019,32 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
         <div className="flex-1 overflow-y-auto p-6">
           {activeTab === "users" ? (
             <div className="space-y-6">
+              {experimentOverview && (
+                <div className="rounded-xl border border-cyan-200 dark:border-cyan-900/60 bg-cyan-50/70 dark:bg-cyan-950/20 p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-white">实验状态总览</h3>
+                      <p className="text-xs text-slate-500 mt-1">用于确认数据准备、盲化评分和导出进度</p>
+                    </div>
+                    <button type="button" onClick={fetchExperimentOverview} className="text-xs text-cyan-600 dark:text-cyan-300 hover:underline">刷新</button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {[
+                      ["实验音频", experimentOverview.audio_resources, "text-cyan-500"],
+                      ["已完成任务", experimentOverview.completed_tasks, "text-emerald-500"],
+                      ["盲化样本", experimentOverview.blind_samples, "text-indigo-500"],
+                      ["已提交评分", experimentOverview.submitted_scores, "text-purple-500"],
+                      ["待审批用户", experimentOverview.pending_users, "text-amber-500"],
+                      ["用户总数", experimentOverview.users, "text-slate-500"],
+                    ].map(([label, value, color]) => (
+                      <div key={label} className="rounded-lg bg-white/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 px-3 py-3">
+                        <div className="text-xs text-slate-500 truncate">{label}</div>
+                        <div className={`text-2xl font-bold mt-1 ${color}`}>{value ?? 0}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* 用户统计 */}
               {userStats && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

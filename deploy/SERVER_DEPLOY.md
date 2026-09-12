@@ -22,6 +22,7 @@ cp .env.example .env
 openssl rand -hex 32   # 将结果填入 JWT_SECRET
 # 编辑 .env：数据库、MSS_ROOT_DIR、四个权重路径
 python -m app.init_db
+mysql -u audiolab -p audiolab < migrations/001_patent_scoring.sql
 python -m app.init_system_configs
 python -m app.create_admin
 ```

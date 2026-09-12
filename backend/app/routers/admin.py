@@ -18,8 +18,10 @@ from app.models import (
     AudioResource,
     OperationLog,
     SeparationTask,
+    TaskStatus,
     StemFile,
     Score,
+    BlindSample,
     ExpertMessage,
     Notification,
     NotificationRead,
@@ -54,6 +56,29 @@ async def get_current_admin(current_user: User = Depends(get_current_user)):
             detail="仅管理员可访问此功能"
         )
     return current_user
+
+
+@router.get("/overview")
+async def get_experiment_overview(
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """管理员首页实验状态总览：只返回聚合数量，不暴露音频或专家隐私数据。"""
+    async def count(model, *conditions):
+        query = select(func.count()).select_from(model)
+        if conditions:
+            query = query.where(and_(*conditions))
+        result = await db.execute(query)
+        return int(result.scalar_one() or 0)
+
+    return {
+        "users": await count(User),
+        "pending_users": await count(User, User.is_approved.is_(False)),
+        "audio_resources": await count(AudioResource),
+        "completed_tasks": await count(SeparationTask, SeparationTask.status == TaskStatus.COMPLETED),
+        "blind_samples": await count(BlindSample),
+        "submitted_scores": await count(Score, Score.blind_sample_id.isnot(None)),
+    }
 
 
 async def _cascade_delete_expert_related_data(
