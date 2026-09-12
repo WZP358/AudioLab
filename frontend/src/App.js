@@ -5276,9 +5276,9 @@ export default function AudioLabApp() {
             </div>
             <p className={`mt-1 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>先完成左侧步骤，再进行客观指标计算或专家主观评分。</p>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="dashboard-shell grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Left Panel: Controls */}
-            <div className="lg:col-span-4 space-y-4">
+            <div className="dashboard-pane dashboard-controls lg:col-span-4 space-y-4">
               {/* Upload Section */}
               <div
                 className={`rounded-xl p-6 border ${panelClass}`}
@@ -6192,7 +6192,7 @@ export default function AudioLabApp() {
             </div>
 
             {/* Center & Right Panel: Visualization & Evaluation */}
-            <div className="lg:col-span-8 space-y-6">
+            <div className="dashboard-pane dashboard-results lg:col-span-8 space-y-5">
               {/* 3. Visualization Panel */}
               <div className={`rounded-xl border shadow-2xl overflow-hidden relative ${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-slate-200/60"}`}>
                 {/* Toolbar */}

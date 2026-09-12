@@ -15,6 +15,14 @@ body {
   min-width: 0;
 }
 
+.dashboard-pane {
+  min-width: 0;
+}
+
+.admin-shell {
+  min-height: 0;
+}
+
 .admin-shell > div:first-child {
   position: sticky;
   top: 0;
@@ -23,6 +31,34 @@ body {
 }
 
 @media (min-width: 1024px) {
+  .app-main {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .dashboard-shell {
+    height: calc(100vh - 182px);
+    min-height: 520px;
+    align-items: stretch;
+  }
+
+  .dashboard-pane {
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-right: 0.35rem;
+  }
+
+  .dashboard-pane::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .dashboard-pane::-webkit-scrollbar-thumb {
+    background: rgb(100 116 139 / 0.45);
+    border-radius: 8px;
+  }
+
   .app-main > div:first-child {
     margin-bottom: 1rem;
   }
@@ -46,6 +82,20 @@ body {
 
   .admin-main table {
     min-width: 760px;
+  }
+}
+
+@media (min-width: 768px) {
+  .admin-main {
+    height: calc(100vh - 80px);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .admin-main > div,
+  .admin-shell {
+    height: 100%;
+    min-height: 0;
   }
 }
 
