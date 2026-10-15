@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
-from .routers import tasks, scores, auth, admin, audio_resources, system, messages, labels, blind_samples
+from .routers import tasks, scores, auth, admin, audio_resources, system, messages, labels, blind_samples, batch, optimization, backup
 import os
 import logging
 from pathlib import Path
@@ -30,6 +30,13 @@ async def lifespan(_app: FastAPI):
             except Exception as exc:
                 if "duplicate column" not in str(exc).lower() and "already exists" not in str(exc).lower():
                     logging.warning("补齐 blind_samples.objective_metrics_json 失败: %s", exc)
+            # 保证同一任务+声源+15秒时间片只生成一次盲化样本（DB 级唯一约束兜底）
+            try:
+                await conn.execute(text("ALTER TABLE blind_samples ADD UNIQUE KEY uq_blind_sample_task_stem_start (task_id, stem_name, start_seconds)"))
+                print("[OK] Auto-added unique key blind_samples (task_id, stem_name, start_seconds)")
+            except Exception as exc:
+                if "duplicate key" not in str(exc).lower() and "already exists" not in str(exc).lower():
+                    logging.warning("添加 blind_samples 唯一约束失败（可忽略）: %s", exc)
             # 清理头像相关字段（如果存在）
             try:
                 await conn.execute(text("ALTER TABLE users DROP COLUMN avatar_url"))
@@ -65,7 +72,27 @@ async def lifespan(_app: FastAPI):
     from app.services.queue_manager import TaskQueueManager
     await TaskQueueManager.get_instance()
     print("[OK] Task queue manager started\n")
+
+    # 数据安全：启动即做一次数据库快照，之后按固定周期自动备份（默认每 24 小时）。
+    import asyncio as _asyncio
+    from app.services import backup_service as _backup_service
+
+    async def _backup_loop() -> None:
+        interval_hours = float(os.getenv("BACKUP_INTERVAL_HOURS", "24") or "24")
+        while True:
+            try:
+                await _asyncio.to_thread(_backup_service.run_database_backup)
+            except Exception as exc:  # 备份失败不能拖垮主进程，仅记录
+                logging.warning("定时数据库备份失败：%s", exc)
+            await _asyncio.sleep(interval_hours * 3600)
+
+    _backup_task = _asyncio.create_task(_backup_loop())
     yield
+    _backup_task.cancel()
+    try:
+        await _backup_task
+    except _asyncio.CancelledError:
+        pass
     # shutdown：显式释放 SQLAlchemy AsyncEngine 的连接池，避免热重载/退出时 aiomysql 在 __del__
     # 里尝试回收连接却发现 event loop 已关闭，从而刷屏 "RuntimeError: Event loop is closed"
     try:
@@ -126,6 +153,9 @@ app.include_router(audio_resources.router)
 app.include_router(system.router)
 app.include_router(system.public_router)  # 公共系统配置端点
 app.include_router(messages.router)
+app.include_router(batch.router)
+app.include_router(optimization.router)
+app.include_router(backup.router)
 
 # 挂载静态文件目录（用于头像和下载文件）
 download_dir = Path(__file__).parent.parent / "download"

@@ -12,7 +12,7 @@ export default function AdminDashboard({ user, authToken, onLogout }) {
   const [headerHeight, setHeaderHeight] = useState(64);
 
   // Derive admin tab from URL so links are shareable.
-  // /admin/users | /admin/audio | /admin/scores | /admin/system[/...]
+  // /admin/users | /admin/audio | /admin/labels | /admin/scores | /admin/system[/...]
   const pathname = (location?.pathname || "").replace(/\/+$/, "") || "/";
   const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
   const adminTab =
@@ -22,7 +22,9 @@ export default function AdminDashboard({ user, authToken, onLogout }) {
         ? "scores"
       : pathname.startsWith("/admin/system")
         ? "system"
-        : "users";
+        : pathname.startsWith("/admin/labels")
+          ? "labels"
+          : "users";
 
   useEffect(() => {
     const updateHeights = () => {

@@ -245,6 +245,12 @@ export default function StemPlayer({
     };
 
     const handleEnded = () => {
+      if (loopEnabled && Number.isFinite(loopStart) && Number.isFinite(loopEnd) && loopEnd > loopStart) {
+        audio.currentTime = loopStart;
+        setCurrentTime(loopStart);
+        audio.play().catch(() => setPlaying(false));
+        return;
+      }
       setPlaying(false);
       setCurrentTime(0);
     };
@@ -373,7 +379,6 @@ export default function StemPlayer({
           ref={audioRef}
           src={url}
           preload="metadata"
-          onEnded={() => setPlaying(false)}
           onError={(e) => {
             const audio = e.target;
             console.error(`音频加载失败 (${name}):`, {

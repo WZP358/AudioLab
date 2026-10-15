@@ -8,6 +8,8 @@ from app.database import engine, Base
 # 必须导入所有模型类，这样 SQLAlchemy 才能知道要创建哪些表
 from app.models import (
     SeparationTask,
+    SeparationBatch,
+    ModelOptimizationJob,
     StemFile,
     BlindSample,
     Score,
@@ -76,6 +78,7 @@ async def init_db():
                 "ALTER TABLE blind_samples ADD COLUMN sample_group_key VARCHAR(255) NULL",
                 "ALTER TABLE blind_samples ADD COLUMN experiment_id BIGINT NULL",
                 "ALTER TABLE scores ADD UNIQUE INDEX uq_scores_user_blind_sample (user_id, blind_sample_id)",
+                "ALTER TABLE separation_tasks ADD COLUMN batch_id BIGINT NULL",
             ):
                 try:
                     await conn.execute(text(ddl))

@@ -38,11 +38,13 @@ from app.services.analysis_service import analyze_audio_file, analysis_to_payloa
 from app.services.objective_metrics import compute_bss_metrics_two_source, compute_residual_mix_minus_est
 from app.services.objective_metrics_multisource import compute_bss_metrics_multisource
 from app.services.overlay_metrics import compute_soc_from_spectrograms
+from app.services.objective_interval_service import compute_task_error_interval, recommend_uncertain_tasks, reliability_grade, reliability_color
 from app.utils.log_helper import get_client_ip, get_user_agent
 import logging
 import tempfile
 import soundfile as sf
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
+from app.utils.xlsx import build_xlsx
 
 logger = logging.getLogger(__name__)
 
@@ -1024,31 +1026,155 @@ async def export_objective_stats_csv(db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.get("/stats/objective/export-detail")
-async def export_objective_detail_csv(db: AsyncSession = Depends(get_db)):
-    """导出每个分离任务的客观指标明细，避免只提供算法聚合均值。"""
+@router.get("/stats/objective/export-xlsx")
+async def export_objective_stats_xlsx(db: AsyncSession = Depends(get_db)):
+    """导出按算法聚合的客观指标统计（Excel .xlsx）。"""
+    stats = await get_objective_stats(db)
+    headers = ["algorithm", "count_tasks", "avg_sdr", "avg_sir", "avg_sar", "avg_si_sdr"]
+    rows = [
+        [
+            row.algorithm.value if hasattr(row.algorithm, "value") else str(row.algorithm),
+            row.count_tasks,
+            row.avg_sdr,
+            row.avg_sir,
+            row.avg_sar,
+            row.avg_si_sdr,
+        ]
+        for row in stats
+    ]
+    data = build_xlsx(headers, rows, sheet_title="客观指标统计")
+    filename = f"objective_stats_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+_OBJECTIVE_DETAIL_HEADERS = ["task_id", "original_filename", "algorithm", "metric_scope", "stem_name", "segment_start", "segment_end", "sdr", "sir", "sar", "isr", "si_sdr", "metadata_json", "created_at"]
+
+
+async def _collect_objective_detail_rows(db: AsyncSession):
     result = await db.execute(select(SeparationTask).where(SeparationTask.sdr.isnot(None)).order_by(SeparationTask.created_at.asc()))
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["task_id", "original_filename", "algorithm", "metric_scope", "stem_name", "segment_start", "segment_end", "sdr", "sir", "sar", "isr", "si_sdr", "metadata_json", "created_at"])
+    rows = []
     for task in result.scalars().all():
         meta = _parse_task_metadata(task)
         source_metrics = meta.get("metrics_by_source") if isinstance(meta.get("metrics_by_source"), dict) else {}
         if source_metrics:
             for stem_name, metrics in source_metrics.items():
                 metrics = metrics if isinstance(metrics, dict) else {}
-                writer.writerow([task.id, task.original_filename or "", task.algorithm.value if task.algorithm else "", "source", stem_name, "", "", metrics.get("sdr"), metrics.get("sir"), metrics.get("sar"), metrics.get("isr"), metrics.get("si_sdr"), task.metadata_json or "", task.created_at.isoformat() if task.created_at else ""])
+                rows.append([task.id, task.original_filename or "", task.algorithm.value if task.algorithm else "", "source", stem_name, "", "", metrics.get("sdr"), metrics.get("sir"), metrics.get("sar"), metrics.get("isr"), metrics.get("si_sdr"), task.metadata_json or "", task.created_at.isoformat() if task.created_at else ""])
         else:
-            writer.writerow([task.id, task.original_filename or "", task.algorithm.value if task.algorithm else "", "task_average", "ALL", "", "", task.sdr, task.sir, task.sar, "", meta.get("si_sdr"), task.metadata_json or "", task.created_at.isoformat() if task.created_at else ""])
+            rows.append([task.id, task.original_filename or "", task.algorithm.value if task.algorithm else "", "task_average", "ALL", "", "", task.sdr, task.sir, task.sar, "", meta.get("si_sdr"), task.metadata_json or "", task.created_at.isoformat() if task.created_at else ""])
     blind_result = await db.execute(select(BlindSample).where(BlindSample.objective_metrics_json.isnot(None)).order_by(BlindSample.created_at.asc()))
     for sample in blind_result.scalars().all():
         try:
             metrics = json.loads(sample.objective_metrics_json or "{}")
         except Exception:
             metrics = {}
-        writer.writerow([sample.task_id, "", sample.algorithm.value if sample.algorithm else "", "clip", sample.stem_name, sample.start_seconds, sample.end_seconds, metrics.get("sdr"), metrics.get("sir"), metrics.get("sar"), metrics.get("isr"), metrics.get("si_sdr"), sample.objective_metrics_json or "", sample.created_at.isoformat() if sample.created_at else ""])
+        rows.append([sample.task_id, "", sample.algorithm.value if sample.algorithm else "", "clip", sample.stem_name, sample.start_seconds, sample.end_seconds, metrics.get("sdr"), metrics.get("sir"), metrics.get("sar"), metrics.get("isr"), metrics.get("si_sdr"), sample.objective_metrics_json or "", sample.created_at.isoformat() if sample.created_at else ""])
+    return _OBJECTIVE_DETAIL_HEADERS, rows
+
+
+@router.get("/stats/objective/export-detail")
+async def export_objective_detail_csv(db: AsyncSession = Depends(get_db)):
+    """导出每个分离任务的客观指标明细（CSV），包含 15 秒片段级指标。"""
+    headers, rows = await _collect_objective_detail_rows(db)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    for row in rows:
+        writer.writerow(row)
     output.seek(0)
     return StreamingResponse(iter([output.getvalue().encode("utf-8-sig")]), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f"attachment; filename=objective_detail_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"})
+
+
+@router.get("/stats/objective/export-detail-xlsx")
+async def export_objective_detail_xlsx(db: AsyncSession = Depends(get_db)):
+    """导出每个分离任务的客观指标明细（Excel .xlsx），包含 15 秒片段级指标。"""
+    headers, rows = await _collect_objective_detail_rows(db)
+    data = build_xlsx(headers, rows, sheet_title="客观指标明细")
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=objective_detail_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"},
+    )
+
+
+@router.post("/{task_id}/objective-error-interval")
+async def compute_task_objective_error_interval(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """计算并保存某任务所有 15 秒片段的客观指标误差区间（均值/标准差/95%CI/可靠性等级）。"""
+    if current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="仅管理员可计算客观指标误差区间")
+    try:
+        task_id_int = int(task_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="无效的任务ID")
+    try:
+        return await compute_task_error_interval(db, task_id_int)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/stats/active-learning/recommend")
+async def recommend_uncertain_for_review(
+    k: int = 5,
+    algorithm: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """主动学习（S131/S132）：按片段 SDR 不确定性降序，推荐前 K 个任务交给专家复评。"""
+    if current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="仅管理员可查看主动学习推荐")
+    return {"k": k, "items": await recommend_uncertain_tasks(db, k=k, algorithm=algorithm)}
+
+
+@router.get("/stats/objective-reliability")
+async def get_objective_reliability(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """返回每算法 × 每声源的可靠性等级汇总（S24/S25），供前端颜色编码显示。"""
+    if current_user.role not in (Role.ADMIN, Role.EXPERT):
+        raise HTTPException(status_code=403, detail="无权限查看可靠性汇总")
+    result = await db.execute(select(SeparationTask).where(SeparationTask.metadata_json.isnot(None)))
+    tasks = list(result.scalars().all())
+    agg: dict[str, dict[str, list[float]]] = {}
+    for t in tasks:
+        try:
+            meta = json.loads(t.metadata_json or "{}")
+        except Exception:
+            continue
+        interval = meta.get("objective_error_interval") or {}
+        algo = t.algorithm.value if t.algorithm else "Unknown"
+        for stem, stem_data in interval.items():
+            for key in ("sdr", "sir", "sar", "si_sdr"):
+                item = stem_data.get(key) or {}
+                cv = item.get("cv")
+                if cv is None or not math.isfinite(float(cv)):
+                    continue
+                bucket = agg.setdefault(algo, {}).setdefault(stem, {}).setdefault(key, [])
+                bucket.append(float(cv))
+    summary = []
+    for algo, stems in agg.items():
+        for stem, keys in stems.items():
+            for key, cvs in keys.items():
+                mean_cv = float(sum(cvs)) / len(cvs) if cvs else 0.0
+                grade = reliability_grade(mean_cv)
+                summary.append({
+                    "algorithm": algo,
+                    "stem_name": stem,
+                    "metric": key,
+                    "mean_cv": round(mean_cv, 6),
+                    "reliability": grade,
+                    "color": reliability_color(grade),
+                    "n_tasks": len(cvs),
+                })
+    return {"items": summary}
 
 
 @router.post("/stats/significance", response_model=ObjectiveSignificanceResponse)
@@ -1377,7 +1503,7 @@ async def get_task_analysis(
     task_id: str,
     target: str = "Vocals",
     include_all_stems: bool = False,
-    waveform_points: int = 800,
+    waveform_points: int = 2000,
     spec_freq_bins: int = 128,
     spec_time_bins: int = 256,
     db: AsyncSession = Depends(get_db),
@@ -1406,7 +1532,7 @@ async def get_task_analysis(
     stems = list(result.scalars().all())
 
     # 轻量分析参数（用于前端缩放时按需提高清晰度）
-    wp = max(200, min(20000, int(waveform_points or 800)))
+    wp = max(200, min(20000, int(waveform_points or 2000)))
     sfreq = max(32, min(512, int(spec_freq_bins or 128)))
     stime = max(64, min(1024, int(spec_time_bins or 256)))
 
@@ -1458,7 +1584,7 @@ async def get_task_analysis(
 @router.post("/analysis/gold", response_model=AudioAnalysisPayload)
 async def analyze_uploaded_gold(
     file: UploadFile = File(...),
-    waveform_points: int = 800,
+    waveform_points: int = 2000,
     spec_freq_bins: int = 128,
     spec_time_bins: int = 256,
 ):

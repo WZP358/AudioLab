@@ -16,7 +16,8 @@ from app.database import get_db
 from app.models import BlindSample, BlindExperiment, BlindAssignment, Role, Score, SeparationTask, StemFile, TaskStatus, User
 from app.routers.admin import get_current_admin
 from app.routers.auth import get_current_user
-from app.schemas import BlindScoreCreate, BlindScoreBatchCreate
+from app.schemas import BlindScoreCreate, BlindScoreBatchCreate, AudioAnalysisPayload
+from app.services.analysis_service import analyze_audio_file, analysis_to_payload
 from app.services.objective_metrics import compute_bss_metrics_two_source
 from app.services.objective_metrics_multisource import compute_bss_metrics_multisource
 
@@ -236,6 +237,47 @@ async def stream_blind_sample(
     if not path.exists() or path.stat().st_size == 0:
         raise HTTPException(status_code=404, detail="盲化样本文件不存在")
     return FileResponse(path, media_type="audio/wav", filename="blind-sample.wav", headers={"Accept-Ranges": "bytes", "Cache-Control": "no-store"})
+
+
+@router.get("/{blind_code}/analysis", response_model=AudioAnalysisPayload)
+async def analyze_blind_sample(
+    blind_code: str,
+    waveform_points: int = 800,
+    spec_freq_bins: int = 128,
+    spec_time_bins: int = 256,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """返回盲化样本（15 秒片段）的波形与频谱，供专家可视化定位问题时间区间。
+
+    与音频试听一致：仅对已分配的专家可见，响应不包含 task_id/algorithm/文件名等映射字段。
+    """
+    if current_user.role not in (Role.EXPERT, Role.ADMIN):
+        raise HTTPException(status_code=403, detail="仅专家或管理员可查看盲化样本可视化")
+    result = await db.execute(select(BlindSample).where(BlindSample.blind_code == blind_code))
+    sample = result.scalars().first()
+    if not sample:
+        raise HTTPException(status_code=404, detail="盲化样本不存在")
+    if sample.experiment_id is not None:
+        assignment = await db.execute(select(BlindAssignment).where(BlindAssignment.blind_sample_id == sample.id, BlindAssignment.expert_id == str(current_user.id)))
+        if assignment.scalars().first() is None:
+            raise HTTPException(status_code=403, detail="该样本未分配给当前专家")
+    path = Path(sample.file_path)
+    if not path.exists() or path.stat().st_size == 0:
+        raise HTTPException(status_code=404, detail="盲化样本文件不存在")
+    wp = max(200, min(20000, int(waveform_points or 800)))
+    sfreq = max(32, min(512, int(spec_freq_bins or 128)))
+    stime = max(64, min(1024, int(spec_time_bins or 256)))
+    try:
+        analysis = analyze_audio_file(
+            path,
+            waveform_points=wp,
+            spec_freq_bins=sfreq,
+            spec_time_bins=stime,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"盲化样本可视化分析失败：{exc}") from exc
+    return AudioAnalysisPayload(**analysis_to_payload(analysis))
 
 
 @router.post("/{blind_code}/objective-metrics")

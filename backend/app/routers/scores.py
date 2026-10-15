@@ -1,4 +1,5 @@
 ﻿from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, distinct
 from typing import List, Dict, Optional
@@ -13,6 +14,7 @@ import numpy as np
 
 from app.database import get_db
 from app.models import Score, Algorithm, Role, User, SeparationTask, BlindSample
+from app.utils.xlsx import build_xlsx
 from app.schemas import (
     ScoreCreate,
     ScoreCreateBatch,
@@ -29,25 +31,52 @@ from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/scores", tags=["scores"])
 
+_SCORE_HEADERS = ["score_id", "user_id", "task_id", "blind_code", "algorithm", "stem_name", "quality", "interference", "artifacts", "overall_acceptability", "segment_start", "segment_end", "issue_tags", "issue_annotations", "reliability", "created_at"]
+
+
+async def _collect_score_export_rows(db: AsyncSession):
+    result = await db.execute(select(Score).where(Score.is_deleted.is_(False), Score.blind_sample_id.isnot(None)).order_by(Score.created_at.asc()))
+    blind_result = await db.execute(select(BlindSample))
+    blind_by_id = {item.id: item for item in blind_result.scalars().all()}
+    rows = []
+    for row in result.scalars().all():
+        blind = blind_by_id.get(row.blind_sample_id)
+        rows.append([row.id, row.user_id, row.task_id, blind.blind_code if blind else "", row.algorithm.value if row.algorithm else "", row.stem_name or "", row.quality, row.interference, row.artifacts, row.overall_acceptability if row.overall_acceptability is not None else "", row.segment_start if row.segment_start is not None else "", row.segment_end if row.segment_end is not None else "", row.issue_tags or "[]", row.issue_annotations or "[]", row.reliability if row.reliability is not None else "", row.created_at.isoformat() if row.created_at else ""])
+    return _SCORE_HEADERS, rows
+
+
 @router.get("/export")
 async def export_scores_csv(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """管理员批量导出全部专家主观评分，便于提交专利/实验材料。"""
+    """管理员批量导出全部专家主观评分（CSV）。"""
     if current_user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="仅管理员可导出评分")
-    result = await db.execute(select(Score).where(Score.is_deleted.is_(False)).order_by(Score.created_at.asc()))
-    blind_result = await db.execute(select(BlindSample))
-    blind_by_id = {item.id: item for item in blind_result.scalars().all()}
+    headers, rows = await _collect_score_export_rows(db)
     output = io.StringIO(newline="")
     writer = csv.writer(output)
-    writer.writerow(["score_id", "user_id", "task_id", "blind_code", "algorithm", "stem_name", "quality", "interference", "artifacts", "overall_acceptability", "segment_start", "segment_end", "issue_tags", "issue_annotations", "reliability", "created_at"])
-    for row in result.scalars().all():
-        blind = blind_by_id.get(row.blind_sample_id)
-        writer.writerow([row.id, row.user_id, row.task_id, blind.blind_code if blind else "", row.algorithm.value if row.algorithm else "", row.stem_name or "", row.quality, row.interference, row.artifacts, row.overall_acceptability if row.overall_acceptability is not None else "", row.segment_start if row.segment_start is not None else "", row.segment_end if row.segment_end is not None else "", row.issue_tags or "[]", row.issue_annotations or "[]", row.reliability if row.reliability is not None else "", row.created_at.isoformat() if row.created_at else ""])
-    from fastapi.responses import StreamingResponse
+    writer.writerow(headers)
+    for row in rows:
+        writer.writerow(row)
     return StreamingResponse(iter([output.getvalue().encode("utf-8-sig")]), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=subjective_scores.csv"})
+
+
+@router.get("/export-xlsx")
+async def export_scores_xlsx(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """管理员批量导出全部专家主观评分（Excel .xlsx）。"""
+    if current_user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="仅管理员可导出评分")
+    headers, rows = await _collect_score_export_rows(db)
+    data = build_xlsx(headers, rows, sheet_title="主观评分")
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=subjective_scores.xlsx"},
+    )
 
 
 @router.get("/export-quality")
@@ -58,7 +87,7 @@ async def export_score_quality_report(
     """Export multi-rater agreement and outlier flags without deleting raw scores."""
     if current_user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="仅管理员可导出评分质量报告")
-    result = await db.execute(select(Score).where(Score.is_deleted.is_(False)).order_by(Score.task_id, Score.stem_name, Score.created_at))
+    result = await db.execute(select(Score).where(Score.is_deleted.is_(False), Score.blind_sample_id.isnot(None)).order_by(Score.task_id, Score.stem_name, Score.created_at))
     rows = list(result.scalars().all())
     groups = {}
     for row in rows:
@@ -361,16 +390,12 @@ async def create_score_batch(
     - 减少网络请求次数
     - 保证数据一致性（同一时间戳）
     """
-    # 专利实验的专家评分必须经过后端盲化映射；禁止旧接口写入可见算法评分。
+    # 非盲化整体评分：blind_sample_id 保持为空，与盲化评分隔离存储（供内部参考，不进入专利实验统计）。
     if current_user.role != Role.EXPERT:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="仅专家用户可提交主观评分"
         )
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="直接算法评分接口已停用，请使用 /api/blind-samples/score 提交盲化评分",
-    )
 
     # 验证任务是否存在
     task = await db.get(SeparationTask, score_data.task_id)
@@ -391,6 +416,7 @@ async def create_score_batch(
     existing_scores = await db.execute(
         select(Score).where(
             Score.is_deleted.is_(False),
+            Score.blind_sample_id.is_(None),
             (Score.user_id == str(current_user.id))
             & (Score.task_id == score_data.task_id)
             & (Score.algorithm == score_data.algorithm)
@@ -420,6 +446,7 @@ async def create_score_batch(
             segment_start=stem_score.segment_start,
             segment_end=stem_score.segment_end,
             issue_tags=json.dumps(stem_score.issue_tags, ensure_ascii=False),
+            issue_annotations=json.dumps(stem_score.issue_annotations, ensure_ascii=False),
             reliability=stem_score.reliability,
         )
         db.add(score)
@@ -445,16 +472,12 @@ async def create_score(
 
     保留此接口用于向后兼容，但推荐使用批量提交接口确保评分完整性。
     """
-    # 专利实验的专家评分必须经过后端盲化映射；禁止旧接口写入可见算法评分。
+    # 非盲化整体评分：blind_sample_id 保持为空，与盲化评分隔离存储（供内部参考，不进入专利实验统计）。
     if current_user.role != Role.EXPERT:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="仅专家用户可提交主观评分"
         )
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="直接算法评分接口已停用，请使用 /api/blind-samples/score 提交盲化评分",
-    )
 
     task = await db.get(SeparationTask, score_data.task_id)
     if not task:
@@ -642,7 +665,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
             func.avg(Score.interference).label("avg_interference"),
             func.avg(Score.artifacts).label("avg_artifacts"),
             func.count(Score.id).label("total_scores"),
-        ).where(Score.is_deleted.is_(False)).group_by(Score.algorithm, Score.stem_name)
+        ).where(Score.is_deleted.is_(False), Score.blind_sample_id.isnot(None)).group_by(Score.algorithm, Score.stem_name)
     )
 
     stats_list: list[StatsResponse] = []
@@ -680,7 +703,7 @@ async def get_detailed_stats(db: AsyncSession = Depends(get_db)):
             func.avg(Score.artifacts).label("avg_artifacts"),
             func.count(Score.id).label("total_scores"),
             func.count(distinct(Score.user_id)).label("unique_experts"),
-        ).where(Score.is_deleted.is_(False)).group_by(Score.algorithm, stem_name_expr)
+        ).where(Score.is_deleted.is_(False), Score.blind_sample_id.isnot(None)).group_by(Score.algorithm, stem_name_expr)
     )
 
     stats_list: list[DetailedStatsResponse] = []
@@ -732,7 +755,7 @@ async def get_algorithm_comparison(db: AsyncSession = Depends(get_db)):
             func.avg(Score.interference).label("avg_interference"),
             func.avg(Score.artifacts).label("avg_artifacts"),
             func.count(Score.id).label("total_scores"),
-        ).where(Score.is_deleted.is_(False)).group_by(Score.algorithm)
+        ).where(Score.is_deleted.is_(False), Score.blind_sample_id.isnot(None)).group_by(Score.algorithm)
     )
 
     # 获取按算法和stem的详细统计
@@ -745,7 +768,7 @@ async def get_algorithm_comparison(db: AsyncSession = Depends(get_db)):
             func.avg(Score.interference).label("avg_interference"),
             func.avg(Score.artifacts).label("avg_artifacts"),
             func.count(Score.id).label("total_scores"),
-        ).where(Score.is_deleted.is_(False)).group_by(Score.algorithm, stem_name_expr)
+        ).where(Score.is_deleted.is_(False), Score.blind_sample_id.isnot(None)).group_by(Score.algorithm, stem_name_expr)
     )
 
     # 构建stem统计字典

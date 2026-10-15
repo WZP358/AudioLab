@@ -35,6 +35,33 @@ DEFAULT_USERS = [
         "is_active": 1,
         "is_approved": 1,
     },
+    # 导师 1（管理员，可查看/导出评估数据）
+    {
+        "username": "yusha",
+        "email": "yusha@audiolab.edu.cn",
+        "password": "YuSha#2026Audio",
+        "role": Role.ADMIN,
+        "is_active": 1,
+        "is_approved": 1,
+    },
+    # 导师 2（管理员，可查看/导出评估数据）
+    {
+        "username": "guo",
+        "email": "guo@audiolab.edu.cn",
+        "password": "Guo#2026Audio",
+        "role": Role.ADMIN,
+        "is_active": 1,
+        "is_approved": 1,
+    },
+    # 郭老师的学生（专家，可提交评分）
+    {
+        "username": "guo_student",
+        "email": "guo_student@audiolab.edu.cn",
+        "password": "GuoStudent#2026Audio",
+        "role": Role.EXPERT,
+        "is_active": 1,
+        "is_approved": 1,
+    },
 ]
 
 

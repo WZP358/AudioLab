@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import StemPlayer from "./StemPlayer";
+import BlindScoringPage from "./BlindScoringPage";
+import NonBlindScoringPanel from "./NonBlindScoringPanel";
 import AuthPage from "./AuthPage";
 import AudioResourceSelector from "./AudioResourceSelector";
 import AdminDashboard from "./AdminDashboard";
@@ -79,88 +81,6 @@ const normalizePathname = (pathname) => {
 const PATH_TO_VIEW = Object.fromEntries(
   Object.entries(VIEW_TO_PATH).map(([view, path]) => [path, view]),
 );
-
-function BlindScoringPage({ isDark, authToken, blindSamples, setBlindSamples, standardLabels, apiBase, showError, showSuccess }) {
-  const [selectedCode, setSelectedCode] = useState(blindSamples[0]?.blind_code || "");
-  const [audioUrl, setAudioUrl] = useState("");
-  const [loopEnabled, setLoopEnabled] = useState(false);
-  const [form, setForm] = useState({ quality: 3, interference: 3, artifacts: 3, overall_acceptability: 3, segment_start: 0, segment_end: 15, issue_tags: [], issue_annotations: [], reliability: 3 });
-  const sample = blindSamples.find((item) => item.blind_code === selectedCode) || blindSamples[0];
-  const stemName = sample?.stem_name || "Other";
-  const tags = standardLabels[stemName]?.length ? standardLabels[stemName] : (STANDARD_ISSUE_TAGS[stemName] || STANDARD_ISSUE_TAGS.Other);
-  const inputClass = `rounded border ${isDark ? "bg-slate-900 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-800"}`;
-
-  useEffect(() => {
-    if (!sample?.blind_code) return;
-    setSelectedCode(sample.blind_code);
-  }, [sample?.blind_code]);
-
-  useEffect(() => {
-    let objectUrl = "";
-    if (!selectedCode || !authToken) return undefined;
-    fetch(`${apiBase}/api/blind-samples/${encodeURIComponent(selectedCode)}/audio`, { headers: { Authorization: `Bearer ${authToken}` } })
-      .then((response) => { if (!response.ok) throw new Error("音频加载失败"); return response.blob(); })
-      .then((blob) => { objectUrl = URL.createObjectURL(blob); setAudioUrl(objectUrl); })
-      .catch(() => setAudioUrl(""));
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [apiBase, authToken, selectedCode]);
-
-  useEffect(() => {
-    setLoopEnabled(false);
-    setForm({ quality: 3, interference: 3, artifacts: 3, overall_acceptability: 3, segment_start: 0, segment_end: 15, issue_tags: [], issue_annotations: [], reliability: 3 });
-  }, [selectedCode]);
-
-  const updateForm = (patch) => setForm((previous) => ({ ...previous, ...patch }));
-  const setTimeRange = (key, value) => {
-    const numeric = Math.max(0, Math.min(15, Number(value)));
-    updateForm({ [key]: numeric });
-  };
-  const toggleTag = (tag) => {
-    const active = form.issue_tags.includes(tag);
-    updateForm({
-      issue_tags: active ? form.issue_tags.filter((item) => item !== tag) : [...form.issue_tags, tag],
-      issue_annotations: active ? form.issue_annotations.filter((item) => item.tag !== tag) : [...form.issue_annotations, { tag, start: form.segment_start, end: form.segment_end, note: "" }],
-    });
-  };
-  const updateAnnotation = (index, patch) => updateForm({ issue_annotations: form.issue_annotations.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) });
-  const submit = async () => {
-    if (!sample?.blind_code) return;
-    if (form.segment_start >= form.segment_end) { showError("问题开始时间必须早于结束时间"); return; }
-    const response = await fetch(`${apiBase}/api/blind-samples/score`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` }, body: JSON.stringify({ blind_code: sample.blind_code, ...form }) });
-    if (!response.ok) { showError(`盲化评分未保存：${await response.text()}`); return; }
-    setBlindSamples((items) => items.filter((item) => item.blind_code !== sample.blind_code));
-    showSuccess("盲化评分已提交");
-  };
-
-  return <main className={`min-h-screen pt-24 pb-10 px-4 ${isDark ? "bg-slate-900 text-slate-100" : "bg-slate-50 text-slate-800"}`}>
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-5"><div className="text-xs uppercase tracking-widest text-cyan-500">Blind evaluation</div><h1 className="text-2xl font-bold mt-1">盲化专家评分</h1><p className="text-sm mt-2 text-slate-500">只显示盲化编号和目标声源，不显示算法、任务编号或原始文件名。</p></div>
-      {!sample ? <div className={`rounded-xl border p-8 text-center ${isDark ? "border-slate-700 bg-slate-800/60" : "border-slate-200 bg-white"}`}>暂无待评分的 15 秒盲化样本</div> : <div className="grid gap-5 lg:grid-cols-[1fr_1.15fr]">
-        <section className={`rounded-xl border p-5 ${isDark ? "border-slate-700 bg-slate-800/60" : "border-slate-200 bg-white"}`}>
-          <label className="block text-sm font-semibold">盲化样本<select value={sample.blind_code} onChange={(event) => setSelectedCode(event.target.value)} className={`mt-2 w-full rounded border px-3 py-2 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`}>{blindSamples.map((item) => <option key={item.blind_code} value={item.blind_code}>{item.blind_code}</option>)}</select></label>
-          <div className="mt-5 flex items-center justify-between"><span className="text-sm text-slate-500">目标声源</span><strong>{stemName}</strong></div>
-          {audioUrl && <StemPlayer name="盲化样本" src={audioUrl} showDownload={false} loopStart={form.segment_start} loopEnd={form.segment_end} loopEnabled={loopEnabled} onLoopToggle={() => setLoopEnabled((value) => !value)} />}
-          <p className="text-xs text-slate-500 mt-3">设置问题时间范围后点击播放器的循环按钮，可反复试听该区间。</p>
-        </section>
-        <section className={`rounded-xl border p-5 ${isDark ? "border-slate-700 bg-slate-800/60" : "border-slate-200 bg-white"}`}>
-          <div className="grid grid-cols-2 gap-3">{[["quality","声源完整性"],["interference","非目标声源干扰抑制"],["artifacts","算法伪影控制"],["overall_acceptability","整体可接受度"]].map(([key,label]) => <label key={key} className="text-sm">{label}<div className="flex items-center gap-2 mt-1"><input type="range" min="1" max="5" value={form[key]} onChange={(event) => updateForm({ [key]: Number(event.target.value) })} className="w-full accent-cyan-500" /><span className="w-8 text-right font-mono text-cyan-500">{form[key]} / 5</span></div></label>)}</div>
-          <div className="grid grid-cols-2 gap-3 mt-5"><label className="text-xs">问题开始（秒）<input type="number" min="0" max="15" step="0.1" value={form.segment_start} onChange={(event) => setTimeRange("segment_start", event.target.value)} className={`mt-1 w-full rounded border px-2 py-2 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} /></label><label className="text-xs">问题结束（秒）<input type="number" min="0" max="15" step="0.1" value={form.segment_end} onChange={(event) => setTimeRange("segment_end", event.target.value)} className={`mt-1 w-full rounded border px-2 py-2 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} /></label></div>
-          <div className="mt-5"><div className="text-xs mb-2">标准化听感问题（可多选）</div><div className="flex flex-wrap gap-2">{tags.map((tag) => <button type="button" key={tag} onClick={() => toggleTag(tag)} className={`px-2 py-1 text-xs rounded border ${form.issue_tags.includes(tag) ? "bg-cyan-600 border-cyan-500 text-white" : "border-slate-300 text-slate-600"}`}>{tag}</button>)}</div></div>
-          {form.issue_annotations.length > 0 && <div className="mt-4 space-y-2">{form.issue_annotations.map((item,index) => <div key={`${item.tag}-${index}`} className={`rounded border p-2 ${isDark ? "border-slate-700 bg-slate-900/50" : "border-slate-200 bg-slate-50"}`}><div className="flex justify-between text-xs font-semibold"><span>{item.tag}</span><button type="button" onClick={() => toggleTag(item.tag)} className="text-red-500">删除</button></div><div className="grid grid-cols-2 gap-2 mt-2"><input type="number" min="0" max="15" step="0.1" value={item.start} onChange={(event) => updateAnnotation(index, { start: Number(event.target.value) })} className={`${inputClass} px-2 py-1 text-xs`} /><input type="number" min="0" max="15" step="0.1" value={item.end} onChange={(event) => updateAnnotation(index, { end: Number(event.target.value) })} className={`${inputClass} px-2 py-1 text-xs`} /></div><input value={item.note || ""} onChange={(event) => updateAnnotation(index, { note: event.target.value })} placeholder="备注（可选）" className={`mt-2 w-full ${inputClass} px-2 py-1 text-xs`} /></div>)}</div>}
-          <label className="block text-sm mt-5">主观评分可靠性：{form.reliability} / 5<input type="range" min="1" max="5" value={form.reliability} onChange={(event) => updateForm({ reliability: Number(event.target.value) })} className="mt-2 w-full accent-cyan-500" /></label>
-          <button type="button" onClick={submit} className="w-full mt-6 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-3">提交盲化评分</button>
-        </section>
-      </div>}
-    </div>
-  </main>;
-}
-
-const STANDARD_ISSUE_TAGS = {
-  Vocals: ["音色变薄", "齿音异常", "人声残留", "伴奏残留", "尾音截断", "声像不稳定"],
-  Drums: ["鼓点瞬态削弱", "鼓声起音模糊", "底鼓低频缺失", "军鼓主体缺失", "镲片高频缺失", "鼓点断续/破碎"],
-  Bass: ["低频主体缺失", "基频能量削弱", "Bass音色变薄", "低频串扰", "起音瞬态削弱", "延音不完整"],
-  Other: ["其他伴奏残留", "混响残留", "人声残留", "金属感伪影", "颗粒感伪影", "动态变化受损"],
-};
 
 // --- Components ---
 
@@ -1175,12 +1095,27 @@ const SpectrumComparator = ({
   const originalCanvasRef = useRef(null);
   const separatedCanvasRef = useRef(null);
   const diffCanvasRef = useRef(null);
+  const [sizeTick, setSizeTick] = useState(0);
+
+  // 让三个频谱画布跟随容器尺寸重绘（修复 object-cover 裁切 + 固定 256×160 导致的模糊/拉伸）
+  useEffect(() => {
+    const container = originalCanvasRef.current?.parentElement;
+    if (!container) return;
+    const applySize = () => setSizeTick((t) => t + 1);
+    applySize();
+    const ro = new ResizeObserver(applySize);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
 
   const drawSpectrogram = useCallback((canvas, data, mode = "normal") => {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const w = canvas.width;
-    const h = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.floor((canvas.clientWidth || canvas.width || 256) * dpr));
+    const h = Math.max(1, Math.floor((canvas.clientHeight || canvas.height || 160) * dpr));
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
 
     // fallback
     ctx.clearRect(0, 0, w, h);
@@ -1236,12 +1171,12 @@ const SpectrumComparator = ({
   useEffect(() => {
     if (!isActive) return;
     drawSpectrogram(originalCanvasRef.current, originalSpectrumData);
-  }, [isActive, originalSpectrumData, viewRange, drawSpectrogram]);
+  }, [isActive, originalSpectrumData, viewRange, drawSpectrogram, sizeTick]);
 
   useEffect(() => {
     if (!isActive) return;
     drawSpectrogram(separatedCanvasRef.current, separatedSpectrumData);
-  }, [isActive, separatedSpectrumData, viewRange, drawSpectrogram]);
+  }, [isActive, separatedSpectrumData, viewRange, drawSpectrogram, sizeTick]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -1284,7 +1219,7 @@ const SpectrumComparator = ({
     );
 
     drawSpectrogram(diffCanvasRef.current, normDiff, "diff");
-  }, [isActive, originalSpectrumData, separatedSpectrumData, viewRange, drawSpectrogram]);
+  }, [isActive, originalSpectrumData, separatedSpectrumData, viewRange, drawSpectrogram, sizeTick]);
 
   const [dragging, setDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(null);
@@ -1427,9 +1362,7 @@ const SpectrumComparator = ({
       >
         <canvas
           ref={originalCanvasRef}
-          width={256}
-          height={160}
-          className="w-full h-full object-cover"
+          className="block w-full h-full"
         />
         <div className="absolute top-1 left-2 text-xs text-emerald-400 font-mono bg-black/50 px-1 rounded">
           Original
@@ -1447,9 +1380,7 @@ const SpectrumComparator = ({
       >
         <canvas
           ref={separatedCanvasRef}
-          width={256}
-          height={160}
-          className="w-full h-full object-cover"
+          className="block w-full h-full"
         />
         <div className="absolute top-1 left-2 text-xs text-cyan-400 font-mono bg-black/50 px-1 rounded">
           Separated
@@ -1459,17 +1390,15 @@ const SpectrumComparator = ({
       {/* 右侧：差分频谱 |Mix - Alg| */}
       <div
         className="bg-slate-950 rounded border border-slate-700 p-1 relative overflow-hidden group"
-        onMouseDown={(e) => handleMouseDown(e, separatedCanvasRef)}
-        onMouseMove={(e) => handleMouseMove(e, separatedCanvasRef)}
-        onMouseUp={(e) => handleMouseUp(e, separatedCanvasRef)}
-        onMouseLeave={(e) => handleMouseUp(e, separatedCanvasRef)}
+        onMouseDown={(e) => handleMouseDown(e, diffCanvasRef)}
+        onMouseMove={(e) => handleMouseMove(e, diffCanvasRef)}
+        onMouseUp={(e) => handleMouseUp(e, diffCanvasRef)}
+        onMouseLeave={(e) => handleMouseUp(e, diffCanvasRef)}
         onDoubleClick={handleDoubleClick}
       >
         <canvas
           ref={diffCanvasRef}
-          width={256}
-          height={160}
-          className="w-full h-full object-cover"
+          className="block w-full h-full"
         />
         <div className="absolute top-1 left-2 text-xs text-red-300 font-mono bg-black/50 px-1 rounded">
           |Mix-Alg|
@@ -1969,7 +1898,7 @@ const OverlayWaveformComparisonView = ({
   showGold = true,
   showSeparated = true,
   mode = "stacked", // "stacked" | "overlay"
-  heightPx = 220,
+  heightPx = 300,
   autoGain = true,
   yZoom = 1.0,
   viewRange,
@@ -2112,23 +2041,80 @@ const OverlayWaveformComparisonView = ({
     }
 
     // 纵向占用：叠加模式更“饱满”，分轨模式更“细长”（接近原来的 Reference / Separated 样式）
+    // 峰值用包络（min/max 的最大绝对值）而非中线，避免对称波形中线≈0 导致 autoGain 失效
+    const getEnvelopePeakInView = (w) => {
+      const minArr = Array.isArray(w.min) ? w.min : null;
+      const maxArr = Array.isArray(w.max) ? w.max : null;
+      if (minArr && maxArr && minArr.length && maxArr.length) {
+        return Math.max(getPeakAbsInView(minArr), getPeakAbsInView(maxArr));
+      }
+      return getPeakAbsInView(w.mid);
+    };
+
     let baseScaleY = isStacked ? height * 0.18 : height * 0.42;
     if (autoGain) {
       let peak = 0;
-      if (showGold) peak = Math.max(peak, getPeakAbsInView(goldW.mid));
-      if (showSeparated) peak = Math.max(peak, getPeakAbsInView(sepW.mid));
+      if (showGold) peak = Math.max(peak, getEnvelopePeakInView(goldW));
+      if (showSeparated) peak = Math.max(peak, getEnvelopePeakInView(sepW));
       const denom = peak > 1e-6 ? peak : 1.0;
       baseScaleY = (isStacked ? height * 0.22 : height * 0.44) / denom;
     }
     const scaleY = baseScaleY * safeZoom;
 
-    const drawLineWave = (centerLineY, w, rgbaStroke, strokeWidth = 2) => {
+    // 画“包络填充 + 上下边界线”或退化为中线。
+    // 关键：必须优先用 min/max 包络，否则响的段落会被中线 (min+max)/2 平均成一条平线。
+    const drawEnvelopeOrLine = (centerLineY, w, rgbaStroke, rgbaFill, strokeWidth = 1.4) => {
       const midArr = w?.mid;
+      const minArr = Array.isArray(w?.min) ? w.min : null;
+      const maxArr = Array.isArray(w?.max) ? w.max : null;
+      const hasEnvelope = minArr && maxArr && minArr.length && maxArr.length;
       if (!Array.isArray(midArr) || midArr.length === 0) return;
 
+      if (hasEnvelope) {
+        // 上边界：max
+        ctx.beginPath();
+        ctx.fillStyle = rgbaFill;
+        for (let i = 0; i < width; i += 1) {
+          const pos = vrStart + (i / width) * span;
+          const v = getValAt(maxArr, pos);
+          if (i === 0) ctx.moveTo(i, centerLineY + v * scaleY);
+          else ctx.lineTo(i, centerLineY + v * scaleY);
+        }
+        // 下边界：min（反向闭合）
+        for (let i = width - 1; i >= 0; i -= 1) {
+          const pos = vrStart + (i / width) * span;
+          const v = getValAt(minArr, pos);
+          ctx.lineTo(i, centerLineY + v * scaleY);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // 上下边界线（更清晰）
+        ctx.strokeStyle = rgbaStroke;
+        ctx.lineWidth = strokeWidth;
+        ctx.beginPath();
+        for (let i = 0; i < width; i += 1) {
+          const pos = vrStart + (i / width) * span;
+          const v = getValAt(maxArr, pos);
+          if (i === 0) ctx.moveTo(i, centerLineY + v * scaleY);
+          else ctx.lineTo(i, centerLineY + v * scaleY);
+        }
+        ctx.stroke();
+        ctx.beginPath();
+        for (let i = 0; i < width; i += 1) {
+          const pos = vrStart + (i / width) * span;
+          const v = getValAt(minArr, pos);
+          if (i === 0) ctx.moveTo(i, centerLineY + v * scaleY);
+          else ctx.lineTo(i, centerLineY + v * scaleY);
+        }
+        ctx.stroke();
+        return;
+      }
+
+      // 退化为中线（旧数据）
       ctx.beginPath();
       ctx.strokeStyle = rgbaStroke;
-      ctx.lineWidth = strokeWidth;
+      ctx.lineWidth = strokeWidth + 0.4;
       for (let i = 0; i < width; i += 1) {
         const pos = vrStart + (i / width) * span;
         const val = getValAt(midArr, pos);
@@ -2140,16 +2126,18 @@ const OverlayWaveformComparisonView = ({
 
     // 颜色：Gold=鲜明紫红；Separated=亮青色
     const goldStroke = "rgba(217, 70, 239, 0.92)"; // magenta
+    const goldFill = "rgba(217, 70, 239, 0.14)";
     const sepStroke = "rgba(34, 211, 238, 0.95)"; // cyan
+    const sepFill = "rgba(34, 211, 238, 0.14)";
 
     if (isStacked) {
       // 分轨：Gold 在上，Separated 在下（更接近原来的观感，也更易读）
-      if (showGold) drawLineWave(refCenterY, goldW, goldStroke, 1.1);
-      if (showSeparated) drawLineWave(sepCenterY, sepW, sepStroke, 1.25);
+      if (showGold) drawEnvelopeOrLine(refCenterY, goldW, goldStroke, goldFill, 1.1);
+      if (showSeparated) drawEnvelopeOrLine(sepCenterY, sepW, sepStroke, sepFill, 1.2);
     } else {
       // 叠加：同一零线（更强调相位/对齐差异）
-      if (showGold) drawLineWave(centerY, goldW, goldStroke, 1.15);
-      if (showSeparated) drawLineWave(centerY, sepW, sepStroke, 1.3);
+      if (showGold) drawEnvelopeOrLine(centerY, goldW, goldStroke, goldFill, 1.1);
+      if (showSeparated) drawEnvelopeOrLine(centerY, sepW, sepStroke, sepFill, 1.25);
     }
 
     // 播放进度线
@@ -2616,12 +2604,6 @@ export default function AudioLabApp() {
   const [waveAutoGain, setWaveAutoGain] = useState(true);
   const [waveYZoom, setWaveYZoom] = useState(1.6);
   const [waveExpanded, setWaveExpanded] = useState(false); // 弹窗放大波形对比
-  // 按 stem 维度存储主观评分及 15 秒片段标注
-  const [stemScores, setStemScores] = useState({});
-  const [standardLabels, setStandardLabels] = useState({});
-  const [blindSamples, setBlindSamples] = useState([]);
-  const [selectedBlindCode, setSelectedBlindCode] = useState("");
-  const [blindAudioUrl, setBlindAudioUrl] = useState("");
 
   // ---- 播放进度统一同步（Input / Gold / Stem 共用一条“全局时间轴”）----
   const inputPlaybackRef = useRef(null);
@@ -2708,6 +2690,9 @@ export default function AudioLabApp() {
   const [, setObjectiveDistribution] = useState([]);
   const [loadingStats, setLoadingStats] = useState(false);
   const [statsRefreshedAt, setStatsRefreshedAt] = useState(null); // 最近一次成功刷新统计的时间戳
+  // 客观指标可靠性分级（跨15秒片段变异系数 → 高/中/低）与主动学习推荐样本
+  const [objectiveReliability, setObjectiveReliability] = useState(null);
+  const [activeLearningRecs, setActiveLearningRecs] = useState(null);
   // 当前专家自己的评分记录（用于“删除某一次手滑评分”）
   const [myScoreRecords, setMyScoreRecords] = useState([]);
   const [loadingMyScores, setLoadingMyScores] = useState(false);
@@ -2785,50 +2770,6 @@ export default function AudioLabApp() {
       [section]: !prev[section]
     }));
   };
-
-  useEffect(() => {
-    if (!authToken) return;
-    fetch(`${API_BASE}/api/standard-labels`, { headers: { Authorization: `Bearer ${authToken}` } })
-      .then((resp) => (resp.ok ? resp.json() : []))
-      .then((items) => {
-        const grouped = {};
-        (Array.isArray(items) ? items : []).forEach((item) => { (grouped[item.stem_name] ||= []).push(item.label); });
-        setStandardLabels(grouped);
-      })
-      .catch(() => {});
-  }, [authToken]);
-
-  useEffect(() => {
-    if (!authToken || user?.role !== "expert") return;
-    fetch(`${API_BASE}/api/blind-samples`, { headers: { Authorization: `Bearer ${authToken}` } })
-      .then((resp) => (resp.ok ? resp.json() : []))
-      .then((items) => { const available = Array.isArray(items) ? items.filter((sample) => !sample.scored) : []; setBlindSamples(available); setSelectedBlindCode((prev) => prev || available[0]?.blind_code || ""); })
-      .catch(() => {});
-  }, [authToken, user?.role, taskId]);
-
-  // 盲化音频接口需要 Bearer 鉴权，先以 Blob 下载后交给 audio 元素播放。
-  useEffect(() => {
-    let objectUrl = "";
-    if (!authToken || !selectedBlindCode) {
-      setBlindAudioUrl("");
-      return undefined;
-    }
-    fetch(`${API_BASE}/api/blind-samples/${encodeURIComponent(selectedBlindCode)}/audio`, {
-      headers: { Authorization: `Bearer ${authToken}` },
-    })
-      .then((resp) => {
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        return resp.blob();
-      })
-      .then((blob) => {
-        objectUrl = URL.createObjectURL(blob);
-        setBlindAudioUrl(objectUrl);
-      })
-      .catch(() => setBlindAudioUrl(""));
-    return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [authToken, selectedBlindCode]);
 
   // 根据当前选择的 stems 和模式，请求后端生成混合 / 残差音频
   const generateMixedAudio = async () => {
@@ -3780,6 +3721,30 @@ export default function AudioLabApp() {
           console.warn("Failed to fetch objective SDR distribution:", e);
         }
 
+        // 获取客观指标可靠性分级（跨15秒片段变异系数）
+        try {
+          const relResp = await fetch(
+            `${API_BASE}/api/tasks/stats/objective-reliability`,
+          );
+          if (relResp.ok) {
+            setObjectiveReliability(await relResp.json());
+          }
+        } catch (e) {
+          console.warn("Failed to fetch objective reliability:", e);
+        }
+
+        // 获取主动学习推荐样本（不确定性排序）
+        try {
+          const recResp = await fetch(
+            `${API_BASE}/api/tasks/stats/active-learning/recommend?k=8`,
+          );
+          if (recResp.ok) {
+            setActiveLearningRecs(await recResp.json());
+          }
+        } catch (e) {
+          console.warn("Failed to fetch active learning recommendations:", e);
+        }
+
         if (refreshedAny) {
           setStatsRefreshedAt(Date.now());
         }
@@ -3856,6 +3821,23 @@ export default function AudioLabApp() {
       a.click();
       window.URL.revokeObjectURL(url);
       showSuccess("客观指标 CSV 导出成功");
+    } catch (e) {
+      showError(`导出失败：${e?.message || String(e)}`);
+    }
+  }, [showError, showSuccess]);
+
+  const downloadObjectiveStatsXlsx = useCallback(async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/tasks/stats/objective/export-xlsx`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "objective_stats.xlsx";
+      a.click();
+      window.URL.revokeObjectURL(url);
+      showSuccess("客观指标 Excel 导出成功");
     } catch (e) {
       showError(`导出失败：${e?.message || String(e)}`);
     }
@@ -5013,71 +4995,6 @@ export default function AudioLabApp() {
     computeObjectiveMetrics();
   }, [taskId, currentStem, goldStemTargetName, objectiveLoading, objectiveByStem, computeObjectiveMetrics]);
 
-  const submitScore = async () => {
-    if (!user || !selectedAlgo || selectedAlgo === ALGO_NONE || !currentStem) {
-      showError("请先选择需要评估的单一声源（stem），并完成分离任务。");
-      return;
-    }
-    
-    // 仅专家可提交评分
-    if (user.role !== "expert") {
-      showError("仅专家用户可提交主观评分");
-      return;
-    }
-
-    const currentStemName = currentStem.name;
-    // 当前 stem 的主观评分（滑条）
-    const currentScore =
-      stemScores[currentStemName] || {
-        quality: 3,
-        interference: 3,
-        artifacts: 3,
-        overall_acceptability: 3,
-        segment_start: 0,
-        segment_end: 15,
-          issue_tags: [],
-          issue_annotations: [],
-          reliability: 3,
-      };
-
-    // 当前任务的客观指标（来自后端任务结果），与该 stem 的主观评分一并存储
-    try {
-      const blindSample = blindSamples.find((sample) => sample.blind_code === selectedBlindCode && sample.stem_name === currentStemName && !sample.scored)
-        || blindSamples.find((sample) => sample.stem_name === currentStemName && !sample.scored);
-      if (!blindSample) {
-        showError("当前声源暂无可评分的盲化 15 秒样本，请联系管理员先生成样本");
-        return;
-      }
-      const blindResp = await fetch(`${API_BASE}/api/blind-samples/score`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
-        body: JSON.stringify({
-          blind_code: blindSample.blind_code,
-          quality: currentScore.quality,
-          interference: currentScore.interference,
-          artifacts: currentScore.artifacts,
-          overall_acceptability: currentScore.overall_acceptability,
-          segment_start: currentScore.segment_start,
-          segment_end: currentScore.segment_end,
-          issue_tags: currentScore.issue_tags || [],
-          issue_annotations: currentScore.issue_annotations || [],
-          reliability: currentScore.reliability,
-        }),
-      });
-      if (!blindResp.ok) {
-        const detail = await blindResp.text();
-        showError(`盲化评分未保存：${detail || `HTTP ${blindResp.status}`}`);
-        return;
-      }
-      setBlindSamples((prev) => prev.map((sample) => sample.blind_code === blindSample.blind_code ? { ...sample, scored: true } : sample));
-      fetchMyScores({ skip: 0, limit: 100 });
-      showSuccess("盲化评分已提交并写入后端数据库！");
-    } catch (e) {
-      console.error(e);
-      showError("提交失败，请重试");
-    }
-  };
-
   // 从算法对比统计中提取可用的 stem 名称，用于 Radar 下拉框
   const availableRadarStems = useMemo(() => {
     const stems = new Set();
@@ -5342,7 +5259,7 @@ export default function AudioLabApp() {
       )}
 
       {currentView === "blind" ? (
-        <BlindScoringPage isDark={isDark} authToken={authToken} blindSamples={blindSamples} setBlindSamples={setBlindSamples} standardLabels={standardLabels} apiBase={API_BASE} showError={showError} showSuccess={showSuccess} />
+        <BlindScoringPage isDark={isDark} authToken={authToken} apiBase={API_BASE} showError={showError} showSuccess={showSuccess} />
       ) : <main className={`app-main ${currentView === "dashboard" ? "dashboard-page" : "scroll-page"} pt-20 pb-8 px-3 sm:px-4 max-w-7xl mx-auto`}>
         {currentView === "manual" && (
           <UserManual onBack={() => setCurrentView("dashboard")} />
@@ -5355,9 +5272,9 @@ export default function AudioLabApp() {
               <span className={isDark ? "text-slate-500" : "text-slate-400"}>选择音频</span><span className="text-cyan-500">→</span>
               <span className={isDark ? "text-slate-500" : "text-slate-400"}>运行算法</span><span className="text-cyan-500">→</span>
               <span className={isDark ? "text-slate-500" : "text-slate-400"}>试听声源</span><span className="text-cyan-500">→</span>
-              <span className={isDark ? "text-slate-500" : "text-slate-400"}>完成盲化评分</span>
+              <span className={isDark ? "text-slate-500" : "text-slate-400"}>整体评分（内部参考）</span>
             </div>
-            <p className={`mt-1 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>先完成左侧步骤，再进行客观指标计算或专家主观评分。</p>
+            <p className={`mt-1 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>完成左侧步骤与客观指标分析后，可在此提交非盲化整体评分（内部参考）；盲化评分（专利实验）请前往「盲化评分」页面。</p>
           </div>
           <div className="dashboard-shell grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Left Panel: Controls */}
@@ -6272,6 +6189,19 @@ export default function AudioLabApp() {
                 )}
                 </div>
               )}
+
+              {/* 5. 非盲化整体评分（内部参考）：对当前任务结果直接评分，与盲化评分隔离存储 */}
+              {taskId && stems && stems.length > 0 && selectedAlgo && selectedAlgo !== ALGO_NONE && (
+                <NonBlindScoringPanel
+                  taskId={taskId}
+                  algorithm={selectedAlgo}
+                  authToken={authToken}
+                  apiBase={API_BASE}
+                  showError={showError}
+                  showSuccess={showSuccess}
+                  isDark={isDark}
+                />
+              )}
             </div>
 
             {/* Center & Right Panel: Visualization & Evaluation */}
@@ -6467,7 +6397,7 @@ export default function AudioLabApp() {
                         showGold={showGoldInComparison}
                         showSeparated={showSeparatedInComparison}
                         mode={waveCompareMode}
-                        heightPx={220}
+                        heightPx={300}
                         autoGain={waveAutoGain}
                         yZoom={waveYZoom}
                         viewRange={viewRange}
@@ -6655,434 +6585,6 @@ export default function AudioLabApp() {
                 </div>
               </div>
 
-              {/* 5. Subjective Evaluation Panel - 仅专家可见 */}
-              {user?.role === "expert" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800/30 border-slate-700/50" : "bg-white border-slate-200 shadow-sm"}`}>
-                    <h3 className={`font-bold mb-4 flex items-center gap-2 ${isDark ? "text-white" : "text-slate-800"}`}>
-                      <Headphones size={18} className="text-purple-400" />{" "}
-                      专家主观评分（按 Stem）
-                    </h3>
-                    <p className={`text-xs mb-6 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                      请在盲化条件下对 15 秒片段评分，并标注听感问题的时间范围。
-                    </p>
-
-                    <div className="space-y-6">
-                      {blindSamples.length > 0 && (
-                        <div className={`rounded-lg border p-3 ${isDark ? "border-indigo-500/40 bg-indigo-950/20" : "border-indigo-200 bg-indigo-50"}`}>
-                          <div className="text-xs font-semibold mb-2">盲化试听样本</div>
-                          <select value={selectedBlindCode} onChange={(e) => setSelectedBlindCode(e.target.value)} className={`w-full rounded border px-3 py-2 text-sm ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`}>
-                            {blindSamples.map((sample) => <option key={sample.blind_code} value={sample.blind_code}>{sample.blind_code} · {sample.stem_name} · 15 秒</option>)}
-                          </select>
-                          {selectedBlindCode && blindAudioUrl && <audio controls preload="metadata" className="w-full mt-3" src={blindAudioUrl} />}
-                          <p className="text-[11px] mt-2 text-slate-500">当前评分将写入所选盲化样本，专家端不显示真实算法。</p>
-                        </div>
-                      )}
-                      <div className={`text-xs mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                        盲化样本： <span className="font-mono text-cyan-400">{selectedBlindCode || "未选择"}</span>
-                      </div>
-                      <div className={`text-xs mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                        当前评估目标：{" "}
-                        <span className="font-mono text-cyan-400">
-                          {currentStem?.name || "未选择"}
-                        </span>
-                      </div>
-
-                      {(() => {
-                        const stemName = currentStem?.name || "GLOBAL";
-                        const currentScore =
-                          stemScores[stemName] || {
-                            quality: 3,
-                            interference: 3,
-                            artifacts: 3,
-                            overall_acceptability: 3,
-                            segment_start: 0,
-                            segment_end: 15,
-                            issue_tags: [],
-                            reliability: 3,
-                          };
-                        const metrics = [
-                          {
-                            key: "quality",
-                            label: "Quality (整体质量)",
-                          },
-                          {
-                            key: "interference",
-                            label: "Interference (干扰抑制)",
-                          },
-                          {
-                            key: "artifacts",
-                            label: "Artifacts (伪影控制)",
-                          },
-                          { key: "overall_acceptability", label: "Overall (整体可接受度)" },
-                        ];
-                        return metrics.map((m) => (
-                          <div key={m.key}>
-                            <div className="flex justify-between text-sm mb-2">
-                              <span className={isDark ? "text-slate-300" : "text-slate-700"}>{m.label}</span>
-                              <span className={isDark ? "font-mono text-cyan-400" : "font-mono text-cyan-600"}>
-                                {currentScore[m.key]} / 5
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next = Math.max(1, (currentScore[m.key] ?? 1) - 1);
-                                  setStemScores((prev) => ({
-                                    ...prev,
-                                    [stemName]: {
-                                      ...(prev[stemName] || currentScore),
-                                      [m.key]: next,
-                                    },
-                                  }));
-                                }}
-                                disabled={!results || !currentStem}
-                                className={`w-7 h-7 flex items-center justify-center rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                                  isDark ? "bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-200" : "bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700"
-                                }`}
-                              >
-                                -
-                              </button>
-                              <input
-                                type="range"
-                                min="1"
-                                max="5"
-                                value={currentScore[m.key]}
-                                onChange={(e) => {
-                                  const v = parseInt(e.target.value, 10);
-                                  setStemScores((prev) => ({
-                                    ...prev,
-                                    [stemName]: {
-                                      ...(prev[stemName] || currentScore),
-                                      [m.key]: v,
-                                    },
-                                  }));
-                                }}
-                                disabled={!results || !currentStem}
-                                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 ${
-                                  isDark ? "bg-slate-700" : "bg-cyan-100"
-                                }`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next = Math.min(5, (currentScore[m.key] ?? 1) + 1);
-                                  setStemScores((prev) => ({
-                                    ...prev,
-                                    [stemName]: {
-                                      ...(prev[stemName] || currentScore),
-                                      [m.key]: next,
-                                    },
-                                  }));
-                                }}
-                                disabled={!results || !currentStem}
-                                className={`w-7 h-7 flex items-center justify-center rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                                  isDark ? "bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-200" : "bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700"
-                                }`}
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        ));
-                      })()}
-
-                      {(() => {
-                        const stemName = currentStem?.name || "GLOBAL";
-                        const currentScore = stemScores[stemName] || { quality: 3, interference: 3, artifacts: 3, overall_acceptability: 3, segment_start: 0, segment_end: 15, issue_tags: [], issue_annotations: [], reliability: 3 };
-                        const update = (patch) => setStemScores((prev) => ({ ...prev, [stemName]: { ...currentScore, ...patch } }));
-                        const tags = standardLabels[stemName]?.length ? standardLabels[stemName] : (STANDARD_ISSUE_TAGS[stemName] || STANDARD_ISSUE_TAGS.Other);
-                        return (
-                          <div className={`space-y-4 border-t pt-4 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-                            <div className="grid grid-cols-2 gap-3">
-                              <label className="text-xs">问题开始（秒）<input type="number" min="0" max="15" step="0.1" value={currentScore.segment_start} onChange={(e) => update({ segment_start: Number(e.target.value) })} className={`mt-1 w-full rounded border px-2 py-2 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} /></label>
-                              <label className="text-xs">问题结束（秒）<input type="number" min="0" max="15" step="0.1" value={currentScore.segment_end} onChange={(e) => update({ segment_end: Number(e.target.value) })} className={`mt-1 w-full rounded border px-2 py-2 ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} /></label>
-                            </div>
-                            <div>
-                              <div className="text-xs mb-2">标准化评语标签（可多选）</div>
-                              <div className="flex flex-wrap gap-2">{tags.map((tag) => { const active = currentScore.issue_tags?.includes(tag); const annotation = (currentScore.issue_annotations || []).find((item) => item.tag === tag); return <button type="button" key={tag} onClick={() => update({ issue_tags: active ? currentScore.issue_tags.filter((x) => x !== tag) : [...(currentScore.issue_tags || []), tag], issue_annotations: active ? (currentScore.issue_annotations || []).filter((item) => item.tag !== tag) : [...(currentScore.issue_annotations || []), { tag, start: currentScore.segment_start, end: currentScore.segment_end, note: "" }] })} className={`px-2 py-1 text-xs rounded border ${annotation ? "bg-cyan-600 border-cyan-500 text-white" : isDark ? "border-slate-600 text-slate-300" : "border-slate-300 text-slate-700"}`}>{tag}</button>; })}</div>
-                              {(currentScore.issue_annotations || []).length > 0 && <div className="mt-3 space-y-1">{currentScore.issue_annotations.map((item, index) => <div key={`${item.tag}-${index}`} className={`flex items-center justify-between gap-2 rounded border px-2 py-1 text-[11px] ${isDark ? "border-slate-700 bg-slate-900/60 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-700"}`}><span className="truncate">{item.tag}</span><span className="font-mono">{Number(item.start).toFixed(1)}s-{Number(item.end).toFixed(1)}s</span></div>)}</div>}
-                              <input type="text" placeholder="补充本次评分的自定义标签，回车确认" className={`mt-3 w-full rounded border px-2 py-2 text-xs ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"}`} onKeyDown={(e) => { if (e.key === "Enter" && e.currentTarget.value.trim()) { e.preventDefault(); const custom = e.currentTarget.value.trim(); if (!currentScore.issue_tags?.includes(custom)) update({ issue_tags: [...(currentScore.issue_tags || []), custom] }); e.currentTarget.value = ""; } }} />
-                            </div>
-                            <label className="block text-xs">主观可靠性：{currentScore.reliability} / 5<input type="range" min="1" max="5" value={currentScore.reliability} onChange={(e) => update({ reliability: Number(e.target.value) })} className="mt-2 w-full accent-cyan-500" /></label>
-                          </div>
-                        );
-                      })()}
-
-                      <button
-                        onClick={submitScore}
-                        disabled={!results || !currentStem}
-                        className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
-                      >
-                        提交当前 Stem 的评估报告
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800/30 border-slate-700/50" : "bg-white border-slate-200 shadow-sm"}`}>
-                    <div className="w-full min-h-[420px] flex flex-col gap-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="text-left min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className={`text-xs font-bold uppercase ${isDark ? "text-slate-500" : "text-slate-700"}`}>
-                              实时评分统计
-                            </h4>
-                            <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full border ${
-                              isDark ? "border-slate-700/70 bg-slate-900/40 text-slate-400" : "border-slate-300 bg-slate-100 text-slate-600"
-                            }`}>
-                              RADAR
-                            </span>
-                          </div>
-                          <div className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/80" />
-                              {radarModel.source === "backend"
-                                ? `后端统计：共 ${radarModel.total} 份（约 30 秒自动刷新）`
-                                : `本地浏览器：共 ${radarModel.total} 份`}
-                            </span>
-                            {statsRefreshedAt && (
-                              <span className={isDark ? "text-slate-500/90" : "text-slate-600"}>
-                                最近刷新：
-                                <span className={isDark ? "text-slate-300" : "text-slate-700"}>
-                                  {new Date(statsRefreshedAt).toLocaleTimeString()}
-                                </span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {radarModel.source === "backend" && (
-                          <button
-                            type="button"
-                            onClick={() => fetchBackendStats({ showLoading: true })}
-                            disabled={loadingStats}
-                            className={`px-3 py-1.5 border rounded-lg text-[11px] inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ${
-                              isDark
-                                ? "bg-slate-900/60 hover:bg-slate-800/80 border-slate-700 text-slate-100"
-                                : "bg-white hover:bg-slate-100 border-slate-300 text-slate-700"
-                            }`}
-                            title="立即刷新"
-                          >
-                            <RotateCcw size={12} />
-                            {loadingStats ? "刷新中..." : "刷新"}
-                          </button>
-                        )}
-                      </div>
-                      {radarModel.source === "empty" && (
-                        <div className={`text-xs ${isDark ? "text-slate-500" : "text-slate-600"}`}>
-                          暂无专家评分数据（提交评分后会自动显示聚合结果）
-                        </div>
-                      )}
-                      {radarModel.source !== "empty" && (
-                        <div className="flex flex-col gap-3 flex-1 min-h-0">
-                          {/* Controls (above chart) */}
-                          <div className={`rounded-xl border p-3 text-left ${isDark ? "border-slate-700/50 bg-slate-900/20" : "border-slate-200 bg-slate-50"}`}>
-                            <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-3 items-start">
-                              <div>
-                                <div className={`text-[10px] mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                                  声源
-                                </div>
-                                <select
-                                  value={selectedRadarStem}
-                                  onChange={(e) =>
-                                    setSelectedRadarStem(e.target.value)
-                                  }
-                                  className={`w-full border rounded-lg px-2.5 py-1.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
-                                    isDark ? "bg-slate-900/80 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-700"
-                                  }`}
-                                >
-                                  {availableRadarStems.map((stem) => (
-                                    <option key={stem} value={stem}>
-                                      {stem === "ALL"
-                                        ? "全部声源（总体）"
-                                        : stem}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-
-                              <div>
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className={`text-[10px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                                    选择算法（可多选叠加）
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedRadarAlgorithms([])}
-                                    className={`text-[10px] transition ${isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-700"}`}
-                                    title="清空算法选择（恢复默认前2名）"
-                                  >
-                                    清空
-                                  </button>
-                                </div>
-
-                                <div className="flex flex-wrap gap-1.5">
-                                  {(Array.isArray(algorithmComparison)
-                                    ? algorithmComparison
-                                        .slice()
-                                        .sort(
-                                          (a, b) =>
-                                            (b?.total_scores || 0) -
-                                            (a?.total_scores || 0),
-                                        )
-                                        .slice(0, 8)
-                                    : []
-                                  ).map((algo) => {
-                                    const name = algo?.algorithm || "Unknown";
-                                    const count = algo?.total_scores || 0;
-                                    const isActive =
-                                      selectedRadarAlgorithms.includes(name);
-                                    const COLOR = {
-                                      "Demucs v4": "#06b6d4",
-                                      Spleeter: "#8b5cf6",
-                                      OpenUnmix: "#f59e0b",
-                                      MDX23C: "#22c55e",
-                                      Demucs4HT: "#38bdf8",
-                                      "Band Split RoFormer": "#a78bfa",
-                                      SCNet: "#fb7185",
-                                      Unknown: "#94a3b8",
-                                    };
-                                    const FALLBACK = [
-                                      "#06b6d4",
-                                      "#8b5cf6",
-                                      "#22c55e",
-                                      "#f59e0b",
-                                      "#fb7185",
-                                      "#a78bfa",
-                                    ];
-                                    const baseColor =
-                                      COLOR[name] ||
-                                      FALLBACK[name.length % FALLBACK.length];
-                                    return (
-                                      <button
-                                        key={name}
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedRadarAlgorithms((prev) => {
-                                            if (prev.includes(name)) {
-                                              return prev.filter(
-                                                (x) => x !== name,
-                                              );
-                                            }
-                                            return [...prev, name];
-                                          });
-                                        }}
-                                        className={`px-2.5 py-1 rounded-full border text-[11px] transition-colors inline-flex items-center gap-1.5 ${
-                                          isDark
-                                            ? (isActive
-                                              ? "bg-slate-900/80 text-slate-50"
-                                              : "bg-slate-900/40 text-slate-200 hover:bg-slate-800/80")
-                                            : (isActive
-                                              ? "bg-white text-slate-800"
-                                              : "bg-white text-slate-700 hover:bg-slate-50")
-                                        }`}
-                                        style={{
-                                          borderColor: baseColor,
-                                          boxShadow: isActive
-                                            ? `0 0 0 1px ${baseColor}55`
-                                            : "none",
-                                        }}
-                                        title={name}
-                                      >
-                                        <span
-                                          className="inline-block w-2 h-2 rounded-full"
-                                          style={{ backgroundColor: baseColor }}
-                                        />
-                                        <span className="max-w-[180px] truncate">
-                                          {name}
-                                        </span>
-                                        <span className={isDark ? "text-slate-400" : "text-slate-600"}>
-                                          ({count})
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className={`mt-2 text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
-                              当前算法：
-                              <span className={isDark ? "text-slate-300" : "text-slate-700"}>
-                                {Array.isArray(selectedRadarAlgorithms) &&
-                                selectedRadarAlgorithms.length > 0
-                                  ? selectedRadarAlgorithms.join(" / ")
-                                  : "默认对比前 2 名算法"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Chart (below '当前算法…') */}
-                          <div className={`relative rounded-xl border p-3 ${
-                            isDark ? "border-slate-700/50 bg-slate-900/20" : "border-slate-200 bg-white"
-                          }`}>
-                            {loadingStats && (
-                              <div className={`absolute inset-0 rounded-xl backdrop-blur-[1px] flex items-center justify-center text-[11px] animate-pulse ${
-                                isDark ? "bg-slate-900/40 text-slate-200" : "bg-white/75 text-slate-700"
-                              }`}>
-                                正在刷新统计…
-                              </div>
-                            )}
-                            <div className="h-[300px] sm:h-[360px] lg:h-[400px]">
-                              <ResponsiveContainer width="100%" height="100%" className={isDark ? "" : "bg-white rounded-lg"}>
-                                <RadarChart
-                                  cx="50%"
-                                  cy="52%"
-                                  outerRadius="80%"
-                                  margin={{ top: 14, right: 34, bottom: 22, left: 34 }}
-                                  data={radarModel.data}
-                                >
-                                  <PolarGrid stroke={isDark ? "#334155" : "#94a3b8"} />
-                                  <PolarAngleAxis
-                                    dataKey="subject"
-                                    tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }}
-                                    tickMargin={12}
-                                  />
-                                  <PolarRadiusAxis
-                                    angle={30}
-                                    domain={[0, 5]}
-                                    tick={false}
-                                    axisLine={false}
-                                  />
-                                  {radarModel.series.map((s) => (
-                                    <Radar
-                                      key={s.key}
-                                      name={s.key}
-                                      dataKey={s.key}
-                                      stroke={s.color}
-                                      fill={s.color}
-                                      fillOpacity={0.28}
-                                    />
-                                  ))}
-                                  <Legend
-                                    wrapperStyle={{ fontSize: "11px" }}
-                                    verticalAlign="bottom"
-                                    height={32}
-                                  />
-                                  <RechartsTooltip
-                                    contentStyle={
-                                      isDark
-                                        ? { backgroundColor: "#0f172a", borderColor: "#334155", color: "#fff", borderRadius: "12px" }
-                                        : { backgroundColor: "#ffffff", borderColor: "#e2e8f0", color: "#0f172a", borderRadius: "12px" }
-                                    }
-                                    formatter={(value, name) => {
-                                      const v = Number(value);
-                                      const display = Number.isFinite(v)
-                                        ? v.toFixed(1)
-                                        : value;
-                                      return [display, name];
-                                    }}
-                                  />
-                                </RadarChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
           <nav className={`mt-4 lg:hidden flex gap-1 overflow-x-auto p-1 rounded-lg border ${isDark ? "bg-slate-800/70 border-slate-700/60" : "bg-slate-100 border-slate-200"}`} aria-label="页面导航">
@@ -7347,6 +6849,269 @@ export default function AudioLabApp() {
               )}
             </div>
 
+            {/* 实时评分统计：算法维度主观评分雷达（全站聚合） */}
+            <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800/30 border-slate-700/50" : "bg-white border-slate-200 shadow-sm"}`}>
+              <div className="w-full min-h-[420px] flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="text-left min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className={`text-xs font-bold uppercase ${isDark ? "text-slate-500" : "text-slate-700"}`}>
+                        实时评分统计
+                      </h4>
+                      <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full border ${
+                        isDark ? "border-slate-700/70 bg-slate-900/40 text-slate-400" : "border-slate-300 bg-slate-100 text-slate-600"
+                      }`}>
+                        RADAR
+                      </span>
+                    </div>
+                    <div className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/80" />
+                        {radarModel.source === "backend"
+                          ? `后端统计：共 ${radarModel.total} 份（约 30 秒自动刷新）`
+                          : `本地浏览器：共 ${radarModel.total} 份`}
+                      </span>
+                      {statsRefreshedAt && (
+                        <span className={isDark ? "text-slate-500/90" : "text-slate-600"}>
+                          最近刷新：
+                          <span className={isDark ? "text-slate-300" : "text-slate-700"}>
+                            {new Date(statsRefreshedAt).toLocaleTimeString()}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {radarModel.source === "backend" && (
+                    <button
+                      type="button"
+                      onClick={() => fetchBackendStats({ showLoading: true })}
+                      disabled={loadingStats}
+                      className={`px-3 py-1.5 border rounded-lg text-[11px] inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition flex-shrink-0 ${
+                        isDark
+                          ? "bg-slate-900/60 hover:bg-slate-800/80 border-slate-700 text-slate-100"
+                          : "bg-white hover:bg-slate-100 border-slate-300 text-slate-700"
+                      }`}
+                      title="立即刷新"
+                    >
+                      <RotateCcw size={12} />
+                      {loadingStats ? "刷新中..." : "刷新"}
+                    </button>
+                  )}
+                </div>
+                {radarModel.source === "empty" && (
+                  <div className={`text-xs ${isDark ? "text-slate-500" : "text-slate-600"}`}>
+                    暂无专家评分数据（提交评分后会自动显示聚合结果）
+                  </div>
+                )}
+                {radarModel.source !== "empty" && (
+                  <div className="flex flex-col gap-3 flex-1 min-h-0">
+                    {/* Controls (above chart) */}
+                    <div className={`rounded-xl border p-3 text-left ${isDark ? "border-slate-700/50 bg-slate-900/20" : "border-slate-200 bg-slate-50"}`}>
+                      <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-3 items-start">
+                        <div>
+                          <div className={`text-[10px] mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                            声源
+                          </div>
+                          <select
+                            value={selectedRadarStem}
+                            onChange={(e) =>
+                              setSelectedRadarStem(e.target.value)
+                            }
+                            className={`w-full border rounded-lg px-2.5 py-1.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
+                              isDark ? "bg-slate-900/80 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-700"
+                            }`}
+                          >
+                            {availableRadarStems.map((stem) => (
+                              <option key={stem} value={stem}>
+                                {stem === "ALL"
+                                  ? "全部声源（总体）"
+                                  : stem}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-[10px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                              选择算法（可多选叠加）
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRadarAlgorithms([])}
+                              className={`text-[10px] transition ${isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                              title="清空算法选择（恢复默认前2名）"
+                            >
+                              清空
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5">
+                            {(Array.isArray(algorithmComparison)
+                              ? algorithmComparison
+                                  .slice()
+                                  .sort(
+                                    (a, b) =>
+                                      (b?.total_scores || 0) -
+                                      (a?.total_scores || 0),
+                                  )
+                                  .slice(0, 8)
+                              : []
+                            ).map((algo) => {
+                              const name = algo?.algorithm || "Unknown";
+                              const count = algo?.total_scores || 0;
+                              const isActive =
+                                selectedRadarAlgorithms.includes(name);
+                              const COLOR = {
+                                "Demucs v4": "#06b6d4",
+                                Spleeter: "#8b5cf6",
+                                OpenUnmix: "#f59e0b",
+                                MDX23C: "#22c55e",
+                                Demucs4HT: "#38bdf8",
+                                "Band Split RoFormer": "#a78bfa",
+                                SCNet: "#fb7185",
+                                Unknown: "#94a3b8",
+                              };
+                              const FALLBACK = [
+                                "#06b6d4",
+                                "#8b5cf6",
+                                "#22c55e",
+                                "#f59e0b",
+                                "#fb7185",
+                                "#a78bfa",
+                              ];
+                              const baseColor =
+                                COLOR[name] ||
+                                FALLBACK[name.length % FALLBACK.length];
+                              return (
+                                <button
+                                  key={name}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedRadarAlgorithms((prev) => {
+                                      if (prev.includes(name)) {
+                                        return prev.filter(
+                                          (x) => x !== name,
+                                        );
+                                      }
+                                      return [...prev, name];
+                                    });
+                                  }}
+                                  className={`px-2.5 py-1 rounded-full border text-[11px] transition-colors inline-flex items-center gap-1.5 ${
+                                    isDark
+                                      ? (isActive
+                                        ? "bg-slate-900/80 text-slate-50"
+                                        : "bg-slate-900/40 text-slate-200 hover:bg-slate-800/80")
+                                      : (isActive
+                                        ? "bg-white text-slate-800"
+                                        : "bg-white text-slate-700 hover:bg-slate-50")
+                                  }`}
+                                  style={{
+                                    borderColor: baseColor,
+                                    boxShadow: isActive
+                                      ? `0 0 0 1px ${baseColor}55`
+                                      : "none",
+                                  }}
+                                  title={name}
+                                >
+                                  <span
+                                    className="inline-block w-2 h-2 rounded-full"
+                                    style={{ backgroundColor: baseColor }}
+                                  />
+                                  <span className="max-w-[180px] truncate">
+                                    {name}
+                                  </span>
+                                  <span className={isDark ? "text-slate-400" : "text-slate-600"}>
+                                    ({count})
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={`mt-2 text-[11px] ${isDark ? "text-slate-500" : "text-slate-600"}`}>
+                        当前算法：
+                        <span className={isDark ? "text-slate-300" : "text-slate-700"}>
+                          {Array.isArray(selectedRadarAlgorithms) &&
+                          selectedRadarAlgorithms.length > 0
+                            ? selectedRadarAlgorithms.join(" / ")
+                            : "默认对比前 2 名算法"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Chart (below '当前算法…') */}
+                    <div className={`relative rounded-xl border p-3 ${
+                      isDark ? "border-slate-700/50 bg-slate-900/20" : "border-slate-200 bg-white"
+                    }`}>
+                      {loadingStats && (
+                        <div className={`absolute inset-0 rounded-xl backdrop-blur-[1px] flex items-center justify-center text-[11px] animate-pulse ${
+                          isDark ? "bg-slate-900/40 text-slate-200" : "bg-white/75 text-slate-700"
+                        }`}>
+                          正在刷新统计…
+                        </div>
+                      )}
+                      <div className="h-[300px] sm:h-[360px] lg:h-[400px]">
+                        <ResponsiveContainer width="100%" height="100%" className={isDark ? "" : "bg-white rounded-lg"}>
+                          <RadarChart
+                            cx="50%"
+                            cy="52%"
+                            outerRadius="80%"
+                            margin={{ top: 14, right: 34, bottom: 22, left: 34 }}
+                            data={radarModel.data}
+                          >
+                            <PolarGrid stroke={isDark ? "#334155" : "#94a3b8"} />
+                            <PolarAngleAxis
+                              dataKey="subject"
+                              tick={{ fill: isDark ? "#94a3b8" : "#64748b", fontSize: 10 }}
+                              tickMargin={12}
+                            />
+                            <PolarRadiusAxis
+                              angle={30}
+                              domain={[0, 5]}
+                              tick={false}
+                              axisLine={false}
+                            />
+                            {radarModel.series.map((s) => (
+                              <Radar
+                                key={s.key}
+                                name={s.key}
+                                dataKey={s.key}
+                                stroke={s.color}
+                                fill={s.color}
+                                fillOpacity={0.28}
+                              />
+                            ))}
+                            <Legend
+                              wrapperStyle={{ fontSize: "11px" }}
+                              verticalAlign="bottom"
+                              height={32}
+                            />
+                            <RechartsTooltip
+                              contentStyle={
+                                isDark
+                                  ? { backgroundColor: "#0f172a", borderColor: "#334155", color: "#fff", borderRadius: "12px" }
+                                  : { backgroundColor: "#ffffff", borderColor: "#e2e8f0", color: "#0f172a", borderRadius: "12px" }
+                              }
+                              formatter={(value, name) => {
+                                const v = Number(value);
+                                const display = Number.isFinite(v)
+                                  ? v.toFixed(1)
+                                  : value;
+                                return [display, name];
+                              }}
+                            />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* 当前专家：我的评分记录（支持删除单条手滑记录） */}
             {user?.role === "expert" && (
               <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
@@ -7409,7 +7174,16 @@ export default function AudioLabApp() {
                             <td className={`py-2 pr-4 font-mono ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                               {row?.created_at ? String(row.created_at).replace("T", " ").slice(0, 19) : "-"}
                             </td>
-                            <td className={`py-2 pr-4 ${isDark ? "text-slate-200" : "text-slate-800"}`}>{row?.algorithm || "-"}</td>
+                            <td className={`py-2 pr-4 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                              <span className="inline-flex items-center gap-1">
+                                {row?.algorithm || "-"}
+                                {row?.blind_sample_id == null && (
+                                  <span className="px-1 py-0.5 text-[9px] rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                    非盲化
+                                  </span>
+                                )}
+                              </span>
+                            </td>
                             <td className={`py-2 pr-4 ${isDark ? "text-slate-300" : "text-slate-700"}`}>{row?.stem_name || "ALL"}</td>
                             <td className="py-2 pr-4 text-right text-emerald-400 font-mono">{row?.quality ?? "-"}</td>
                             <td className="py-2 pr-4 text-right text-cyan-400 font-mono">{row?.interference ?? "-"}</td>
@@ -7511,6 +7285,12 @@ export default function AudioLabApp() {
                   className={`px-3 py-1.5 rounded-lg border text-xs transition ${isDark ? "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-700" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"}`}
                 >
                   导出客观指标 CSV
+                </button>
+                <button
+                  onClick={downloadObjectiveStatsXlsx}
+                  className={`px-3 py-1.5 rounded-lg border text-xs transition ${isDark ? "bg-emerald-900 border-emerald-700 text-emerald-200 hover:bg-emerald-800" : "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"}`}
+                >
+                  导出客观指标 Excel
                 </button>
               </div>
               <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
@@ -7695,6 +7475,90 @@ export default function AudioLabApp() {
                   </div>
                 );
               })()}
+            </div>
+
+            {/* 客观指标可靠性分级 + 主动学习推荐 */}
+            <div className={`rounded-xl p-6 border ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200 shadow-sm"}`}>
+              <div className="flex items-center justify-between mb-4 gap-3">
+                <h3 className={`font-bold ${isDark ? "text-white" : "text-slate-800"}`}>客观指标可靠性分级与主动学习推荐</h3>
+              </div>
+              <p className={`text-xs mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                按同一任务内多个 15 秒片段的 SDR/SIR/SAR 变异系数（CV）评估可靠性：CV ≤ 10% 为「高」、≤ 30% 为「中」、其余为「低」；
+                不确定性最高的任务会被推荐给专家人工复核。
+              </p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                  <h4 className={`text-xs font-semibold mb-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>可靠性分级（颜色编码）</h4>
+                  {!objectiveReliability || !Array.isArray(objectiveReliability.items) || objectiveReliability.items.length === 0 ? (
+                    <div className={`text-xs py-3 ${isDark ? "text-slate-500" : "text-slate-600"}`}>
+                      暂无可靠性数据（需要先为任务计算「片段客观指标误差区间」）。
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-slate-500">
+                            <th className="py-2 pr-3">算法</th>
+                            <th className="py-2 pr-3">声源</th>
+                            <th className="py-2 pr-3">指标</th>
+                            <th className="py-2 pr-3">CV</th>
+                            <th className="py-2">可靠性</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {objectiveReliability.items.map((it, idx) => (
+                            <tr key={idx} className="border-t border-slate-200 dark:border-slate-700">
+                              <td className="py-2 pr-3">{it.algorithm}</td>
+                              <td className="py-2 pr-3">{it.stem_name}</td>
+                              <td className="py-2 pr-3 font-mono">{it.metric}</td>
+                              <td className="py-2 pr-3 font-mono">{(it.mean_cv * 100).toFixed(1)}%</td>
+                              <td className="py-2">
+                                <span
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold text-white"
+                                  style={{ backgroundColor: it.color || "#94a3b8" }}
+                                >
+                                  {it.reliability}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h4 className={`text-xs font-semibold mb-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>主动学习推荐（按不确定性降序）</h4>
+                  {!activeLearningRecs || !Array.isArray(activeLearningRecs.items) || activeLearningRecs.items.length === 0 ? (
+                    <div className={`text-xs py-3 ${isDark ? "text-slate-500" : "text-slate-600"}`}>
+                      暂无推荐（需要先计算任务级「片段客观指标误差区间」以得到不确定性分数）。
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {activeLearningRecs.items.map((it) => (
+                        <div key={it.task_id} className={`rounded-lg border px-3 py-2 ${isDark ? "bg-slate-900/40 border-slate-700/60" : "bg-slate-50 border-slate-200"}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-xs font-medium ${isDark ? "text-slate-200" : "text-slate-700"}`}>
+                              任务 {it.task_id} · {it.algorithm}
+                            </span>
+                            <span className={`text-[11px] font-mono ${it.recommend_expert_review ? "text-amber-500" : "text-slate-400"}`}>
+                              不确定性 {(it.uncertainty_score * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-slate-500 truncate">{it.original_filename}</span>
+                            {it.recommend_expert_review ? (
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold">建议复评</span>
+                            ) : (
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400">稳定</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* 客观指标显著性检验（Wilcoxon） */}

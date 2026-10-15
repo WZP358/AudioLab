@@ -108,6 +108,7 @@ class SeparationTask(Base):
     original_filename = Column(String(255))
     file_path = Column(String(500))
     algorithm = Column(SQLEnum(Algorithm))
+    batch_id = Column(BigInteger, nullable=True, index=True)
     status = Column(SQLEnum(TaskStatus), default=TaskStatus.PENDING)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -120,6 +121,42 @@ class SeparationTask(Base):
     # 结构化任务元数据（JSON字符串）：例如 model_version / si_sdr 等
     metadata_json = Column(Text, nullable=True)
     comment = Column(Text, nullable=True)
+
+
+class SeparationBatch(Base):
+    """一次性把同一首混合音频投给多个算法，全部完成后自动生成盲化样本与实验批次。"""
+    __tablename__ = "separation_batches"
+
+    id = Column(BigInteger, primary_key=True, index=True, default=generate_id)
+    created_by = Column(String(255), nullable=False, index=True)
+    original_filename = Column(String(255), nullable=True)
+    algorithms_json = Column(Text, nullable=True)  # JSON 数组：算法枚举值
+    status = Column(String(20), nullable=False, default="running")  # running / completed / failed
+    auto_blind = Column(Boolean, default=True, nullable=False)
+    auto_objective = Column(Boolean, default=True, nullable=False)
+    auto_experiment = Column(Boolean, default=True, nullable=False)
+    experiment_id = Column(BigInteger, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class ModelOptimizationJob(Base):
+    """S4 增量训练 / S101 结构化剪枝 / S102 量化等长耗时优化任务的状态记录。"""
+    __tablename__ = "model_optimization_jobs"
+
+    id = Column(BigInteger, primary_key=True, index=True, default=generate_id)
+    kind = Column(String(30), nullable=False, index=True)  # incremental_training / pruning / quantization
+    algorithm = Column(SQLEnum(Algorithm), nullable=True)
+    status = Column(String(20), nullable=False, default="queued")  # queued/running/completed/failed
+    created_by = Column(String(255), nullable=False, index=True)
+    config_json = Column(Text, nullable=True)  # 权重/参数等配置
+    output_path = Column(String(500), nullable=True)
+    log_path = Column(String(500), nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class StemFile(Base):
@@ -166,9 +203,14 @@ class Score(Base):
 class BlindSample(Base):
     """真实 15 秒试听样本及其仅后台可见的算法映射。"""
     __tablename__ = "blind_samples"
+    # 同一任务 + 同一声源 + 同一 15 秒时间片只允许一条记录，防止重复生成盲化样本
+    __table_args__ = (
+        UniqueConstraint("task_id", "stem_name", "start_seconds", name="uq_blind_sample_task_stem_start"),
+    )
     id = Column(BigInteger, primary_key=True, index=True, default=generate_id)
     blind_code = Column(String(64), unique=True, index=True, nullable=False)
     task_id = Column(BigInteger, index=True, nullable=False)
+    experiment_id = Column(BigInteger, nullable=True, index=True)
     algorithm = Column(SQLEnum(Algorithm), nullable=False)
     stem_name = Column(String(50), nullable=False, index=True)
     start_seconds = Column(Float, nullable=False, default=0.0)
@@ -354,7 +396,8 @@ def ensure_id(mapper, connection, target):
 # 为所有使用BigInteger主键的模型注册事件监听器
 models_with_snowflake_id = [
     User, PendingUser, EmailVerification, OutboxEmail,
-    SeparationTask, StemFile, BlindSample, Score, StandardLabel, AudioResource,
+    SeparationTask, SeparationBatch, StemFile, BlindSample, Score, StandardLabel, AudioResource,
+    ModelOptimizationJob,
     SystemLog, SystemConfig, Notification, NotificationRead,
     ExpertMessage,
 ]

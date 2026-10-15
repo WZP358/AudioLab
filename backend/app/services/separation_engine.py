@@ -340,7 +340,41 @@ class MSSLocalEngine(SeparationEngine):
         if not self._inference_py.exists():
             raise RuntimeError(f"在 {self._mss_root} 下未找到 inference.py，路径可能不正确。")
 
-        logger.info(f"MSSLocalEngine 初始化完成，MSS_ROOT_DIR={self._mss_root}")
+        self._python = self._resolve_python()
+
+        logger.info(
+            "MSSLocalEngine 初始化完成，MSS_ROOT_DIR=%s, MSS_PYTHON=%s",
+            self._mss_root,
+            self._python,
+        )
+
+    def _resolve_python(self) -> str:
+        """解析运行 inference.py 的 Python 解释器。
+
+        inference.py 依赖 librosa/torch 等重依赖，而后端自身的 .venv 通常不含这些包，
+        因此不能直接使用 sys.executable。解析顺序：
+        1. 环境变量 MSS_PYTHON 指定的解释器（绝对路径）；
+        2. 常见位置下名为 mss 的 conda 环境；
+        3. 兜底使用后端自身的 sys.executable。
+        """
+        env_python = (os.getenv("MSS_PYTHON") or "").strip()
+        if env_python:
+            p = Path(env_python)
+            if p.exists():
+                return str(p)
+            logger.warning("MSS_PYTHON 指向的解释器不存在：%s，将尝试自动探测", env_python)
+
+        candidates = [
+            Path("/mnt/wzp/miniconda3/envs/mss/bin/python"),
+            Path(os.path.expanduser("~/miniconda3/envs/mss/bin/python")),
+            Path("/opt/miniconda3/envs/mss/bin/python"),
+            Path("/usr/local/miniconda3/envs/mss/bin/python"),
+        ]
+        for p in candidates:
+            if p.exists():
+                return str(p)
+
+        return sys.executable
 
     def _resolve_model_spec(self, algorithm: Algorithm) -> Tuple[_MSSModelSpec, Path, Path]:
         if algorithm not in self._MODEL_SPECS:
@@ -409,7 +443,7 @@ class MSSLocalEngine(SeparationEngine):
             file_stem = input_path.stem
 
             cmd = [
-                sys.executable,
+                self._python,
                 str(self._inference_py),
                 "--model_type",
                 spec.model_type,

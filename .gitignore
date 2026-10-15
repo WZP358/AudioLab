@@ -98,3 +98,9 @@ Music-Source-Separation-Training-main/**/*.mp3
 Music-Source-Separation-Training-main/**/*.pth
 Music-Source-Separation-Training-main/**/*.ckpt
 Music-Source-Separation-Training-main/**/*.pt
+
+# Analysis scripts: 结果/日志/重建清单属于产物，不属于源码（*.log 已在上方忽略）
+scripts/*.csv
+scripts/*.json
+scripts/.write_test
+.wtest_*

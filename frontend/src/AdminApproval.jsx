@@ -25,11 +25,22 @@ import {
   Grid,
   List,
   Activity,
+  Database,
+  Download,
+  Tags,
 } from "lucide-react";
 import SystemManagement from "./SystemManagement";
+import StandardLabelsAdmin from "./StandardLabelsAdmin";
 import { useToast } from "./Toast";
 
 const API_BASE = process.env.REACT_APP_API_BASE || (typeof window !== "undefined" ? window.location.origin : "http://localhost:8000");
+
+const ALGO_LIST = ["MDX23C", "Demucs4HT", "Band Split RoFormer", "SCNet"];
+const OPT_KINDS = [
+  { value: "incremental_training", label: "增量训练（S4）" },
+  { value: "pruning", label: "结构化剪枝（S101）" },
+  { value: "quantization", label: "量化（S102）" },
+];
 
 export default function AdminApproval({ token, onClose, defaultTab = "users", embedded = false }) {
   const location = useLocation();
@@ -110,6 +121,33 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   const [experimentName, setExperimentName] = useState("");
   const [creatingExperiment, setCreatingExperiment] = useState(false);
 
+  // 批量分离（自动编排盲化样本/客观指标/实验批次）
+  const [batchForm, setBatchForm] = useState({
+    mixtureFile: null,
+    vocalsFile: null,
+    drumsFile: null,
+    bassFile: null,
+    otherFile: null,
+    algorithms: ["MDX23C", "SCNet"],
+    autoBlind: true,
+    autoObjective: true,
+    autoExperiment: true,
+  });
+  const [creatingBatch, setCreatingBatch] = useState(false);
+  const [batches, setBatches] = useState([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+
+  // 模型优化（S4 增量训练 / S101 剪枝 / S102 量化）
+  const [optForm, setOptForm] = useState({ kind: "incremental_training", algorithm: "SCNet", epochs: "10", sparsity: "0.3" });
+  const [creatingOptJob, setCreatingOptJob] = useState(false);
+  const [optJobs, setOptJobs] = useState([]);
+  const [loadingOptJobs, setLoadingOptJobs] = useState(false);
+
+  // 数据备份（数据库快照，保障评估数据不丢失）
+  const [backups, setBackups] = useState([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [runningBackup, setRunningBackup] = useState(false);
+
   const fetchQualitySummary = async () => {
     setQualitySummaryLoading(true);
     try {
@@ -164,6 +202,116 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
   };
   const [, setEditingScore] = useState(null);
 
+  const createBatch = async () => {
+    if (!batchForm.mixtureFile) { showError("请先选择混合音频文件"); return; }
+    if (!batchForm.algorithms || batchForm.algorithms.length < 2) { showError("批量分离需要至少两种不同算法"); return; }
+    setCreatingBatch(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", batchForm.mixtureFile);
+      fd.append("algorithms", batchForm.algorithms.join(","));
+      fd.append("auto_blind", batchForm.autoBlind ? "true" : "false");
+      fd.append("auto_objective", batchForm.autoObjective ? "true" : "false");
+      fd.append("auto_experiment", batchForm.autoExperiment ? "true" : "false");
+      if (batchForm.vocalsFile) fd.append("vocals_file", batchForm.vocalsFile);
+      if (batchForm.drumsFile) fd.append("drums_file", batchForm.drumsFile);
+      if (batchForm.bassFile) fd.append("bass_file", batchForm.bassFile);
+      if (batchForm.otherFile) fd.append("other_file", batchForm.otherFile);
+      const resp = await fetch(`${API_BASE}/api/separation-batches`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "批量分离任务创建失败");
+      showSuccess(`批量分离已提交：${(data.task_ids || []).length} 个子任务，将自动编排盲化样本/客观指标/实验批次`);
+      setBatchForm((p) => ({ ...p, mixtureFile: null, vocalsFile: null, drumsFile: null, bassFile: null, otherFile: null }));
+      fetchBatches();
+    } catch (e) { showError(e.message || "批量分离任务创建失败"); }
+    finally { setCreatingBatch(false); }
+  };
+
+  const fetchBatches = async () => {
+    setLoadingBatches(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/separation-batches`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "获取批量任务失败");
+      setBatches(Array.isArray(data) ? data : []);
+    } catch (e) { showError(e.message || "获取批量任务失败"); }
+    finally { setLoadingBatches(false); }
+  };
+
+  const createOptJob = async () => {
+    if (!optForm.algorithm) { showError("请选择目标算法"); return; }
+    setCreatingOptJob(true);
+    try {
+      const config = {};
+      if (optForm.kind === "incremental_training" && optForm.epochs) config.epochs = Number(optForm.epochs);
+      if (optForm.kind === "pruning" && optForm.sparsity) config.sparsity = Number(optForm.sparsity);
+      const resp = await fetch(`${API_BASE}/api/optimization/jobs`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: optForm.kind, algorithm: optForm.algorithm, config }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "模型优化任务创建失败");
+      showSuccess(`模型优化任务已提交：${data.kind} / ${data.algorithm}（状态 ${data.status}）`);
+      fetchOptJobs();
+    } catch (e) { showError(e.message || "模型优化任务创建失败"); }
+    finally { setCreatingOptJob(false); }
+  };
+
+  const fetchOptJobs = async () => {
+    setLoadingOptJobs(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/optimization/jobs`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "获取优化任务失败");
+      setOptJobs(Array.isArray(data) ? data : []);
+    } catch (e) { showError(e.message || "获取优化任务失败"); }
+    finally { setLoadingOptJobs(false); }
+  };
+
+  const fetchBackups = async () => {
+    setLoadingBackups(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/backup/list`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "获取备份列表失败");
+      setBackups(Array.isArray(data.backups) ? data.backups : []);
+    } catch (e) { showError(e.message || "获取备份列表失败"); }
+    finally { setLoadingBackups(false); }
+  };
+
+  const runBackupNow = async () => {
+    setRunningBackup(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/backup/run`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "备份失败");
+      showSuccess(`数据库备份完成：${data.backup?.filename || ""}`);
+      fetchBackups();
+    } catch (e) { showError(e.message || "备份失败"); }
+    finally { setRunningBackup(false); }
+  };
+
+  const downloadBackup = async (filename) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/backup/download/${filename}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!resp.ok) throw new Error("下载失败");
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { showError(e.message || "下载备份失败"); }
+  };
+
   // 专家建议列表（管理员侧查看与回复）
   const [expertMessages, setExpertMessages] = useState([]);
   const [expertMessagesTotal, setExpertMessagesTotal] = useState(0);
@@ -191,7 +339,9 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           ? "scores"
           : pathname.startsWith("/admin/system")
             ? "system"
-            : "users";
+            : pathname.startsWith("/admin/labels")
+              ? "labels"
+              : "users";
 
     if (activeTab !== tabFromPath) setActiveTab(tabFromPath);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,7 +359,9 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
           ? "/admin/scores"
           : activeTab === "system"
             ? "/admin/system"
-            : "/admin/users";
+            : activeTab === "labels"
+              ? "/admin/labels"
+              : "/admin/users";
 
     if (activeTab === "system" && pathname.startsWith("/admin/system/")) return;
     if (pathname !== target) navigate(target, { replace: false });
@@ -1009,6 +1161,17 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
         >
           <Music size={18} />
           实验音频
+        </button>
+        <button
+          onClick={() => navigate("/admin/labels")}
+          className={`flex items-center gap-2 px-6 py-4 font-medium transition ${
+            activeTab === "labels"
+              ? "text-cyan-400 border-b-2 border-cyan-400"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+          }`}
+        >
+          <Tags size={18} />
+          听感标签
         </button>
         <button
           onClick={() => navigate("/admin/scores")}
@@ -2147,6 +2310,202 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
             </div>
           ) : activeTab === "scores" ? (
             <div className="space-y-4">
+              {/* 批量分离（自动编排） */}
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1 flex items-center gap-2">
+                  <FileAudio size={20} className="text-emerald-400" />
+                  批量分离（自动编排盲化样本 / 客观指标 / 实验批次）
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">
+                  上传一首混合音频，选择多个算法（并可登记 4 个金标准声源）。全部子任务完成后系统会自动生成 15 秒盲化样本、
+                  计算片段级 SDR 等客观指标并创建平衡对比实验批次分配给专家——无需管理员手动生成样本。
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">混合音频 *</label>
+                    <input type="file" accept="audio/*" onChange={(e) => setBatchForm((p) => ({ ...p, mixtureFile: e.target.files?.[0] || null }))} className="w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">算法（至少两种）</label>
+                    <div className="flex flex-wrap gap-2">
+                      {ALGO_LIST.map((algo) => (
+                        <label key={algo} className="inline-flex items-center gap-1 text-xs cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={batchForm.algorithms.includes(algo)}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...batchForm.algorithms, algo]
+                                : batchForm.algorithms.filter((a) => a !== algo);
+                              setBatchForm((p) => ({ ...p, algorithms: next }));
+                            }}
+                          />
+                          <span className="text-slate-700 dark:text-slate-300">{algo}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">金标准：Vocals（可选）</label>
+                    <input type="file" accept="audio/*" onChange={(e) => setBatchForm((p) => ({ ...p, vocalsFile: e.target.files?.[0] || null }))} className="w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">金标准：Drums（可选）</label>
+                    <input type="file" accept="audio/*" onChange={(e) => setBatchForm((p) => ({ ...p, drumsFile: e.target.files?.[0] || null }))} className="w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">金标准：Bass（可选）</label>
+                    <input type="file" accept="audio/*" onChange={(e) => setBatchForm((p) => ({ ...p, bassFile: e.target.files?.[0] || null }))} className="w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">金标准：Other（可选）</label>
+                    <input type="file" accept="audio/*" onChange={(e) => setBatchForm((p) => ({ ...p, otherFile: e.target.files?.[0] || null }))} className="w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-700" />
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-4">
+                  <label className="inline-flex items-center gap-1 text-xs cursor-pointer text-slate-700 dark:text-slate-300">
+                    <input type="checkbox" checked={batchForm.autoBlind} onChange={(e) => setBatchForm((p) => ({ ...p, autoBlind: e.target.checked }))} />
+                    自动生成盲化样本
+                  </label>
+                  <label className="inline-flex items-center gap-1 text-xs cursor-pointer text-slate-700 dark:text-slate-300">
+                    <input type="checkbox" checked={batchForm.autoObjective} onChange={(e) => setBatchForm((p) => ({ ...p, autoObjective: e.target.checked }))} />
+                    自动计算片段客观指标
+                  </label>
+                  <label className="inline-flex items-center gap-1 text-xs cursor-pointer text-slate-700 dark:text-slate-300">
+                    <input type="checkbox" checked={batchForm.autoExperiment} onChange={(e) => setBatchForm((p) => ({ ...p, autoExperiment: e.target.checked }))} />
+                    自动创建实验批次并分配
+                  </label>
+                  <button onClick={createBatch} disabled={creatingBatch} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm disabled:opacity-50">
+                    {creatingBatch ? "提交中..." : "创建批量分离"}
+                  </button>
+                  <button onClick={fetchBatches} disabled={loadingBatches} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg text-sm disabled:opacity-50">
+                    刷新批量任务
+                  </button>
+                </div>
+                {batches.length > 0 && (
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead><tr className="text-left text-slate-500"><th className="py-2 pr-3">批次ID</th><th className="py-2 pr-3">文件</th><th className="py-2 pr-3">算法</th><th className="py-2 pr-3">状态</th><th className="py-2">实验</th></tr></thead>
+                      <tbody>
+                        {batches.map((b) => (
+                          <tr key={b.id} className="border-t border-slate-200 dark:border-slate-700">
+                            <td className="py-2 pr-3 font-mono">{b.id}</td>
+                            <td className="py-2 pr-3">{b.original_filename}</td>
+                            <td className="py-2 pr-3">{(b.algorithms || []).join(", ")}</td>
+                            <td className="py-2 pr-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${b.status === "completed" ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : b.status === "failed" ? "bg-red-500/20 text-red-600 dark:text-red-400" : "bg-amber-500/20 text-amber-600 dark:text-amber-400"}`}>{b.status}</span>
+                            </td>
+                            <td className="py-2 font-mono">{b.experiment_id || "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 模型优化 */}
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1 flex items-center gap-2">
+                  <Activity size={20} className="text-purple-400" />
+                  模型优化（增量训练 / 剪枝 / 量化）
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">
+                  基于专家主观评分推导「单源定向加权损失」（评分越低的声源损失权重越高），在 GPU 上后台执行增量训练、
+                  结构化剪枝或 INT8 动态量化。长耗时任务，结果与日志会在任务列表中更新。
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">任务类型</label>
+                    <select value={optForm.kind} onChange={(e) => setOptForm((p) => ({ ...p, kind: e.target.value }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-white">
+                      {OPT_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">目标算法</label>
+                    <select value={optForm.algorithm} onChange={(e) => setOptForm((p) => ({ ...p, algorithm: e.target.value }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-white">
+                      {ALGO_LIST.map((algo) => <option key={algo} value={algo}>{algo}</option>)}
+                    </select>
+                  </div>
+                  {optForm.kind === "incremental_training" && (
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-2">训练轮数 epochs</label>
+                      <input type="number" min="1" value={optForm.epochs} onChange={(e) => setOptForm((p) => ({ ...p, epochs: e.target.value }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-white" />
+                    </div>
+                  )}
+                  {optForm.kind === "pruning" && (
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-2">剪枝比例 sparsity</label>
+                      <input type="number" min="0" max="0.95" step="0.05" value={optForm.sparsity} onChange={(e) => setOptForm((p) => ({ ...p, sparsity: e.target.value }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-white" />
+                    </div>
+                  )}
+                  <div className="flex items-end">
+                    <button onClick={createOptJob} disabled={creatingOptJob} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm disabled:opacity-50">
+                      {creatingOptJob ? "提交中..." : "发起优化任务"}
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <button onClick={fetchOptJobs} disabled={loadingOptJobs} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg text-sm disabled:opacity-50">
+                    刷新优化任务
+                  </button>
+                </div>
+                {optJobs.length > 0 && (
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead><tr className="text-left text-slate-500"><th className="py-2 pr-3">任务ID</th><th className="py-2 pr-3">类型</th><th className="py-2 pr-3">算法</th><th className="py-2 pr-3">状态</th><th className="py-2">错误信息</th></tr></thead>
+                      <tbody>
+                        {optJobs.map((j) => (
+                          <tr key={j.id} className="border-t border-slate-200 dark:border-slate-700">
+                            <td className="py-2 pr-3 font-mono">{j.id}</td>
+                            <td className="py-2 pr-3">{j.kind}</td>
+                            <td className="py-2 pr-3">{j.algorithm || "-"}</td>
+                            <td className="py-2 pr-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${j.status === "completed" ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : j.status === "failed" ? "bg-red-500/20 text-red-600 dark:text-red-400" : j.status === "running" ? "bg-blue-500/20 text-blue-600 dark:text-blue-400" : "bg-slate-500/20 text-slate-500"}`}>{j.status}</span>
+                            </td>
+                            <td className="py-2 text-slate-500">{j.error_message || "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 数据备份 */}
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                  <Database size={20} className="text-cyan-400" />
+                  数据备份
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">系统启动时自动备份一次，之后每 24 小时自动备份；专家评分会即时写入数据库，不会丢失。</p>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={runBackupNow} disabled={runningBackup} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+                    {runningBackup ? "备份中..." : "立即备份"}
+                  </button>
+                  <button onClick={fetchBackups} disabled={loadingBackups} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg text-sm disabled:opacity-50">
+                    刷新备份列表
+                  </button>
+                </div>
+                {backups.length > 0 && (
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead><tr className="text-left text-slate-500"><th className="py-2 pr-3">备份文件</th><th className="py-2 pr-3">时间</th><th className="py-2 pr-3">大小</th><th className="py-2">操作</th></tr></thead>
+                      <tbody>
+                        {backups.slice(0, 20).map((b) => (
+                          <tr key={b.filename} className="border-t border-slate-200 dark:border-slate-700">
+                            <td className="py-2 pr-3 font-mono">{b.filename}</td>
+                            <td className="py-2 pr-3">{b.created_at}</td>
+                            <td className="py-2 pr-3">{(b.size_bytes / 1024).toFixed(1)} KB</td>
+                            <td className="py-2"><button onClick={() => downloadBackup(b.filename)} className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded text-cyan-600 dark:text-cyan-400"><Download size={14} />下载</button></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
               {/* 评分筛选器 */}
               <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
@@ -2242,6 +2601,20 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                     className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm"
                   >
                     导出全部主观评分
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const resp = await fetch(`${API_BASE}/api/scores/export-xlsx`, { headers: { Authorization: `Bearer ${token}` } });
+                        if (!resp.ok) throw new Error("导出 Excel 失败");
+                        const blob = await resp.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a"); a.href = url; a.download = "subjective_scores.xlsx"; a.click(); URL.revokeObjectURL(url);
+                      } catch (e) { showError?.(e.message || "导出失败"); }
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm"
+                  >
+                    导出主观评分 Excel
                   </button>
                   <button
                     onClick={async () => {
@@ -2387,6 +2760,8 @@ export default function AdminApproval({ token, onClose, defaultTab = "users", em
                 </div>
               </div>
             </div>
+          ) : activeTab === "labels" ? (
+            <StandardLabelsAdmin token={token} />
           ) : activeTab === "system" ? (
             <SystemManagement token={token} />
           ) : null}

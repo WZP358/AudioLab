@@ -6,6 +6,7 @@ from typing import Optional
 from app.models import SeparationTask, StemFile, TaskStatus, Algorithm
 from app.database import AsyncSessionLocal
 from app.services.separation_engine import build_separation_engine_from_env, clear_task_cancelled
+from app.services.batch_orchestrator import maybe_finalize_batch
 from app.utils.progress import print_progress_text, print_progress_bar
 from app.utils.config_helper import get_config_value
 
@@ -119,6 +120,9 @@ async def process_separation(task_id: int, file_path: str, algorithm: Algorithm,
 
             # 正常结束后清理取消标记
             clear_task_cancelled(task_id)
+
+            # 若属于「批量分离」，尝试在全部子任务完成后自动编排盲化样本/客观指标/实验批次
+            await maybe_finalize_batch(task_id)
         except Exception as e:
             # 区分"用户主动取消"与真实错误，避免把取消当成异常噪音
             msg = f"{type(e).__name__}: {str(e)}"

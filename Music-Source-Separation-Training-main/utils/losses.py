@@ -46,11 +46,29 @@ def multistft_loss(
     return loss_multistft(y1_, y1)
 
 
+def _per_stem_weights_tensor(config) -> Optional[torch.Tensor]:
+    """读取 config.training.per_stem_loss_weights 并按 instruments 顺序转成权重张量。
+
+    单源定向加权损失（专利 S4）：当配置中不存在该字段时返回 None，
+    所有调用方行为与未打补丁时完全一致（向后兼容）。
+    """
+    try:
+        weights_map = config.training.get('per_stem_loss_weights')
+    except Exception:
+        weights_map = None
+    if not weights_map:
+        return None
+    instruments = getattr(config.training, 'instruments', None) or list(weights_map.keys())
+    weights = [float(weights_map.get(inst, 1.0)) for inst in instruments]
+    return torch.tensor(weights, dtype=torch.float32)
+
+
 def masked_loss(
     y_: torch.Tensor,
     y: torch.Tensor,
     q: float,
-    coarse: bool = True
+    coarse: bool = True,
+    weights: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """
     Robust, quantile-masked MSE (“trimmed” MSE).
@@ -77,6 +95,10 @@ def masked_loss(
     loss = loss.reshape(loss.shape[0], -1)
     quantile = torch.quantile(loss.detach(), q, interpolation='linear', dim=1, keepdim=True)
     mask = loss < quantile
+    if weights is not None:
+        # 定向加权：在掩码前对每个声源的损失按主观评分权重缩放（声源维度在最前）
+        weights = weights.to(loss.device, loss.dtype).reshape(-1, 1)
+        loss = loss * weights
     return (loss * mask).mean()
 
 
@@ -299,11 +321,13 @@ def choice_loss(
     loss_fns = []
 
     if 'masked_loss' in args.loss:
+        per_stem_weights = _per_stem_weights_tensor(config)
         loss_fns.append(
             lambda y_pred, y_true, x=None:
             masked_loss(y_pred, y_true,
                         q=config['training']['q'],
-                        coarse=config['training']['coarse_loss_clip'])
+                        coarse=config['training']['coarse_loss_clip'],
+                        weights=per_stem_weights)
             * args.masked_loss_coef
         )
 

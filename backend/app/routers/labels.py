@@ -79,6 +79,29 @@ async def create_label(
     return serialize_label(item)
 
 
+@router.post("/ensure")
+async def ensure_label(
+    payload: LabelPayload,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """专家自定义听感问题标签：若该声源下不存在同名标签则自动创建，幂等返回已有或新建的标签。"""
+    existing = await db.execute(
+        select(StandardLabel).where(
+            StandardLabel.stem_name == payload.stem_name,
+            StandardLabel.label == payload.label,
+        )
+    )
+    item = existing.scalars().first()
+    if item:
+        return serialize_label(item)
+    item = StandardLabel(**payload.model_dump())
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    return serialize_label(item)
+
+
 @router.put("/{label_id}")
 async def update_label(
     label_id: int,
