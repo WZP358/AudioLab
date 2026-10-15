@@ -23,8 +23,17 @@ fi
 
 echo "===== 导出数据库快照（consistent dump，不中断 MySQL）====="
 WORK="$(mktemp -d)"
-"$P/bin/mysqldump" -u root --socket=/var/run/mysqld/mysqld.sock \
-  --single-transaction --routines --triggers --databases audiolab \
+# 便携版只带 mysqld/mysql/mysqladmin，不带 mysqldump；优先用系统里的 mysqldump。
+DUMP_BIN="$(command -v mysqldump || true)"
+[ -z "$DUMP_BIN" ] && [ -x "$P/bin/mysqldump" ] && DUMP_BIN="$P/bin/mysqldump"
+if [ -z "$DUMP_BIN" ]; then
+  echo "未找到 mysqldump，请先 apt-get install -y mysql-client" >&2
+  rm -rf "$WORK"
+  exit 1
+fi
+"$DUMP_BIN" -u root --socket=/var/run/mysqld/mysqld.sock \
+  --single-transaction --routines --triggers --no-tablespaces --set-gtid-purged=OFF \
+  --databases audiolab \
   > "$WORK/audiolab.sql" \
   || { echo "mysqldump 失败（请确认 MySQL 在运行）"; rm -rf "$WORK"; exit 1; }
 echo "  快照大小：$(du -h "$WORK/audiolab.sql" | cut -f1)"
