@@ -9,13 +9,27 @@
 2. 新服务器能访问 GitHub（仓库是私有的，需部署 key）、PyPI/conda 镜像、模型下载地址（GitHub Releases / `dl.fbaipublicfiles.com`）。
 3. 新服务器为 root 用户、Ubuntu 22.04 x86_64。
 
-**第 1 步：在当前服务器打包 MySQL（二进制 + 数据快照）**
+**第 1 步：在当前服务器准备数据库（二选一）**
+
+方式 A —— 只导 SQL 快照（更轻，推荐）：导出 `audiolab.sql` 拷过去即可，新服务器会用 `apt install mysql-server` 自动导入。
+
+```bash
+cd /mnt/wzp/AudioLab
+bash deploy/pack_mysql.sh          # 生成 /mnt/wzp/audiolab-mysql-portable.tar.gz（内含 audiolab.sql）
+# 只取里面的 SQL 文件（454KB）拷过去：
+tar -xzf /mnt/wzp/audiolab-mysql-portable.tar.gz audiolab.sql -O > /mnt/wzp/audiolab.sql
+scp /mnt/wzp/audiolab.sql root@<新服务器IP>:/data/audiolab.sql
+```
+
+方式 B —— 整个便携包（二进制 + 数据，42MB）：新服务器完全免 apt 装 MySQL。
 
 ```bash
 cd /mnt/wzp/AudioLab
 bash deploy/pack_mysql.sh          # 生成 /mnt/wzp/audiolab-mysql-portable.tar.gz
 scp /mnt/wzp/audiolab-mysql-portable.tar.gz root@<新服务器IP>:/data/
 ```
+
+> install.sh 会先找便携包（`/data/audiolab-mysql-portable.tar.gz`），没有便携包但存在 `/data/audiolab.sql` 时，自动改用系统 MySQL 导入。两者都没有则跳过数据库配置。
 
 **第 2 步：在新服务器一键部署**
 

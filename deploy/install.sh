@@ -6,7 +6,7 @@
 #     sudo bash install.sh
 #
 # 它会自动完成：装系统依赖 -> 装 Node -> 装 Miniconda + mss 推理环境 ->
-# 拉取仓库 -> 下载模型权重 -> 恢复便携版 MySQL(可选) -> 建后端 venv ->
+# 拉取仓库 -> 下载模型权重 -> 恢复数据库(便携包或 SQL 快照，可选) -> 建后端 venv ->
 # 生成 .env -> 初始化数据库/账号 -> 构建前端 -> 启动后端(看门狗保活)。
 #
 # 所有步骤幂等，可反复执行；中断后重跑会从断点附近继续。
@@ -26,6 +26,7 @@ MSS_ENV_NAME="${AUDIOLAB_MSS_ENV_NAME:-mss}"
 MYSQL_DIR="${AUDIOLAB_MYSQL_DIR:-/data/portable}"      # 便携版 MySQL 二进制目录
 MYSQL_DATA="${AUDIOLAB_MYSQL_DATA:-/data/mysql-data}"  # 便携版 MySQL 数据目录
 MYSQL_TARBALL="${AUDIOLAB_MYSQL_TARBALL:-/data/audiolab-mysql-portable.tar.gz}"  # pack_mysql.sh 生成的包
+DB_SQL="${AUDIOLAB_DB_SQL:-/data/audiolab.sql}"          # 可选：仅 SQL 快照（不拷便携二进制时，用系统 MySQL 导入）
 
 GIT_REPO="${AUDIOLAB_GIT_REPO:-git@github.com:WZP358/AudioLab.git}"
 GIT_BRANCH="${AUDIOLAB_GIT_BRANCH:-main}"
@@ -231,10 +232,36 @@ download_models() {
 # 6. 便携版 MySQL 恢复
 # -----------------------------------------------------------------------------
 setup_mysql() {
-  step "恢复便携版 MySQL"
+  step "配置数据库（MySQL）"
   if [ ! -f "$MYSQL_TARBALL" ]; then
-    warn "未找到 MySQL 便携包：$MYSQL_TARBALL"
-    warn "请在当前服务器运行 deploy/pack_mysql.sh 生成该包并拷贝到新服务器 $MYSQL_TARBALL，再重跑本脚本。"
+    # —— 方式 B：无便携包时，改用系统 MySQL(apt) + 导入 SQL 快照 ——
+    if [ -f "$DB_SQL" ]; then
+      info "未找到便携包 $MYSQL_TARBALL，改用系统 MySQL + SQL 快照：$DB_SQL"
+      if ! have mysql; then
+        apt-get install -y mysql-server || die "安装 mysql-server 失败"
+      fi
+      systemctl enable --now mysql 2>/dev/null || service mysql start 2>/dev/null || true
+      for i in $(seq 1 30); do mysqladmin ping --silent 2>/dev/null && break; sleep 2; done
+      mysqladmin ping --silent 2>/dev/null || { fail "MySQL 启动失败"; die "MySQL 启动失败"; }
+      mysql -u root < "$DB_SQL" || die "导入 SQL 快照失败：$DB_SQL"
+      info "已导入数据库快照 $DB_SQL"
+      DB_PASS=$(grep -oP '(?<=audiolab:)[^@]+' "$BASE_DIR/backend/.env" 2>/dev/null || true)
+      if [ -n "$DB_PASS" ]; then
+        mysql -u root <<SQL
+CREATE DATABASE IF NOT EXISTS audiolab CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'audiolab'@'localhost' IDENTIFIED BY '$DB_PASS';
+CREATE USER IF NOT EXISTS 'audiolab'@'127.0.0.1' IDENTIFIED BY '$DB_PASS';
+GRANT ALL PRIVILEGES ON audiolab.* TO 'audiolab'@'localhost';
+GRANT ALL PRIVILEGES ON audiolab.* TO 'audiolab'@'127.0.0.1';
+FLUSH PRIVILEGES;
+SQL
+        info "MySQL 账号 audiolab 就绪"
+      fi
+      info "系统 MySQL 已就绪"
+      return 0
+    fi
+    warn "未找到 MySQL 便携包 $MYSQL_TARBALL，也未找到 SQL 快照 $DB_SQL。"
+    warn "请在当前服务器生成其一：deploy/pack_mysql.sh（便携包）或导出 audiolab.sql，拷贝到新服务器后重跑本脚本。"
     warn "本次跳过数据库配置（后端将无法连接 DB）。"
     return 0
   fi
