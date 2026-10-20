@@ -147,7 +147,9 @@ install_conda_env() {
   # 单独从 PyTorch 官方索引装 torch（含 CUDA 运行时依赖），再装其余冻结依赖
   if ! "$py" -c "import torch" >/dev/null 2>&1; then
     info "安装 torch/torchaudio（cu124，约 2.5GB，请耐心等待）"
-    "$py" -m pip install --index-url "$PYTORCH_INDEX_URL" torch==2.6.0 torchaudio==2.6.0 || die "torch 安装失败"
+    "$py" -m pip install --index-url "$PYTORCH_INDEX_URL" torch==2.6.0 torchaudio==2.6.0 \
+      || "$py" -m pip install --index-url "https://mirrors.aliyun.com/pytorch-wheels/cu124" torch==2.6.0 torchaudio==2.6.0 \
+      || die "torch 安装失败（官方索引与阿里云镜像均不可用）"
   fi
   "$py" -m pip install -i "$PIP_INDEX_URL" -r "$BASE_DIR/deploy/requirements-mss.txt" || die "mss 依赖安装失败"
 
