@@ -207,7 +207,9 @@ download_models() {
   mkdir -p "$MODELS_DIR"
 
   dl() { # dl <url> <文件名>
-    local url="$1" name="$2" out="$MODELS_DIR/$name"
+    local url="$1"
+    local name="$2"
+    local out="$MODELS_DIR/$name"
     if [ -s "$out" ]; then
       info "已存在，跳过：$name"
       return 0
